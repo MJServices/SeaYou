@@ -1,0 +1,34 @@
+name: seayou_app
+description: A dating app with anonymous messaging feature
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # Note: Download Montserrat fonts from https://fonts.google.com/specimen/Montserrat
+  # Place in assets/fonts/ folder and uncomment below
+  # fonts:
+  #   - family: Montserrat
+  #     fonts:
+  #       - asset: assets/fonts/Montserrat-Regular.ttf
+  #       - asset: assets/fonts/Montserrat-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Montserrat-SemiBold.ttf
+  #         weight: 600
