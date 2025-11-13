@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'create_password_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
@@ -48,58 +47,60 @@ class _VerificationScreenState extends State<VerificationScreen> {
           ),
           SafeArea(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CustomStatusBar(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Enter verification code',
-                        style: AppTextStyles.displayText,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'A verification code has be sent to ${widget.email}',
-                        style: AppTextStyles.bodyText,
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(
-                          6,
-                          (index) => _buildCodeField(index),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          alignment: Alignment.centerLeft,
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Resend code on 00:20',
-                        style: AppTextStyles.bodyText,
-                      ),
-                      const SizedBox(height: 400),
-                      CustomButton(
-                        text: 'Verifying',
-                        isActive: _isCodeComplete(),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const CreatePasswordScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Enter verification code',
+                          style: AppTextStyles.displayText,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'A verification code has be sent to ${widget.email}',
+                          style: AppTextStyles.bodyText,
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(
+                            6,
+                            (index) => _buildCodeField(index),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Resend code on 00:20',
+                          style: AppTextStyles.bodyText,
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: CustomButton(
+                    text: 'Verifying',
+                    isActive: _isCodeComplete(),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreatePasswordScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

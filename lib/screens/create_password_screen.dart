@@ -3,7 +3,6 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
-import '../widgets/status_bar.dart';
 import 'profile_info_screen.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
@@ -68,7 +67,6 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CustomStatusBar(),
                     IconButton(
                       icon: const Icon(Icons.arrow_back),
                       onPressed: () => Navigator.pop(context),

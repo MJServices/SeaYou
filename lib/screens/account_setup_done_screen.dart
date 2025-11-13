@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'home_screen.dart';
 
 class AccountSetupDoneScreen extends StatelessWidget {
@@ -50,7 +49,6 @@ class AccountSetupDoneScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CustomStatusBar(),
                     const SizedBox(height: 16),
                     const Text(
                       'Your profile has been created!',

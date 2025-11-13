@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'language_selection_screen.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -94,7 +93,6 @@ class SplashScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(),
                 const Spacer(),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),

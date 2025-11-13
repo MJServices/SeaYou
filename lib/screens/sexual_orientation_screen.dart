@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'expectations_screen.dart';
 
 class SexualOrientationScreen extends StatefulWidget {
@@ -54,7 +53,6 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

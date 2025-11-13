@@ -3,7 +3,6 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
-import '../widgets/status_bar.dart';
 import 'verification_screen.dart';
 
 class CreateAccountScreen extends StatefulWidget {
@@ -59,7 +58,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CustomStatusBar(),
                     const SizedBox(height: 16),
                     const Text(
                       'Create an account',

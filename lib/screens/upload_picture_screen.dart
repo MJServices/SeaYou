@@ -1,12 +1,65 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'account_setup_done_screen.dart';
 
-class UploadPictureScreen extends StatelessWidget {
+class UploadPictureScreen extends StatefulWidget {
   const UploadPictureScreen({super.key});
+
+  @override
+  State<UploadPictureScreen> createState() => _UploadPictureScreenState();
+}
+
+class _UploadPictureScreenState extends State<UploadPictureScreen> {
+  final ImagePicker _picker = ImagePicker();
+  XFile? _selectedImage;
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (photo != null) {
+        setState(() {
+          _selectedImage = photo;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error taking photo: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +88,6 @@ class UploadPictureScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
@@ -79,21 +131,32 @@ class UploadPictureScreen extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Container(
-                  width: 300,
-                  height: 300,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.lightPurple,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'A',
-                      style: AppTextStyles.largeTitle.copyWith(
-                        fontSize: 80,
-                        color: AppColors.purple,
-                      ),
+                GestureDetector(
+                  onTap: _pickImageFromGallery,
+                  child: Container(
+                    width: 300,
+                    height: 300,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.lightPurple,
+                      image: _selectedImage != null
+                          ? DecorationImage(
+                              image: FileImage(File(_selectedImage!.path)),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
+                    child: _selectedImage == null
+                        ? Center(
+                            child: Text(
+                              'A',
+                              style: AppTextStyles.largeTitle.copyWith(
+                                fontSize: 80,
+                                color: AppColors.purple,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
                 ),
                 const Spacer(),
@@ -103,15 +166,12 @@ class UploadPictureScreen extends StatelessWidget {
                     children: [
                       CustomButton(
                         text: 'Upload from gallery',
-                        onPressed: () {
-                          // Handle gallery upload
-                        },
+                        onPressed: _pickImageFromGallery,
                       ),
                       const SizedBox(height: 16),
-                      const CustomButton(
+                      CustomButton(
                         text: 'Take photo',
-                        isActive: false,
-                        onPressed: null,
+                        onPressed: _takePhoto,
                       ),
                       const SizedBox(height: 16),
                     ],

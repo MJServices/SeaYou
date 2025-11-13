@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/status_bar.dart';
 import 'interests_screen.dart';
 
 class ExpectationsScreen extends StatefulWidget {
@@ -57,7 +56,6 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

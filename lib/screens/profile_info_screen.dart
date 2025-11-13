@@ -3,7 +3,6 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
-import '../widgets/status_bar.dart';
 import 'sexual_orientation_screen.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
@@ -68,7 +67,6 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
