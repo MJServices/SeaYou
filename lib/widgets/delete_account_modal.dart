@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import '../utils/app_colors.dart';
-import '../utils/app_text_styles.dart';
-import 'custom_button.dart';
+// Removed unused imports
 
 /// Delete Account Modal - Confirmation dialog for deleting account
 class DeleteAccountModal extends StatelessWidget {

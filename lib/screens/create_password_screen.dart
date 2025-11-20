@@ -3,6 +3,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'profile_info_screen.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
@@ -39,9 +40,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
+      body: WarmGradientBackground(
+        child: Stack(
+          children: [
           Positioned(
             left: 0,
             top: -303,
@@ -129,6 +130,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

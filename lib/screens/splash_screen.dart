@@ -1,58 +1,71 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import 'language_selection_screen.dart';
 import '../widgets/status_bar.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  late VideoPlayerController _controller;
+  bool _isVideoInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
+      ..initialize().then((_) {
+        setState(() {
+          _isVideoInitialized = true;
+        });
+        _controller.setLooping(true);
+        _controller.play();
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // Fullscreen bottle image background
+          // Fullscreen video background
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/onboarding.jpeg',
-              fit: BoxFit.cover,
-            ),
+            child: _isVideoInitialized
+                ? FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _controller.value.size.width,
+                      height: _controller.value.size.height,
+                      child: VideoPlayer(_controller),
+                    ),
+                  )
+                : Container(color: Colors.black),
           ),
 
-          // Top dark overlay for header text
+          // Subtle gradient overlays
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: Container(
-              height: 160,
+              height: 200,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.6),
+                    Colors.black.withOpacity(0.3),
                     Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Bottom pink gradient overlay - extends from middle to bottom
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 280,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    const Color(0xFFFFE8E8).withOpacity(0.8),
-                    const Color(0xFFFFD4D4),
                   ],
                 ),
               ),
@@ -68,39 +81,41 @@ class SplashScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // SeaYou Logo/Title
-                      Text(
-                        'SeaYou',
+                      // SeaYou Logo/Title with serif font
+                      const Text(
+                        'Sea You',
                         style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 40,
-                          fontWeight: FontWeight.w700,
+                          fontFamily: 'serif',
+                          fontSize: 48,
+                          fontWeight: FontWeight.w400,
                           color: Colors.white,
+                          letterSpacing: 1.2,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withOpacity(0.6),
-                              blurRadius: 14,
-                              offset: const Offset(0, 3),
+                              color: Colors.black38,
+                              blurRadius: 12,
+                              offset: Offset(0, 2),
                             ),
                           ],
-                        ),
+          ),
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
 
-                      Text(
+                      const Text(
                         'Let romance go',
                         style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white.withOpacity(0.95),
+                          fontFamily: 'serif',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w300,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withOpacity(0.4),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                              color: Colors.black26,
+                              blurRadius: 8,
+                              offset: Offset(0, 1),
                             ),
                           ],
                         ),
@@ -112,117 +127,122 @@ class SplashScreen extends StatelessWidget {
 
                 const Spacer(),
 
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x00FFFFFF),
-                        Color(0xFFFFE8E8),
-                        Color(0xFFFFCFC8),
-                      ],
-                    ),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // White card with profiles and progress bar
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: Row(
                           children: [
+                            // Left profile picture
                             Container(
-                              width: 44,
-                              height: 44,
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 image: const DecorationImage(
                                   image: AssetImage('assets/images/profile_avatar.png'),
                                   fit: BoxFit.cover,
                                 ),
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Feeling 100%',
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF737373),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Stack(
-                                    children: [
-                                      Container(
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(4),
-                                          color: const Color(0xFFEDEDED),
-                                        ),
-                                      ),
-                                      Container(
-                                        height: 8,
-                                        width: MediaQuery.of(context).size.width * 0.35,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(4),
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFFFF9A8B),
-                                              Color(0xFFFFB5A7),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(width: 12),
+                            // Progress bar section
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Feeling 100%',
+                                    style: TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF666666),
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Gradient progress bar
+                                  Container(
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(3),
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFFB347),
+                                          Color(0xFFFF6EC7),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Heart icon
                             const Icon(
                               Icons.favorite,
-                              color: Color(0xFFFF6D68),
-                              size: 24,
+                              color: Color(0xFFFF6B9D),
+                              size: 22,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
+                            // Right profile picture
                             Container(
-                              width: 44,
-                              height: 44,
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 image: const DecorationImage(
                                   image: AssetImage('assets/images/profile_avatar.png'),
                                   fit: BoxFit.cover,
                                 ),
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
 
+                      // Sign up button
                       GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -233,27 +253,28 @@ class SplashScreen extends StatelessWidget {
                           );
                         },
                         child: Container(
-                          height: 48,
+                          height: 52,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFFFFE0EB),
-                                Color(0xFFFFCFE1),
-                              ],
-                            ),
+                            borderRadius: BorderRadius.circular(26),
+                            color: const Color(0xFFFFD4E5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           alignment: Alignment.center,
                           child: const Text(
                             "S'inscrire gratuitement",
                             style: TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFFB56E85),
+                              color: Color(0xFFD4788D),
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),

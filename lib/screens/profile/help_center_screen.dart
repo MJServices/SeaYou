@@ -3,7 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
-import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 
 /// Help Center Screen - Contact support for technical issues

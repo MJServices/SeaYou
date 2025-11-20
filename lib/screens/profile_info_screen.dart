@@ -3,6 +3,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'sexual_orientation_screen.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
@@ -43,9 +44,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
+      body: WarmGradientBackground(
+        child: Stack(
+          children: [
           Positioned(
             left: 0,
             top: -303,
@@ -180,6 +181,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
           ),
         ],
       ),
+    )
     );
   }
 

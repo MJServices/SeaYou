@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/warm_gradient_background.dart';
-import '../utils/app_colors.dart';
-import '../utils/app_text_styles.dart';
 import 'home_screen.dart';
 import 'chat/chat_screen.dart';
 import 'profile/edit_bio_screen.dart';
@@ -163,11 +161,11 @@ class ProfileScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Expanded(
+                            const Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Upgrade to Pro',
                                     style: TextStyle(
                                       fontFamily: 'Montserrat',
@@ -176,8 +174,8 @@ class ProfileScreen extends StatelessWidget {
                                       color: Color(0xFF363636),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  const Text(
+                                  SizedBox(height: 4),
+                                  Text(
                                     'Unlock premium reserved just for YOU.',
                                     style: TextStyle(
                                       fontFamily: 'Montserrat',

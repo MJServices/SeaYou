@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'upload_picture_screen.dart';
 
 class InterestsScreen extends StatefulWidget {
@@ -110,9 +111,9 @@ class _InterestsScreenState extends State<InterestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
+      body: WarmGradientBackground(
+        child: Stack(
+          children: [
           Positioned(
             left: 0,
             top: -303,
@@ -228,6 +229,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
           ),
         ],
       ),
+    )
     );
   }
 

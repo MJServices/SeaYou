@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
-import 'custom_text_field.dart';
 import 'custom_button.dart';
 
 /// Rate SeaYou Modal - Allows users to rate the app

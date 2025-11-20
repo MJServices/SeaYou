@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'create_password_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
@@ -24,9 +25,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
+      body: WarmGradientBackground(
+        child: Stack(
+          children: [
           Positioned(
             left: 0,
             top: -303,
@@ -108,6 +109,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

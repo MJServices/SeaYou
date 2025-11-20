@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import '../utils/app_colors.dart';
-import '../utils/app_text_styles.dart';
+// Removed unused imports
 import 'custom_button.dart';
 
 /// Sign Out Modal - Confirmation dialog for signing out

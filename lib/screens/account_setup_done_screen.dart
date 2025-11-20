@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'home_screen.dart';
 
 class AccountSetupDoneScreen extends StatelessWidget {
@@ -10,9 +11,9 @@ class AccountSetupDoneScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
+      body: WarmGradientBackground(
+        child: Stack(
+          children: [
           // Background decorative circle
           Positioned(
             left: 0,
@@ -113,6 +114,7 @@ class AccountSetupDoneScreen extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
