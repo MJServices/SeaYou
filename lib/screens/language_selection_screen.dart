@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'create_account_screen.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
@@ -18,64 +19,43 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
+      body: WarmGradientBackground(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 15),
+                child: Text(
+                  'Select a language',
+                  style: AppTextStyles.displayText,
+                ),
               ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 16),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 15),
-                  child: Text(
-                    'Select a language',
-                    style: AppTextStyles.displayText,
-                  ),
+              const SizedBox(height: 32),
+              _buildLanguageOption('English (device\'s language)', true),
+              _buildLanguageOption('French', false),
+              _buildLanguageOption('German', false),
+              _buildLanguageOption('Spanish', false),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: CustomButton(
+                  text: 'Continue',
+                  isActive: selectedLanguage != null,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateAccountScreen(),
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(height: 32),
-                _buildLanguageOption('English (device\'s language)', true),
-                _buildLanguageOption('French', false),
-                _buildLanguageOption('German', false),
-                _buildLanguageOption('Spanish', false),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: CustomButton(
-                    text: 'Continue',
-                    isActive: selectedLanguage != null,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const CreateAccountScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

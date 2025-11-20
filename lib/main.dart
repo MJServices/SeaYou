@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
+// import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +29,9 @@ class SeaYouApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
+      // Onboarding enabled - starts with splash screen
       home: const SplashScreen(),
+      // home: const HomeScreen(), // Uncomment to skip onboarding for development
     );
   }
 }

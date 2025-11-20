@@ -1,0 +1,13 @@
+{
+	"servers": {
+		"Figma": {
+			"command": "npx",
+			"args": [
+				"figma-mcp",
+				"--apiKey",
+				"figd_WqN7aoYgGIzWMydB4knEjfFNZW7xT3O-EIhJA9Po"
+			]
+		}
+	},
+	"inputs": []
+}

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../utils/app_colors.dart';
-import '../utils/app_text_styles.dart';
-import '../widgets/custom_button.dart';
 import 'language_selection_screen.dart';
+import '../widgets/status_bar.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -10,121 +8,256 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: Stack(
         children: [
-          // Background decorative circles
+          // Fullscreen bottle image background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/onboarding.jpeg',
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          // Top dark overlay for header text
           Positioned(
-            left: 1,
-            top: 105,
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
-              width: 400,
-              height: 400,
+              height: 160,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 101,
-            top: 184,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.yellow,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 124,
-            top: 209,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 151,
-            top: 234,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.white,
-              ),
-              child: Center(
-                child: Text(
-                  'SeaYou',
-                  style: AppTextStyles.largeTitle.copyWith(
-                    color: AppColors.white,
-                  ),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.6),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
           ),
-          // Profile images scattered
-          _buildProfileImage(176, 259, 50),
-          _buildProfileImage(268, 159, 50),
-          _buildProfileImage(74, 383, 50),
-          _buildProfileImage(27, 198, 50),
-          _buildProfileImage(243, 458, 50),
-          _buildProfileImage(129, 524, 50),
-          _buildProfileImage(317, 333, 50),
-          // Interest tags
-          _buildInterestTag('K-dramas', 226, 505),
-          _buildInterestTag('Anime', 17, 240),
-          _buildInterestTag('Sports', 301, 140),
-          _buildInterestTag('You', 178, 305),
-          // Main content
+
+          // Bottom pink gradient overlay - extends from middle to bottom
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 280,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    const Color(0xFFFFE8E8).withOpacity(0.8),
+                    const Color(0xFFFFD4D4),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           SafeArea(
             child: Column(
               children: [
-                const Spacer(),
+                const CustomStatusBar(color: Colors.white),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Text(
-                        'What if your next encounter began with an emotion?',
-                        style: AppTextStyles.mediumTitle,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
+                      // SeaYou Logo/Title
                       Text(
-                        'Sign up on SeaYou app to meet your next best person',
-                        style: AppTextStyles.bodyText.copyWith(
-                          color: AppColors.darkGrey,
+                        'SeaYou',
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 40,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.6),
+                              blurRadius: 14,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
-                      CustomButton(
-                        text: 'Get Started',
-                        onPressed: () {
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        'Let romance go',
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white.withOpacity(0.95),
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.4),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00FFFFFF),
+                        Color(0xFFFFE8E8),
+                        Color(0xFFFFCFC8),
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                image: const DecorationImage(
+                                  image: AssetImage('assets/images/profile_avatar.png'),
+                                  fit: BoxFit.cover,
+                                ),
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Feeling 100%',
+                                    style: TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF737373),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(4),
+                                          color: const Color(0xFFEDEDED),
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 8,
+                                        width: MediaQuery.of(context).size.width * 0.35,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(4),
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFFFF9A8B),
+                                              Color(0xFFFFB5A7),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(
+                              Icons.favorite,
+                              color: Color(0xFFFF6D68),
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                image: const DecorationImage(
+                                  image: AssetImage('assets/images/profile_avatar.png'),
+                                  fit: BoxFit.cover,
+                                ),
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      GestureDetector(
+                        onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const LanguageSelectionScreen(),
+                              builder: (context) => const LanguageSelectionScreen(),
                             ),
                           );
                         },
+                        child: Container(
+                          height: 48,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFFFE0EB),
+                                Color(0xFFFFCFE1),
+                              ],
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            "S'inscrire gratuitement",
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFB56E85),
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -132,42 +265,6 @@ class SplashScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildProfileImage(double left, double top, double size) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.grey[300],
-          border: Border.all(color: AppColors.primary, width: 4),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInterestTag(String text, double left, double top) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(40),
-        ),
-        child: Text(
-          text,
-          style: AppTextStyles.labelText.copyWith(
-            color: AppColors.white,
-          ),
-        ),
       ),
     );
   }

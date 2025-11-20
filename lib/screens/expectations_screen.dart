@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'interests_screen.dart';
 
 class ExpectationsScreen extends StatefulWidget {
@@ -32,93 +33,72 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
+      body: WarmGradientBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
+                      ),
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'What are you looking for?',
+                            style: AppTextStyles.displayText,
+                          ),
+                          Text(
+                            '3/5',
+                            style: AppTextStyles.bodyText,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Tell us your expectations so we can personalize your experience',
+                        style: AppTextStyles.bodyText,
+                      ),
+                      const SizedBox(height: 24),
+                      ...expectations.map((exp) => _buildOption(exp, true)),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Who do you want to meet?',
+                        style: AppTextStyles.displayText,
+                      ),
+                      const SizedBox(height: 24),
+                      ...genders.map((gender) => _buildOption(gender, false)),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => Navigator.pop(context),
-                          padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
-                        ),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'What are you looking for?',
-                              style: AppTextStyles.displayText,
-                            ),
-                            Text(
-                              '3/5',
-                              style: AppTextStyles.bodyText,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Tell us your expectations so we can personalize your experience',
-                          style: AppTextStyles.bodyText,
-                        ),
-                        const SizedBox(height: 24),
-                        ...expectations.map((exp) => _buildOption(exp, true)),
-                        const SizedBox(height: 32),
-                        const Text(
-                          'Who do you want to meet?',
-                          style: AppTextStyles.displayText,
-                        ),
-                        const SizedBox(height: 24),
-                        ...genders.map((gender) => _buildOption(gender, false)),
-                      ],
-                    ),
-                  ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: CustomButton(
+                  text: 'Next',
+                  isActive:
+                      selectedExpectation != null && selectedGender != null,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InterestsScreen(),
+                      ),
+                    );
+                  },
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: CustomButton(
-                    text: 'Next',
-                    isActive:
-                        selectedExpectation != null && selectedGender != null,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const InterestsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -5,7 +5,7 @@ void main() {
   testWidgets('App starts with splash screen', (WidgetTester tester) async {
     await tester.pumpWidget(const SeaYouApp());
 
-    expect(find.text('Get Started'), findsOneWidget);
+    expect(find.text("S'inscrire gratuitement"), findsOneWidget);
   });
 
   testWidgets('Splash screen has status bar', (WidgetTester tester) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'expectations_screen.dart';
 
 class SexualOrientationScreen extends StatefulWidget {
@@ -29,143 +30,121 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => Navigator.pop(context),
-                          padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
-                        ),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'What is your sexual orientation?',
-                                style: AppTextStyles.displayText,
-                              ),
+      body: WarmGradientBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
+                      ),
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'What is your sexual orientation?',
+                              style: AppTextStyles.displayText,
                             ),
-                            Text(
-                              '2/5',
+                          ),
+                          Text(
+                            '2/5',
+                            style: AppTextStyles.bodyText,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Select all the options that describe your identity.',
+                        style: AppTextStyles.bodyText,
+                      ),
+                      const SizedBox(height: 24),
+                      ...orientations
+                          .map((orientation) => _buildOption(orientation)),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Sexual orientation not listed here?',
+                        style: AppTextStyles.bodyText,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.grey, width: 0.8),
+                        ),
+                        child: const Text(
+                          'Input sexual orientation',
+                          style: AppTextStyles.bodyText,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _showOnProfile = !_showOnProfile;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _showOnProfile
+                                      ? AppColors.primary
+                                      : AppColors.grey,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(1),
+                              ),
+                              child: _showOnProfile
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 12,
+                                      color: AppColors.primary,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Show my sexual orientation on profile',
                               style: AppTextStyles.bodyText,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Select all the options that describe your identity.',
-                          style: AppTextStyles.bodyText,
-                        ),
-                        const SizedBox(height: 24),
-                        ...orientations
-                            .map((orientation) => _buildOption(orientation)),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Sexual orientation not listed here?',
-                          style: AppTextStyles.bodyText,
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: AppColors.grey, width: 0.8),
-                          ),
-                          child: const Text(
-                            'Input sexual orientation',
-                            style: AppTextStyles.bodyText,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _showOnProfile = !_showOnProfile;
-                            });
-                          },
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: _showOnProfile
-                                        ? AppColors.primary
-                                        : AppColors.grey,
-                                    width: 1.5,
-                                  ),
-                                  borderRadius: BorderRadius.circular(1),
-                                ),
-                                child: _showOnProfile
-                                    ? const Icon(
-                                        Icons.check,
-                                        size: 12,
-                                        color: AppColors.primary,
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Show my sexual orientation on profile',
-                                style: AppTextStyles.bodyText,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: CustomButton(
-                    text: 'Next',
-                    isActive: _selectedOrientations.isNotEmpty,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ExpectationsScreen(),
-                        ),
-                      );
-                    },
-                  ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: CustomButton(
+                  text: 'Next',
+                  isActive: _selectedOrientations.isNotEmpty,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ExpectationsScreen(),
+                      ),
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
