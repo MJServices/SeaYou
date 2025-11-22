@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'create_password_screen.dart';
+import 'home_screen.dart';
+import '../services/auth_service.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
+  final String? selectedLanguage;
+  final bool isSignIn; // true for sign-in, false for sign-up
 
-  const VerificationScreen({super.key, required this.email});
+  const VerificationScreen({
+    super.key, 
+    required this.email,
+    this.selectedLanguage,
+    this.isSignIn = false, // Default to sign-up flow
+  });
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -17,10 +27,54 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final List<TextEditingController> _controllers = List.generate(
-    6,
+    8,
     (index) => TextEditingController(),
   );
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(8, (index) => FocusNode());
+  
+  int _resendCountdown = 60;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    _resendCountdown = 60;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_resendCountdown > 0) {
+        setState(() {
+          _resendCountdown--;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<void> _resendOtp() async {
+    try {
+      await AuthService().signInWithEmail(widget.email);
+      _startCountdown();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification code sent!'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to resend code: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +129,34 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(
-                            6,
+                            8,
                             (index) => _buildCodeField(index),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          'Resend code on 00:20',
-                          style: AppTextStyles.bodyText,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _resendCountdown > 0
+                                  ? 'Resend code in 00:${_resendCountdown.toString().padLeft(2, '0')}'
+                                  : 'Didn\'t receive the code?',
+                              style: AppTextStyles.bodyText,
+                            ),
+                            if (_resendCountdown == 0) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: _resendOtp,
+                                child: Text(
+                                  'Resend',
+                                  style: AppTextStyles.bodyText.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -94,13 +168,52 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   child: CustomButton(
                     text: 'Verifying',
                     isActive: _isCodeComplete(),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const CreatePasswordScreen(),
-                        ),
-                      );
+                    onPressed: () async {
+                      final code = _controllers.map((c) => c.text).join();
+                      try {
+                        await AuthService().verifyOtp(widget.email, code);
+                        
+                        if (context.mounted) {
+                          if (widget.isSignIn) {
+                            // For sign-in, go directly to home screen
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                              (route) => false,
+                            );
+                          } else {
+                            // For sign-up, proceed to create password
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CreatePasswordScreen(
+                                  email: widget.email,
+                                  selectedLanguage: widget.selectedLanguage,
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          String errorMessage = 'Invalid or expired code. Please try again.';
+                          
+                          // Provide more specific error messages
+                          if (e.toString().contains('expired')) {
+                            errorMessage = 'Code has expired. Please request a new one.';
+                          } else if (e.toString().contains('invalid')) {
+                            errorMessage = 'Invalid code. Please check and try again.';
+                          }
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(errorMessage),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      }
                     },
                   ),
                 ),
@@ -115,8 +228,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Widget _buildCodeField(int index) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
@@ -141,7 +254,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         onChanged: (value) {
-          if (value.isNotEmpty && index < 5) {
+          if (value.isNotEmpty && index < 7) {
             _focusNodes[index + 1].requestFocus();
           }
           setState(() {});
@@ -156,6 +269,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     for (var controller in _controllers) {
       controller.dispose();
     }

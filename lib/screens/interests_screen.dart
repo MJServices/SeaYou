@@ -4,9 +4,19 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'upload_picture_screen.dart';
+import '../models/user_profile.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 
 class InterestsScreen extends StatefulWidget {
-  const InterestsScreen({super.key});
+  final UserProfile userProfile;
+  final bool isEditMode;
+
+  const InterestsScreen({
+    super.key, 
+    required this.userProfile,
+    this.isEditMode = false,
+  });
 
   @override
   State<InterestsScreen> createState() => _InterestsScreenState();
@@ -109,6 +119,14 @@ class _InterestsScreenState extends State<InterestsScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.userProfile.interests != null) {
+      _selectedInterests.addAll(widget.userProfile.interests!);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: WarmGradientBackground(
@@ -149,36 +167,42 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         'Interests',
                         style: AppTextStyles.displayText,
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const UploadPictureScreen(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Skip',
-                          style: AppTextStyles.bodyText,
-                        ),
-                      ),
+                      if (!widget.isEditMode)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UploadPictureScreen(
+                                  userProfile: widget.userProfile,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Skip',
+                            style: AppTextStyles.bodyText,
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 48), // Spacer to balance the back button
                     ],
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Select at least two',
                         style: AppTextStyles.labelText,
                       ),
-                      Text(
-                        '4/5',
-                        style: AppTextStyles.bodyText,
-                      ),
+                      if (!widget.isEditMode)
+                        const Text(
+                          '4/5',
+                          style: AppTextStyles.bodyText,
+                        ),
                     ],
                   ),
                 ),
@@ -212,15 +236,40 @@ class _InterestsScreenState extends State<InterestsScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: CustomButton(
-                    text: 'Next',
+                    text: widget.isEditMode ? 'Save' : 'Next',
                     isActive: _selectedInterests.length >= 2,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UploadPictureScreen(),
-                        ),
-                      );
+                    onPressed: () async {
+                      widget.userProfile.interests = _selectedInterests;
+                      
+                      if (widget.isEditMode) {
+                        // Update DB
+                        try {
+                          final user = AuthService().currentUser;
+                          if (user != null) {
+                            await DatabaseService().updateProfile(user.id, {
+                              'interests': _selectedInterests,
+                            });
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error updating profile: $e')),
+                            );
+                          }
+                        }
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => UploadPictureScreen(
+                              userProfile: widget.userProfile,
+                            ),
+                          ),
+                        );
+                      }
                     },
                   ),
                 ),

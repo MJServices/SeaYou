@@ -6,9 +6,14 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'account_setup_done_screen.dart';
+import '../models/user_profile.dart';
+
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 
 class UploadPictureScreen extends StatefulWidget {
-  const UploadPictureScreen({super.key});
+  final UserProfile userProfile;
+  const UploadPictureScreen({super.key, required this.userProfile});
 
   @override
   State<UploadPictureScreen> createState() => _UploadPictureScreenState();
@@ -62,12 +67,60 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
     }
   }
 
+  bool _isLoading = false;
+
+  Future<void> _proceedToNextScreen() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      if (_selectedImage != null) {
+        final user = AuthService().currentUser;
+        if (user != null) {
+          final file = File(_selectedImage!.path);
+          final url = await DatabaseService().uploadAvatar(user.id, file);
+          if (url != null) {
+            widget.userProfile.avatarUrl = url;
+          }
+        }
+      }
+      
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AccountSetupDoneScreen(
+              userProfile: widget.userProfile,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(
           children: [
+            if (_isLoading)
+              const Center(
+                child: CircularProgressIndicator(color: AppColors.white),
+              ),
             Positioned(
               left: 0,
               top: -303,
@@ -107,15 +160,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                               style: AppTextStyles.displayText,
                             ),
                             TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const AccountSetupDoneScreen(),
-                                  ),
-                                );
-                              },
+                              onPressed: _proceedToNextScreen,
                               child: const Text(
                                 'Skip',
                                 style: AppTextStyles.bodyText,
@@ -167,12 +212,22 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                       children: [
                         CustomButton(
                           text: 'Upload from gallery',
-                          onPressed: _pickImageFromGallery,
+                          onPressed: () async {
+                            await _pickImageFromGallery();
+                            if (_selectedImage != null) {
+                              _proceedToNextScreen();
+                            }
+                          },
                         ),
                         const SizedBox(height: 16),
                         CustomButton(
                           text: 'Take photo',
-                          onPressed: _takePhoto,
+                          onPressed: () async {
+                            await _takePhoto();
+                            if (_selectedImage != null) {
+                              _proceedToNextScreen();
+                            }
+                          },
                         ),
                         const SizedBox(height: 16),
                       ],

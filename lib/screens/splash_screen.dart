@@ -64,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.3),
+                    Colors.black.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -76,13 +76,13 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               children: [
                 const CustomStatusBar(color: Colors.white),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // SeaYou Logo/Title with serif font
-                      const Text(
+                      Text(
                         'Sea You',
                         style: TextStyle(
                           fontFamily: 'serif',
@@ -97,13 +97,13 @@ class _SplashScreenState extends State<SplashScreen> {
                               offset: Offset(0, 2),
                             ),
                           ],
-          ),
+                        ),
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
 
-                      const Text(
+                      Text(
                         'Let romance go',
                         style: TextStyle(
                           fontFamily: 'serif',
@@ -140,7 +140,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
+                              color: Colors.black.withValues(alpha: 0.08),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
@@ -164,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -229,7 +229,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -260,7 +260,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             color: const Color(0xFFFFD4E5),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),

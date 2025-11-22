@@ -5,9 +5,13 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'verification_screen.dart';
+import 'sign_in_options_screen.dart';
+import '../services/auth_service.dart';
 
 class CreateAccountScreen extends StatefulWidget {
-  const CreateAccountScreen({super.key});
+  final String selectedLanguage;
+  
+  const CreateAccountScreen({super.key, required this.selectedLanguage});
 
   @override
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();
@@ -72,22 +76,39 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           CustomButton(
                             text: 'Send verification code',
                             isActive: isEmailValid,
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => VerificationScreen(
-                                    email: _emailController.text,
-                                  ),
-                                ),
-                              );
+                            onPressed: () async {
+                              try {
+                                await AuthService().signInWithEmail(_emailController.text);
+                                if (context.mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => VerificationScreen(
+                                        email: _emailController.text,
+                                        selectedLanguage: widget.selectedLanguage,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
                             },
                           ),
                           const SizedBox(height: 16),
                           Center(
                             child: TextButton(
                               onPressed: () {
-                                // Navigate to sign in
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const SignInOptionsScreen(),
+                                  ),
+                                );
                               },
                               child: const Text(
                                 'Already a member? Sign in',

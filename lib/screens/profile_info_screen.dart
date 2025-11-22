@@ -5,9 +5,17 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'sexual_orientation_screen.dart';
+import '../models/user_profile.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
-  const ProfileInfoScreen({super.key});
+  final String email;
+  final String? selectedLanguage;
+  
+  const ProfileInfoScreen({
+    super.key, 
+    required this.email,
+    this.selectedLanguage,
+  });
 
   @override
   State<ProfileInfoScreen> createState() => _ProfileInfoScreenState();
@@ -165,11 +173,20 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                     isActive: isFormValid,
                     onPressed: () {
                       if (isFormValid) {
+                        final userProfile = UserProfile(
+                          email: widget.email,
+                          fullName: _nameController.text,
+                          age: int.tryParse(_ageController.text),
+                          city: _cityController.text,
+                          about: _aboutController.text,
+                          language: widget.selectedLanguage ?? "English (device's language)",
+                        );
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                const SexualOrientationScreen(),
+                            builder: (context) => SexualOrientationScreen(
+                              userProfile: userProfile,
+                            ),
                           ),
                         );
                       }

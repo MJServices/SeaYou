@@ -4,12 +4,112 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'home_screen.dart';
+import '../models/user_profile.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 
-class AccountSetupDoneScreen extends StatelessWidget {
-  const AccountSetupDoneScreen({super.key});
+class AccountSetupDoneScreen extends StatefulWidget {
+  final UserProfile userProfile;
+  const AccountSetupDoneScreen({super.key, required this.userProfile});
+
+  @override
+  State<AccountSetupDoneScreen> createState() => _AccountSetupDoneScreenState();
+}
+
+class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _createProfile();
+  }
+
+  Future<void> _createProfile() async {
+    try {
+      final user = AuthService().currentUser;
+      if (user == null) {
+        throw Exception('No user logged in');
+      }
+      
+      debugPrint('Creating profile for user: ${user.id}');
+      debugPrint('User email: ${user.email}');
+      debugPrint('Profile email: ${widget.userProfile.email}');
+      
+      await DatabaseService().createProfile(
+        userId: user.id,
+        email: widget.userProfile.email ?? user.email ?? '',
+        fullName: widget.userProfile.fullName ?? '',
+        age: widget.userProfile.age ?? 0,
+        city: widget.userProfile.city ?? '',
+        about: widget.userProfile.about ?? '',
+        sexualOrientation: widget.userProfile.sexualOrientation ?? [],
+        showOrientation: widget.userProfile.showOrientation,
+        expectation: widget.userProfile.expectation ?? '',
+        interestedIn: widget.userProfile.interestedIn ?? '',
+        interests: widget.userProfile.interests ?? [],
+        avatarUrl: widget.userProfile.avatarUrl,
+        language: widget.userProfile.language,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error in _createProfile: $e');
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        String errorMessage = 'Error creating profile. Please try again.';
+        
+        // Provide more specific error messages
+        if (e.toString().contains('duplicate key')) {
+          errorMessage = 'Profile already exists. Continuing...';
+          // Navigate anyway since profile exists
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+              );
+            }
+          });
+        } else if (e.toString().contains('violates foreign key')) {
+          errorMessage = 'Database error: User not found. Please sign in again.';
+        } else if (e.toString().contains('null value')) {
+          errorMessage = 'Missing required information. Please complete all fields.';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: e.toString().contains('duplicate') ? Colors.orange : Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: WarmGradientBackground(
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.white),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(
@@ -149,6 +249,7 @@ class AccountSetupDoneScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
+            // border: Border.all(color: AppColors.primary, width: 1), // Removed border as per design
           ),
           child: Icon(
             icon,

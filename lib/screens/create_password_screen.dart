@@ -5,9 +5,17 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'profile_info_screen.dart';
+import '../services/auth_service.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
-  const CreatePasswordScreen({super.key});
+  final String email;
+  final String? selectedLanguage;
+  
+  const CreatePasswordScreen({
+    super.key, 
+    required this.email,
+    this.selectedLanguage,
+  });
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -114,13 +122,27 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     CustomButton(
                       text: 'Create Password',
                       isActive: isPasswordValid,
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ProfileInfoScreen(),
-                          ),
-                        );
+                      onPressed: () async {
+                        try {
+                          await AuthService().updatePassword(_passwordController.text);
+                          if (context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfileInfoScreen(
+                                  email: widget.email,
+                                  selectedLanguage: widget.selectedLanguage,
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
+                        }
                       },
                     ),
                   ],

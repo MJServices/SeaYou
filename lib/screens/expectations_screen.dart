@@ -4,9 +4,11 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'interests_screen.dart';
+import '../models/user_profile.dart';
 
 class ExpectationsScreen extends StatefulWidget {
-  const ExpectationsScreen({super.key});
+  final UserProfile userProfile;
+  const ExpectationsScreen({super.key, required this.userProfile});
 
   @override
   State<ExpectationsScreen> createState() => _ExpectationsScreenState();
@@ -87,10 +89,15 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                   isActive:
                       selectedExpectation != null && selectedGender != null,
                   onPressed: () {
+                    widget.userProfile.expectation = selectedExpectation;
+                    widget.userProfile.interestedIn = selectedGender;
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const InterestsScreen(),
+                        builder: (context) => InterestsScreen(
+                          userProfile: widget.userProfile,
+                        ),
                       ),
                     );
                   },

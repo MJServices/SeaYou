@@ -44,12 +44,16 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                   text: 'Continue',
                   isActive: selectedLanguage != null,
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreateAccountScreen(),
-                      ),
-                    );
+                    if (selectedLanguage != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateAccountScreen(
+                            selectedLanguage: selectedLanguage!,
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
               ),
@@ -61,8 +65,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   }
 
   Widget _buildLanguageOption(String language, bool isDefault) {
-    final isSelected =
-        selectedLanguage == language || (selectedLanguage == null && isDefault);
+    final isSelected = selectedLanguage == language;
 
     return GestureDetector(
       onTap: () {

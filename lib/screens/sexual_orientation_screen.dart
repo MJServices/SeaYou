@@ -4,9 +4,19 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'expectations_screen.dart';
+import '../models/user_profile.dart';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
 
 class SexualOrientationScreen extends StatefulWidget {
-  const SexualOrientationScreen({super.key});
+  final UserProfile userProfile;
+  final bool isEditMode;
+  
+  const SexualOrientationScreen({
+    super.key, 
+    required this.userProfile,
+    this.isEditMode = false,
+  });
 
   @override
   State<SexualOrientationScreen> createState() =>
@@ -28,6 +38,15 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.userProfile.sexualOrientation != null) {
+      _selectedOrientations.addAll(widget.userProfile.sexualOrientation!);
+    }
+    _showOnProfile = widget.userProfile.showOrientation;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: WarmGradientBackground(
@@ -46,19 +65,20 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                         padding: EdgeInsets.zero,
                         alignment: Alignment.centerLeft,
                       ),
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              'What is your sexual orientation?',
+                              widget.isEditMode ? 'Edit Sexual Orientation' : 'What is your sexual orientation?',
                               style: AppTextStyles.displayText,
                             ),
                           ),
-                          Text(
-                            '2/5',
-                            style: AppTextStyles.bodyText,
-                          ),
+                          if (!widget.isEditMode)
+                            const Text(
+                              '2/5',
+                              style: AppTextStyles.bodyText,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -130,15 +150,42 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
-                  text: 'Next',
+                  text: widget.isEditMode ? 'Save' : 'Next',
                   isActive: _selectedOrientations.isNotEmpty,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ExpectationsScreen(),
-                      ),
-                    );
+                  onPressed: () async {
+                    widget.userProfile.sexualOrientation = _selectedOrientations;
+                    widget.userProfile.showOrientation = _showOnProfile;
+                    
+                    if (widget.isEditMode) {
+                      // Update DB
+                      try {
+                        final user = AuthService().currentUser;
+                        if (user != null) {
+                          await DatabaseService().updateProfile(user.id, {
+                            'sexual_orientation': _selectedOrientations,
+                            'show_orientation': _showOnProfile,
+                          });
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error updating profile: $e')),
+                          );
+                        }
+                      }
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ExpectationsScreen(
+                            userProfile: widget.userProfile,
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
               ),

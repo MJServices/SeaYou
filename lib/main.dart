@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 // import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: 'https://nenugkyvcewatuddrwvf.supabase.co',
+    anonKey: 'sb_publishable_FJpEIk5UxIj73h-qrs99fA_1dlJO0LT',
+  );
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);

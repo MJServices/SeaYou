@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../widgets/warm_gradient_background.dart';
+                import '../widgets/warm_gradient_background.dart';
 import 'home_screen.dart';
 import 'chat/chat_screen.dart';
 import 'profile/edit_bio_screen.dart';
@@ -10,6 +10,7 @@ import 'interests_screen.dart';
 import '../widgets/rate_seayou_modal.dart';
 import '../widgets/sign_out_modal.dart';
 import '../widgets/delete_account_modal.dart';
+import '../models/user_profile.dart';
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -234,7 +235,13 @@ class ProfileScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const SexualOrientationScreen(),
+                                  builder: (context) => SexualOrientationScreen(
+                                    userProfile: UserProfile(
+                                      sexualOrientation: ['Gay', 'Aromantic', 'Bisexual', 'Asexual'],
+                                      showOrientation: true,
+                                    ),
+                                    isEditMode: true,
+                                  ),
                                 ),
                               );
                             },
@@ -258,7 +265,21 @@ class ProfileScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const InterestsScreen(),
+                                  builder: (context) => InterestsScreen(
+                                    userProfile: UserProfile(
+                                      interests: [
+                                        'Pole Dance',
+                                        'Anime',
+                                        'Rugby',
+                                        'Sports',
+                                        'K-dramas',
+                                        'Fitness',
+                                        'Thrillers',
+                                        'Movie',
+                                      ],
+                                    ),
+                                    isEditMode: true,
+                                  ),
                                 ),
                               );
                             },
