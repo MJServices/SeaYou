@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-// Removed unused imports
 import 'custom_button.dart';
+import '../services/auth_service.dart';
+import '../screens/splash_screen.dart';
 
 /// Sign Out Modal - Confirmation dialog for signing out
 class SignOutModal extends StatelessWidget {
@@ -94,22 +95,24 @@ class SignOutModal extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: CustomButton(
-                    text: 'Sign Out',
-                    isActive: true,
-                    onPressed: () {
-                      // Sign out logic
-                      Navigator.pop(context);
-                      // Navigate to login/splash screen
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Signed out successfully'),
-                        ),
-                      );
-                    },
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Sign Out',
+                      isActive: true,
+                      onPressed: () async {
+                        // Sign out logic
+                        await AuthService().signOut();
+                        
+                        if (context.mounted) {
+                          // Navigate to splash screen and remove all previous routes
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (context) => const SplashScreen()),
+                            (route) => false,
+                          );
+                        }
+                      },
+                    ),
                   ),
-                ),
               ],
             ),
           ],

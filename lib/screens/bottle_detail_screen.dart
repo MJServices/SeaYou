@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/reply_sent_modal.dart';
 import '../screens/send_bottle_screen.dart';
 import '../widgets/warm_gradient_background.dart';
@@ -24,43 +25,10 @@ class BottleDetailScreen extends StatefulWidget {
 }
 
 class _BottleDetailScreenState extends State<BottleDetailScreen> {
-  int _currentMessageIndex = 0;
-
-  // Sample messages for navigation
-  final List<Map<String, String>> _messages = [
-    {
-      'mood': 'Dreamy',
-      'type': 'Text',
-      'content':
-          'Hi. Prior to our previous conversation, I saw the river you mentioned while taking a walk after a pretty chill day. The sight was truly amazing as you described. The sun on the river was beautiful as you described.\n\nI could attach a picture I took of it if you do not mind. Let me know if you\'ll be willing to rate my non-photography skill.'
-    },
-    {
-      'mood': 'Curious',
-      'type': 'Text',
-      'content':
-          'Hey! I\'ve been thinking about what you said earlier. It really resonated with me and I wanted to share my thoughts on it. Sometimes the best conversations happen when we least expect them.'
-    },
-    {
-      'mood': 'Calm',
-      'type': 'Text',
-      'content':
-          'Good morning! I hope you\'re having a wonderful day. I wanted to reach out and see how things are going with you. It\'s always nice to connect with someone who understands.'
-    },
-  ];
-
-  void _navigateMessage(int direction) {
-    setState(() {
-      _currentMessageIndex =
-          (_currentMessageIndex + direction) % _messages.length;
-      if (_currentMessageIndex < 0) {
-        _currentMessageIndex = _messages.length - 1;
-      }
-    });
-  }
-
-  String get mood => _messages[_currentMessageIndex]['mood']!;
-  String get messageType => _messages[_currentMessageIndex]['type']!;
-  String get message => _messages[_currentMessageIndex]['content']!;
+  // Getters for properties to maintain cleaner code structure
+  String get mood => widget.mood;
+  String get messageType => widget.messageType;
+  String get message => widget.message;
   bool get isReceived => widget.isReceived;
 
   List<Color> get _moodGradientColors {
@@ -110,6 +78,7 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🎨 BottleDetailScreen build: message="$message", mood="$mood"');
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(
@@ -138,14 +107,28 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Hey Alex',
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF151515),
-                          ),
+                        FutureBuilder<Map<String, dynamic>>(
+                          future: Supabase.instance.client
+                              .from('profiles')
+                              .select('full_name')
+                              .eq('id', Supabase.instance.client.auth.currentUser?.id ?? '')
+                              .single(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              debugPrint('Error fetching name: ${snapshot.error}');
+                            }
+                            
+                            final name = snapshot.data?['full_name'] as String? ?? 'User';
+                            return Text(
+                              'Hey $name',
+                              style: const TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF151515),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -166,52 +149,14 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
 
                   const SizedBox(height: 9),
 
-                  // Bottles received text
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 15),
-                    child: Text(
-                      '32\nbottles received',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF151515),
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
+                  // Bottles received text - Removed or made dynamic if needed
+                  // For now, keeping it simple or hiding it as it's not passed in
+                  const SizedBox(height: 24), 
 
                   const SizedBox(height: 16),
 
-                  // View bottle messages button
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: Container(
-                      width: 370,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFAFA),
-                        border: Border.all(
-                          color: const Color(0xFF0AC5C5),
-                          width: 0.8,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Text(
-                          'View bottle messages',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF0AC5C5),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  // View bottle messages button - Removed as we are already viewing
+                  const SizedBox(height: 50), // Placeholder space
 
                   const SizedBox(height: 76),
                 ],
@@ -329,27 +274,9 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                             // Message type header with navigation arrows
                             Row(
                               children: [
-                                // Left arrow - Navigate to previous
-                                GestureDetector(
-                                  onTap: () => _navigateMessage(-1),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: SvgPicture.asset(
-                                      'assets/icons/arrow_left.svg',
-                                      width: 20,
-                                      height: 20,
-                                      colorFilter: ColorFilter.mode(
-                                        _textColor,
-                                        BlendMode.srcIn,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                // Left arrow - REMOVED (Handled by parent)
+                                const SizedBox(width: 48), // Spacer to balance layout
+                                
                                 const Spacer(),
                                 Text(
                                   messageType,
@@ -361,31 +288,10 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                                   ),
                                 ),
                                 const Spacer(),
-                                // Right arrow - Navigate to next
-                                GestureDetector(
-                                  onTap: () => _navigateMessage(1),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Transform.rotate(
-                                      angle: 3.14159, // 180 degrees
-                                      child: SvgPicture.asset(
-                                        'assets/icons/arrow_left.svg',
-                                        width: 20,
-                                        height: 20,
-                                        colorFilter: ColorFilter.mode(
-                                          _textColor,
-                                          BlendMode.srcIn,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                
+                                // Right arrow - REMOVED (Handled by parent)
                                 const SizedBox(width: 12),
+                                
                                 // Close button
                                 GestureDetector(
                                   onTap: () => Navigator.pop(context),

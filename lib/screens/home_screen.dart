@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'bottle_detail_screen.dart';
 import 'all_bottles_screen.dart';
@@ -9,12 +10,78 @@ import 'profile_screen.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
 import '../widgets/received_bottles_viewer.dart';
+import '../widgets/empty_bottles_state.dart';
+import '../services/database_service.dart';
+import '../models/bottle.dart';
 
-/// Home Screen - Pixel-perfect match to Figma design
-/// Frame: Home/active expanded (1:3604)
-/// Dimensions: 402x1050px
-class HomeScreen extends StatelessWidget {
+/// Home Screen - Dynamic with database integration
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  bool _isLoading = true;
+  int _receivedCount = 0;
+  int _sentCount = 0;
+  List<SentBottle> _recentSentBottles = [];
+  Map<String, dynamic>? _userProfile;
+  String _userName = 'User';
+  String? _avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Load all data in parallel
+      final results = await Future.wait([
+        _databaseService.getReceivedBottlesCount(userId),
+        _databaseService.getSentBottlesCount(userId),
+        _databaseService.getRecentSentBottles(userId, limit: 3),
+        _databaseService.getProfile(userId),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _receivedCount = results[0] as int;
+          _sentCount = results[1] as int;
+          _recentSentBottles = results[2] as List<SentBottle>;
+          _userProfile = results[3] as Map<String, dynamic>?;
+          
+          // Extract user info
+          if (_userProfile != null) {
+            _userName = _userProfile!['full_name'] ?? 'User';
+            _avatarUrl = _userProfile!['avatar_url'];
+          }
+          
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading home data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,21 +137,38 @@ class HomeScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              // Hero Image centered horizontally
-                              Positioned(
-                                top: 1,
-                                left: 0,
-                                right: 0,
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: Image.asset(
-                                    'assets/images/hero_image.png',
-                                    width: 360,
-                                    height: 460,
-                                    fit: BoxFit.cover,
+                              // Hero Image - only show when bottles exist
+                              if (_receivedCount > 0)
+                                Positioned(
+                                  top: 1,
+                                  left: 0,
+                                  right: 0,
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
+                                    child: Image.asset(
+                                      'assets/images/hero_image.png',
+                                      width: 360,
+                                      height: 460,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              // Empty bottle image - show when no bottles
+                              if (_receivedCount == 0 && !_isLoading)
+                                Positioned(
+                                  top: 1,
+                                  left: 0,
+                                  right: 0,
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
+                                    child: Image.asset(
+                                      'assets/images/empty-bottle.png',
+                                      width: 360,
+                                      height: 460,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
                               // Header with profile
                               Positioned(
                                 left: 15,
@@ -94,19 +178,21 @@ class HomeScreen extends StatelessWidget {
                                     Container(
                                       width: 24,
                                       height: 24,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         image: DecorationImage(
-                                          image: AssetImage(
-                                              'assets/images/profile_avatar.png'),
+                                          image: _avatarUrl != null
+                                              ? NetworkImage(_avatarUrl!)
+                                              : const AssetImage(
+                                                  'assets/images/profile_avatar.png') as ImageProvider,
                                           fit: BoxFit.cover,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Text(
-                                      'Hey Alex',
-                                      style: TextStyle(
+                                    Text(
+                                      'Hey $_userName',
+                                      style: const TextStyle(
                                         fontFamily: 'Montserrat',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
@@ -116,22 +202,28 @@ class HomeScreen extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              // Bottles received text
-                              const Positioned(
+                              // Bottles received text (dynamic)
+                              Positioned(
                                 left: 15,
                                 top: 453,
                                 right: 15,
-                                child: Text(
-                                  '32\nbottles received',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF151515),
-                                    height: 1.2,
-                                  ),
-                                ),
+                                child: _isLoading
+                                    ? const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFF0AC5C5),
+                                        ),
+                                      )
+                                    : Text(
+                                        '$_receivedCount\nbottles received',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF151515),
+                                          height: 1.2,
+                                        ),
+                                      ),
                               ),
                             ],
                           ),
@@ -195,9 +287,9 @@ class HomeScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text(
-                                  'Sent Bottles (24)',
-                                  style: TextStyle(
+                                Text(
+                                  'Sent Bottles ($_sentCount)',
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
@@ -205,154 +297,25 @@ class HomeScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 20),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          showDialog(
-                                            context: context,
-                                            barrierColor: Colors.black
-                                                .withValues(alpha: 0.5),
-                                            builder: (context) =>
-                                                VoiceChatModal(
-                                              isReceived: false,
-                                              onReply: () {
-                                                Navigator.pop(context);
-                                              },
-                                            ),
-                                          );
-                                        },
-                                        child: _buildBottleCard(
-                                          color: const Color(0xFFFFFFFF),
-                                          iconPath:
-                                              'assets/icons/microphone.svg',
-                                          title: 'Voice Chat',
-                                          hasAudio: true,
-                                        ),
+                                // Show empty state or bottles
+                                if (_isLoading)
+                                  const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(40),
+                                      child: CircularProgressIndicator(
+                                        color: Color(0xFF0AC5C5),
                                       ),
                                     ),
-                                    const SizedBox(width: 20),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const BottleDetailScreen(
-                                                mood: 'Curious',
-                                                messageType: 'Text',
-                                                message:
-                                                    'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-                                                isReceived: false,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: _buildBottleCard(
-                                          color: const Color(0xFFFCF8FF),
-                                          iconPath:
-                                              'assets/icons/chat_lines.svg',
-                                          title: 'Text',
-                                          message:
-                                              'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-                                        ),
-                                      ),
+                                  )
+                                else if (_sentCount == 0)
+                                  const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 20),
+                                      child: EmptyBottlesState(type: 'sent'),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          showDialog(
-                                            context: context,
-                                            barrierColor: Colors.black
-                                                .withValues(alpha: 0.5),
-                                            builder: (context) =>
-                                                PhotoStampModal(
-                                              imageUrl:
-                                                  'assets/images/photo_stamp.png',
-                                              caption: 'The picture',
-                                              isReceived: false,
-                                              onReply: () {
-                                                Navigator.pop(context);
-                                              },
-                                              onPrevious: () {},
-                                              onNext: () {},
-                                            ),
-                                          );
-                                        },
-                                        child: _buildBottleCard(
-                                          color: const Color(0xFFFFFBF5),
-                                          iconPath:
-                                              'assets/icons/media_image.svg',
-                                          title: 'Photo Stamp',
-                                          hasImage: true,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 20),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const AllBottlesScreen(
-                                                isSent: true,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: Container(
-                                          height: 128,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFFF8FB),
-                                            border: Border.all(
-                                              color: const Color(0xFFE3E3E3),
-                                              width: 0.8,
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                          ),
-                                          child: Center(
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                const Text(
-                                                  'See all',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Montserrat',
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Color(0xFF363636),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                SvgPicture.asset(
-                                                  'assets/icons/nav_arrow_down.svg',
-                                                  width: 16,
-                                                  height: 16,
-                                                  colorFilter:
-                                                      const ColorFilter.mode(
-                                                    Color(0xFF363636),
-                                                    BlendMode.srcIn,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  )
+                                else
+                                  ..._buildBottleRows(),
                               ],
                             ),
                           ),
@@ -372,14 +335,16 @@ class HomeScreen extends StatelessWidget {
               right: 16,
               bottom: 100,
               child: GestureDetector(
-                onTap: () {
-                  // Navigate to send bottle screen
-                  Navigator.push(
+                onTap: () async {
+                  // Navigate to send bottle screen and refresh on return
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const SendBottleScreen(),
                     ),
                   );
+                  // Refresh data when returning from send bottle screen
+                  _loadData();
                 },
                 child: Container(
                   width: 56,
@@ -426,7 +391,8 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     GestureDetector(
                       onTap: () {
-                        // Already on home, do nothing or refresh
+                        // Already on home, refresh data
+                        _loadData();
                       },
                       child: _buildNavItem(
                         iconPath: 'assets/icons/home_simple.svg',
@@ -476,6 +442,173 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  List<Widget> _buildBottleRows() {
+    final widgets = <Widget>[];
+    
+    // Build rows of bottles (2 per row) + See all button
+    for (int i = 0; i < _recentSentBottles.length; i += 2) {
+      final bottle1 = _recentSentBottles[i];
+      final bottle2 = i + 1 < _recentSentBottles.length ? _recentSentBottles[i + 1] : null;
+      
+      widgets.add(
+        Row(
+          children: [
+            Expanded(
+              child: _buildDynamicBottleCard(bottle1),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: bottle2 != null
+                  ? _buildDynamicBottleCard(bottle2)
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      );
+      
+      if (i + 2 < _recentSentBottles.length) {
+        widgets.add(const SizedBox(height: 20));
+      }
+    }
+    
+    // Add "See all" button as last item if there are bottles
+    if (_recentSentBottles.isNotEmpty) {
+      widgets.add(const SizedBox(height: 20));
+      widgets.add(
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AllBottlesScreen(
+                  isSent: true,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            height: 128,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8FB),
+              border: Border.all(
+                color: const Color(0xFFE3E3E3),
+                width: 0.8,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'See all',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF363636),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  SvgPicture.asset(
+                    'assets/icons/nav_arrow_down.svg',
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      Color(0xFF363636),
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    
+    return widgets;
+  }
+
+  Widget _buildDynamicBottleCard(SentBottle bottle) {
+    // Determine card properties based on content type
+    Color cardColor;
+    String iconPath;
+    String title;
+    
+    switch (bottle.contentType) {
+      case 'voice':
+        cardColor = const Color(0xFFFFFFFF);
+        iconPath = 'assets/icons/microphone.svg';
+        title = 'Voice Chat';
+        break;
+      case 'photo':
+        cardColor = const Color(0xFFFFFBF5);
+        iconPath = 'assets/icons/media_image.svg';
+        title = 'Photo Stamp';
+        break;
+      case 'text':
+      default:
+        cardColor = const Color(0xFFFCF8FF);
+        iconPath = 'assets/icons/chat_lines.svg';
+        title = 'Text';
+    }
+    
+    return GestureDetector(
+      onTap: () {
+        if (bottle.contentType == 'voice') {
+          showDialog(
+            context: context,
+            barrierColor: Colors.black.withValues(alpha: 0.5),
+            builder: (context) => VoiceChatModal(
+              isReceived: false,
+              onReply: () {
+                Navigator.pop(context);
+              },
+            ),
+          );
+        } else if (bottle.contentType == 'photo') {
+          showDialog(
+            context: context,
+            barrierColor: Colors.black.withValues(alpha: 0.5),
+            builder: (context) => PhotoStampModal(
+              imageUrl: bottle.photoUrl ?? 'assets/images/photo_stamp.png',
+              caption: bottle.caption ?? 'Photo',
+              isReceived: false,
+              onReply: () {
+                Navigator.pop(context);
+              },
+              onPrevious: () {},
+              onNext: () {},
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BottleDetailScreen(
+                mood: bottle.mood ?? 'Curious',
+                messageType: 'Text',
+                message: bottle.message ?? '',
+                isReceived: false,
+              ),
+            ),
+          );
+        }
+      },
+      child: _buildBottleCard(
+        color: cardColor,
+        iconPath: iconPath,
+        title: title,
+        message: bottle.contentType == 'text' ? bottle.message : null,
+        hasAudio: bottle.contentType == 'voice',
+        hasImage: bottle.contentType == 'photo',
+        status: bottle.status,
+        isMatched: bottle.isMatched,
+      ),
+    );
+  }
+
   Widget _buildBottleCard({
     required Color color,
     String? iconPath,
@@ -483,7 +616,41 @@ class HomeScreen extends StatelessWidget {
     String? message,
     bool hasAudio = false,
     bool hasImage = false,
+    String status = 'floating',
+    bool isMatched = false,
   }) {
+    // Determine status badge properties
+    String statusText;
+    Color statusColor;
+    IconData? statusIcon;
+    
+    switch (status) {
+      case 'floating':
+        statusText = '🌊 Floating';
+        statusColor = const Color(0xFF0AC5C5);
+        statusIcon = Icons.waves;
+        break;
+      case 'matched':
+        statusText = '✓ Matched';
+        statusColor = const Color(0xFF65ADA9);
+        statusIcon = Icons.check_circle_outline;
+        break;
+      case 'delivered':
+        statusText = '📬 Delivered';
+        statusColor = const Color(0xFFD89736);
+        statusIcon = Icons.mail_outline;
+        break;
+      case 'read':
+        statusText = '👁 Read';
+        statusColor = const Color(0xFF9B98E6);
+        statusIcon = Icons.visibility_outlined;
+        break;
+      default:
+        statusText = 'Sent';
+        statusColor = const Color(0xFF737373);
+        statusIcon = Icons.send_outlined;
+    }
+    
     return Container(
       height: 128,
       decoration: BoxDecoration(
@@ -498,19 +665,20 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Title row with icon
           Row(
             children: [
               if (iconPath != null)
                 SvgPicture.asset(
                   iconPath,
-                  width: 24,
-                  height: 24,
+                  width: 20,
+                  height: 20,
                   colorFilter: const ColorFilter.mode(
                     Color(0xFF151515),
                     BlendMode.srcIn,
                   ),
                 ),
-              const SizedBox(width: 4),
+              if (iconPath != null) const SizedBox(width: 6),
               Text(
                 title,
                 style: const TextStyle(
@@ -521,6 +689,28 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          // Status badge on its own line
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: statusColor.withOpacity(0.3),
+                width: 0.5,
+              ),
+            ),
+            child: Text(
+              statusText,
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: statusColor,
+              ),
+            ),
           ),
           if (hasAudio) ...[
             const SizedBox(height: 8),

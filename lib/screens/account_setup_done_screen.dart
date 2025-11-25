@@ -66,10 +66,12 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
         });
         
         String errorMessage = 'Error creating profile. Please try again.';
+        bool shouldRedirectToOnboarding = true;
         
         // Provide more specific error messages
         if (e.toString().contains('duplicate key')) {
           errorMessage = 'Profile already exists. Continuing...';
+          shouldRedirectToOnboarding = false;
           // Navigate anyway since profile exists
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
@@ -85,6 +87,8 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
           errorMessage = 'Database error: User not found. Please sign in again.';
         } else if (e.toString().contains('null value')) {
           errorMessage = 'Missing required information. Please complete all fields.';
+        } else if (e.toString().contains('row-level security')) {
+          errorMessage = 'Permission error. Please contact support.';
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -94,6 +98,16 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
             duration: const Duration(seconds: 4),
           ),
         );
+        
+        // Redirect back to onboarding start if profile creation failed
+        if (shouldRedirectToOnboarding) {
+          Future.delayed(const Duration(seconds: 4), () {
+            if (mounted) {
+              // Pop all screens and go back to language selection (start of onboarding)
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+          });
+        }
       }
     }
   }

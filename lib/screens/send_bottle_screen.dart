@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/preview_modal.dart';
 import '../widgets/sent_confirmation_modal.dart';
 import '../widgets/animated_waveform.dart';
+import '../services/database_service.dart';
+import '../services/bottle_matching_service.dart';
 import 'dart:async';
 
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
@@ -28,6 +31,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   String? _selectedImagePath;
   File? _selectedImageFile;
   final ImagePicker _imagePicker = ImagePicker();
+  final DatabaseService _databaseService = DatabaseService();
+  final BottleMatchingService _matchingService = BottleMatchingService();
+  bool _isSending = false;
 
   final List<Map<String, dynamic>> _moods = [
     {'name': 'Dreamy', 'color': const Color(0xFF9B98E6)},
@@ -608,29 +614,152 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     );
   }
 
-  void _sendBottle() {
-    showDialog(
-      context: context,
-      barrierColor: const Color(0x33000000),
-      builder: (context) => SentConfirmationModal(
-        onClose: () {
-          Navigator.pop(context); // Close modal
-          Navigator.pop(context); // Return to home
-        },
-        onSendNew: () {
-          Navigator.pop(context); // Close modal
+  Future<void> _sendBottle() async {
+    if (_isSending) return; // Prevent double-send
+    
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Determine content type
+      String contentType;
+      if (_selectedType == 'Text') {
+        contentType = 'text';
+      } else if (_selectedType == 'Picture') {
+        contentType = 'photo';
+      } else {
+        contentType = 'voice';
+      }
+
+      // 1. Create sent bottle in database
+      final bottleId = await _databaseService.createSentBottle(
+        senderId: currentUser.id,
+        contentType: contentType,
+        message: contentType == 'text' ? _messageController.text : null,
+        caption: contentType == 'photo' ? _captionController.text : null,
+        mood: _selectedMood,
+        // TODO: Upload audio/photo files and get URLs
+        audioUrl: contentType == 'voice' ? 'placeholder_audio_url' : null,
+        photoUrl: contentType == 'photo' && _selectedImagePath != null 
+            ? 'placeholder_photo_url' 
+            : null,
+      );
+
+      if (bottleId == null) {
+        throw Exception('Failed to create bottle');
+      }
+
+      // 2. Match bottle to a recipient
+      final recipientId = await _matchingService.matchBottle(
+        bottleId: bottleId,
+        senderId: currentUser.id,
+      );
+
+      if (recipientId == null) {
+        // No match found
+        if (mounted) {
           setState(() {
-            _messageController.clear();
-            _captionController.clear();
-            _selectedMood = 'Dreamy';
-            _selectedType = 'Text';
-            _canPreview = false;
-            _isRecording = false;
-            _recordingSeconds = 0;
-            _selectedImagePath = null;
+            _isSending = false;
           });
-        },
-      ),
-    );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No compatible users found. Your bottle will be sent when someone matches your preferences.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 3. Create received bottle for recipient
+      final receivedBottleId = await _databaseService.createReceivedBottle(
+        bottleId: bottleId,
+        receiverId: recipientId,
+        senderId: currentUser.id,
+        contentType: contentType,
+        message: contentType == 'text' ? _messageController.text : null,
+        caption: contentType == 'photo' ? _captionController.text : null,
+        mood: _selectedMood,
+        audioUrl: contentType == 'voice' ? 'placeholder_audio_url' : null,
+        photoUrl: contentType == 'photo' && _selectedImagePath != null 
+            ? 'placeholder_photo_url' 
+            : null,
+      );
+      
+      if (receivedBottleId == null) {
+        throw Exception('Failed to create received bottle for recipient');
+      }
+
+
+      // 4. Schedule delivery (floating in sea effect)
+      await _matchingService.scheduleBottleDelivery(
+        bottleId: bottleId,
+        senderId: currentUser.id,
+        recipientId: recipientId,
+      );
+
+      // 5. Increment counters
+      await _databaseService.incrementBottleCounters(
+        senderId: currentUser.id,
+        receiverId: recipientId,
+      );
+
+      // 6. Update last active
+      await _databaseService.updateLastActive(currentUser.id);
+
+      // Success! Show confirmation modal
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+        
+        showDialog(
+          context: context,
+          barrierColor: const Color(0x33000000),
+          builder: (context) => SentConfirmationModal(
+            onClose: () {
+              Navigator.pop(context); // Close modal
+              Navigator.pop(context); // Return to home
+            },
+            onSendNew: () {
+              Navigator.pop(context); // Close modal
+              setState(() {
+                _messageController.clear();
+                _captionController.clear();
+                _selectedMood = 'Dreamy';
+                _selectedType = 'Text';
+                _canPreview = false;
+                _isRecording = false;
+                _recordingSeconds = 0;
+                _selectedImagePath = null;
+                _selectedImageFile = null;
+              });
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      // Error handling
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send bottle: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }

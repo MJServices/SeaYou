@@ -59,10 +59,10 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
     try {
       final email = _emailController.text.trim();
 
-      print('Sending OTP to email: $email');
+      print('Checking if email exists and sending OTP to: $email');
 
-      // Send OTP to email
-      await _authService.signInWithEmail(email);
+      // Check if email exists and send OTP
+      await _authService.signInWithEmailOtp(email);
 
       if (!mounted) return;
 

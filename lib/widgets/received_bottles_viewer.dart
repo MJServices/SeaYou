@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/bottle_detail_screen.dart';
 import 'voice_chat_modal.dart';
 import 'photo_stamp_modal.dart';
+import '../services/database_service.dart';
+import '../models/bottle.dart';
 
 /// Received Bottles Viewer - Shows received messages one at a time with navigation
 /// Displays voice, text, and photo messages separately with arrow navigation
@@ -13,40 +16,70 @@ class ReceivedBottlesViewer extends StatefulWidget {
 }
 
 class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
+  final DatabaseService _databaseService = DatabaseService();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
   int currentIndex = 0;
+  bool _isLoading = true;
+  List<ReceivedBottle> _bottles = [];
 
-  // Sample received bottles data - voice, text, and photo messages
-  final List<Map<String, dynamic>> bottles = [
-    {
-      'type': 'text',
-      'mood': 'Dreamy',
-      'message':
-          'Hi. Prior to our previous conversation, I saw the river you mentioned while taking a walk after a pretty chill day. The sight was truly amazing as you described. The sun on the river was beautiful as you described.\n\nI could attach a picture I took of it if you do not mind. Let me know if you\'ll be willing to rate my non-photography skill.',
-    },
-    {
-      'type': 'text',
-      'mood': 'Curious',
-      'message':
-          'Hi. Prior to our previous conversation, I saw the river you mentioned while taking a walk after a pretty chill day. The sight was truly amazing as you described. The sun on the river was beautiful as you described.\n\nI could attach a picture I took of it if you do not mind. Let me know if you\'ll be willing to rate my non-photography skill.',
-    },
-    {
-      'type': 'voice',
-      'mood': 'Playful',
-      'duration': '00:12:19',
-    },
-    {
-      'type': 'photo',
-      'mood': 'Calm',
-      'imageUrl': 'assets/images/photo_stamp.png',
-      'caption': 'The picture',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadBottles();
+  }
+
+  Future<void> _loadBottles() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final bottles = await _databaseService.getAllReceivedBottles(userId);
+      
+      debugPrint('🔍 Loaded ${bottles.length} bottles');
+      for (var b in bottles) {
+        debugPrint('📝 Bottle ID: ${b.id}, Content: ${b.message}, Type: ${b.contentType}');
+      }
+
+      if (mounted) {
+        setState(() {
+          _bottles = bottles;
+          _isLoading = false;
+        });
+        
+        // Mark first bottle as read if exists
+        if (_bottles.isNotEmpty) {
+          _markAsRead(0);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading received bottles: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _markAsRead(int index) async {
+    if (index < 0 || index >= _bottles.length) return;
+    
+    final bottle = _bottles[index];
+    if (!bottle.isRead) {
+      await _databaseService.markBottleAsRead(bottle.id);
+      // Update local state to reflect read status without full reload
+      setState(() {
+        _bottles[index] = bottle.copyWith(isRead: true);
+      });
+    }
+  }
 
   void _nextBottle() {
-    if (currentIndex < bottles.length - 1) {
+    if (currentIndex < _bottles.length - 1) {
       setState(() {
         currentIndex++;
       });
+      _markAsRead(currentIndex);
     }
   }
 
@@ -55,42 +88,84 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
       setState(() {
         currentIndex--;
       });
+      _markAsRead(currentIndex);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentBottle = bottles[currentIndex];
-    final type = currentBottle['type'] as String;
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF0AC5C5)),
+        ),
+      );
+    }
+
+    if (_bottles.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'No bottles received yet',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 18,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF0AC5C5),
+                ),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final currentBottle = _bottles[currentIndex];
+    final type = currentBottle.contentType;
 
     return Stack(
       children: [
         // Main content based on type
         if (type == 'text')
           BottleDetailScreen(
-            mood: currentBottle['mood'] as String,
+            mood: currentBottle.mood ?? 'Happy',
             messageType: 'Text',
-            message: currentBottle['message'] as String,
+            message: currentBottle.message ?? '',
             isReceived: true,
+            // Pass navigation callbacks to BottleDetailScreen if needed, 
+            // but currently we handle navigation here with overlay arrows
           )
         else if (type == 'voice')
           VoiceChatModal(
             isReceived: true,
-            duration: currentBottle['duration'] as String? ?? '00:00:00',
+            duration: '00:00', // TODO: Store duration in DB or fetch metadata
             onReply: () {
               Navigator.pop(context);
             },
           )
         else if (type == 'photo')
           PhotoStampModal(
-            imageUrl: currentBottle['imageUrl'] as String,
-            caption: currentBottle['caption'] as String? ?? '',
+            imageUrl: currentBottle.photoUrl ?? '',
+            caption: currentBottle.caption ?? '',
             isReceived: true,
             onReply: () {
               Navigator.pop(context);
             },
             onPrevious: currentIndex > 0 ? _previousBottle : null,
-            onNext: currentIndex < bottles.length - 1 ? _nextBottle : null,
+            onNext: currentIndex < _bottles.length - 1 ? _nextBottle : null,
           ),
 
         // Navigation arrows overlay (for text and voice only)
@@ -126,7 +201,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             ),
 
           // Right arrow
-          if (currentIndex < bottles.length - 1)
+          if (currentIndex < _bottles.length - 1)
             Positioned(
               right: 16,
               top: MediaQuery.of(context).size.height / 2 - 24,
@@ -155,9 +230,9 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               ),
             ),
 
-          // Counter indicator
+          // Counter indicator - Moved to top to avoid overlap
           Positioned(
-            bottom: 100,
+            top: 60,
             left: 0,
             right: 0,
             child: Center(
@@ -169,7 +244,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${currentIndex + 1} / ${bottles.length}',
+                  '${currentIndex + 1} / ${_bottles.length}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

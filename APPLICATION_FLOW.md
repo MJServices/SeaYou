@@ -216,7 +216,7 @@ Main App Entry
 - Location: `assets/images/`
 - Profile avatar: `profile_avatar.png`
 - Hero image: `hero_image.png`
-- Background: `warm background.jpeg`
+- Background: `warm-gradiant.jpeg`
 
 ## Background System
 - **WarmGradientBackground**: Used on Home and Chat screens

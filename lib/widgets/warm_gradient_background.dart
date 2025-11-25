@@ -20,7 +20,7 @@ class WarmGradientBackground extends StatelessWidget {
         constraints: const BoxConstraints.expand(),
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/warm background.jpeg'),
+            image: AssetImage('assets/images/warm-gradiant.jpeg'),
             fit: BoxFit.cover,
           ),
         ),

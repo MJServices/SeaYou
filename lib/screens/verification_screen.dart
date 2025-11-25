@@ -57,7 +57,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Future<void> _resendOtp() async {
     try {
-      await AuthService().signInWithEmail(widget.email);
+      // Use appropriate method based on whether this is sign-in or sign-up
+      if (widget.isSignIn) {
+        await AuthService().signInWithEmailOtp(widget.email);
+      } else {
+        await AuthService().signUpWithEmail(widget.email);
+      }
+      
       _startCountdown();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -175,14 +181,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         
                         if (context.mounted) {
                           if (widget.isSignIn) {
-                            // For sign-in, go directly to home screen
+                            // Sign-in flow: Go directly to home screen
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(builder: (context) => const HomeScreen()),
                               (route) => false,
                             );
                           } else {
-                            // For sign-up, proceed to create password
+                            // Sign-up flow: Continue with onboarding (password creation)
                             Navigator.push(
                               context,
                               MaterialPageRoute(
