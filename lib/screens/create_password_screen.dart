@@ -6,15 +6,18 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'profile_info_screen.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
   final String? selectedLanguage;
+  final bool isRecovery;
   
   const CreatePasswordScreen({
     super.key, 
     required this.email,
     this.selectedLanguage,
+    this.isRecovery = false,
   });
 
   @override
@@ -103,7 +106,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                           _obscureText
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: AppColors.white,
+                          color: AppColors.primary,
                         ),
                         onPressed: () {
                           setState(() {
@@ -126,15 +129,23 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                         try {
                           await AuthService().updatePassword(_passwordController.text);
                           if (context.mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ProfileInfoScreen(
-                                  email: widget.email,
-                                  selectedLanguage: widget.selectedLanguage,
+                            if (widget.isRecovery) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                                (route) => false,
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ProfileInfoScreen(
+                                    email: widget.email,
+                                    selectedLanguage: widget.selectedLanguage,
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           }
                         } catch (e) {
                           if (context.mounted) {

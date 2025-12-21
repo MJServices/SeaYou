@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/bottle_detail_screen.dart';
+import '../screens/send_bottle_screen.dart';
 import 'voice_chat_modal.dart';
 import 'photo_stamp_modal.dart';
 import '../services/database_service.dart';
@@ -22,6 +23,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
   int currentIndex = 0;
   bool _isLoading = true;
   List<ReceivedBottle> _bottles = [];
+  bool _showReplied = false; // false = unreplied, true = replied
 
   @override
   void initState() {
@@ -35,16 +37,19 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      final bottles = await _databaseService.getAllReceivedBottles(userId);
+      final allBottles = await _databaseService.getAllReceivedBottles(userId);
       
-      debugPrint('🔍 Loaded ${bottles.length} bottles');
-      for (var b in bottles) {
-        debugPrint('📝 Bottle ID: ${b.id}, Content: ${b.message}, Type: ${b.contentType}');
-      }
+      // Filter based on current tab
+      final filteredBottles = allBottles.where((bottle) {
+        return _showReplied ? bottle.isReplied : !bottle.isReplied;
+      }).toList();
+      
+      debugPrint('🔍 Loaded ${filteredBottles.length} ${_showReplied ? "replied" : "unreplied"} bottles');
 
       if (mounted) {
         setState(() {
-          _bottles = bottles;
+          _bottles = filteredBottles;
+          currentIndex = 0; // Reset to first bottle when switching tabs
           _isLoading = false;
         });
         
@@ -110,9 +115,9 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'No bottles received yet',
-                style: TextStyle(
+              Text(
+                _showReplied ? 'No replied bottles yet' : 'No new bottles',
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 18,
                   color: Colors.white,
@@ -145,15 +150,34 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             messageType: 'Text',
             message: currentBottle.message ?? '',
             isReceived: true,
-            // Pass navigation callbacks to BottleDetailScreen if needed, 
-            // but currently we handle navigation here with overlay arrows
+            bottleId: currentBottle.id,
+            senderId: currentBottle.senderId,
+            isReplied: currentBottle.isReplied,
           )
         else if (type == 'voice')
           VoiceChatModal(
             isReceived: true,
-            duration: '00:00', // TODO: Store duration in DB or fetch metadata
-            onReply: () {
-              Navigator.pop(context);
+            audioUrl: () {
+              debugPrint('🎵 Voice Bottle Data:');
+              debugPrint('  - contentType: ${currentBottle.contentType}');
+              debugPrint('  - audioUrl: ${currentBottle.audioUrl}');
+              debugPrint('  - message: ${currentBottle.message}');
+              debugPrint('  - id: ${currentBottle.id}');
+              return currentBottle.audioUrl;
+            }(),
+            duration: '00:00:21', // TODO: Calculate from audio file
+            onReply: () async {
+              Navigator.pop(context); // Close modal
+              // Navigate to SendBottleScreen with reply context
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SendBottleScreen(
+                    replyToBottleId: currentBottle.id,
+                    replyToUserId: currentBottle.senderId,
+                  ),
+                ),
+              );
             },
           )
         else if (type == 'photo')
@@ -161,8 +185,18 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             imageUrl: currentBottle.photoUrl ?? '',
             caption: currentBottle.caption ?? '',
             isReceived: true,
-            onReply: () {
-              Navigator.pop(context);
+            onReply: () async {
+              Navigator.pop(context); // Close modal
+              // Navigate to SendBottleScreen with reply context
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SendBottleScreen(
+                    replyToBottleId: currentBottle.id,
+                    replyToUserId: currentBottle.senderId,
+                  ),
+                ),
+              );
             },
             onPrevious: currentIndex > 0 ? _previousBottle : null,
             onNext: currentIndex < _bottles.length - 1 ? _nextBottle : null,
@@ -230,15 +264,14 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               ),
             ),
 
-          // Counter indicator - Moved to top to avoid overlap
+          // Counter indicator
           Positioned(
             top: 60,
             left: 0,
             right: 0,
             child: Center(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(20),
@@ -255,7 +288,62 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             ),
           ),
         ],
+
+        // Filter toggle button at top-right
+        Positioned(
+          top: 60,
+          right: 16,
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _showReplied = !_showReplied);
+              _loadBottles();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _showReplied 
+                    ? [const Color(0xFF737373), const Color(0xFF5A5A5A)]
+                    : [const Color(0xFF0AC5C5), const Color(0xFF08A3A3)],
+                ),
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showReplied ? Icons.history : Icons.mail,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _showReplied ? 'Replied' : 'New',
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  Widget _buildTabs() {
+    // Removed - using floating button instead
+    return const SizedBox.shrink();
   }
 }

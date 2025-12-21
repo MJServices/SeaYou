@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 /// User block model - represents a user blocking another user
 class UserBlock {

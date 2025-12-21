@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/bottle.dart';
 import 'database_service.dart';
 
 /// Service for intelligent bottle matching algorithm

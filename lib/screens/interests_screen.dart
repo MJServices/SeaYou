@@ -3,7 +3,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'upload_picture_screen.dart';
+import 'quote_registration_screen.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
@@ -112,9 +112,6 @@ class _InterestsScreenState extends State<InterestsScreen> {
       'Therapy',
       'Walking',
       'Tea',
-      'Morning Yoga',
-      'Journaling',
-      'Podcasts',
     ],
   };
 
@@ -123,6 +120,18 @@ class _InterestsScreenState extends State<InterestsScreen> {
     super.initState();
     if (widget.userProfile.interests != null) {
       _selectedInterests.addAll(widget.userProfile.interests!);
+      
+      // Find interests that aren't in any category
+      final allCategoryInterests = categories.values.expand((i) => i).toSet();
+      final customInterests = _selectedInterests.where((i) => !allCategoryInterests.contains(i)).toList();
+      
+      if (customInterests.isNotEmpty) {
+        // Prepend "Your Interests" to categories
+        final temp = <String, List<String>>{'Your Interests': customInterests};
+        temp.addAll(categories);
+        categories.clear();
+        categories.addAll(temp);
+      }
     }
   }
 
@@ -168,22 +177,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         style: AppTextStyles.displayText,
                       ),
                       if (!widget.isEditMode)
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => UploadPictureScreen(
-                                  userProfile: widget.userProfile,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Skip',
-                            style: AppTextStyles.bodyText,
-                          ),
-                        )
+                        const SizedBox(width: 48)
                       else
                         const SizedBox(width: 48), // Spacer to balance the back button
                     ],
@@ -264,7 +258,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => UploadPictureScreen(
+                            builder: (context) => QuoteRegistrationScreen(
                               userProfile: widget.userProfile,
                             ),
                           ),

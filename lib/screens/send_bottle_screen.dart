@@ -1,19 +1,33 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:record/record.dart';
+
+import '../services/database_service.dart';
+import '../services/bottle_matching_service.dart';
+import '../services/entitlements_service.dart';
+import '../services/upload_controller.dart';
+import '../services/upload_service.dart';
+import '../models/bottle.dart';
 import '../widgets/preview_modal.dart';
 import '../widgets/sent_confirmation_modal.dart';
 import '../widgets/animated_waveform.dart';
-import '../services/database_service.dart';
-import '../services/bottle_matching_service.dart';
-import 'dart:async';
-
+import '../screens/chat/chat_conversation_screen.dart';
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
 /// Supports Text, Picture, and Voice Chat bottle creation
 class SendBottleScreen extends StatefulWidget {
-  const SendBottleScreen({super.key});
+  final String? replyToBottleId;
+  final String? replyToUserId;
+  
+  const SendBottleScreen({
+    super.key,
+    this.replyToBottleId,
+    this.replyToUserId,
+  });
 
   @override
   State<SendBottleScreen> createState() => _SendBottleScreenState();
@@ -33,6 +47,10 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final DatabaseService _databaseService = DatabaseService();
   final BottleMatchingService _matchingService = BottleMatchingService();
+  late final UploadController _uploadController;
+  double _uploadProgress = 0.0;
+  final AudioRecorder _voiceRecorder = AudioRecorder();
+  String? _voicePath;
   bool _isSending = false;
 
   final List<Map<String, dynamic>> _moods = [
@@ -48,6 +66,14 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     super.initState();
     _messageController.addListener(_updatePreviewState);
     _captionController.addListener(_updatePreviewState);
+    _uploadController = UploadController();
+    _uploadController.addListener(() {
+      final vals = _uploadController.statuses.values;
+      if (vals.isEmpty) return;
+      final p =
+          vals.map((s) => s.progress).fold(0.0, (a, b) => a + b) / vals.length;
+      setState(() => _uploadProgress = p);
+    });
   }
 
   @override
@@ -55,6 +81,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     _messageController.dispose();
     _captionController.dispose();
     _recordingTimer?.cancel();
+    _voiceRecorder.dispose();
     super.dispose();
   }
 
@@ -74,23 +101,91 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     setState(() {
       _isRecording = !_isRecording;
       if (_isRecording) {
-        _startRecording();
+        _startVoiceRecording();
       } else {
-        _stopRecording();
+        _stopVoiceRecording();
       }
     });
   }
 
-  void _startRecording() {
+  Future<void> _startVoiceRecording() async {
+    debugPrint('🎙️ Starting voice recording...');
     _recordingSeconds = 0;
-    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _recordingSeconds++;
-      });
-    });
+    
+    final hasPerm = await _voiceRecorder.hasPermission();
+    debugPrint('🎙️ Microphone permission: $hasPerm');
+    
+    if (hasPerm) {
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        final path = '${dir.path}/bottle_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        debugPrint('🎙️ Recording path: $path');
+        
+        // Check if recorder is available
+        final isAvailable = await _voiceRecorder.isEncoderSupported(AudioEncoder.aacLc);
+        debugPrint('🎙️ AAC encoder supported: $isAvailable');
+        
+        await _voiceRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            autoGain: true,
+            echoCancel: true,
+            noiseSuppress: true,
+          ),
+          path: path,
+        );
+        
+        _voicePath = path;
+        debugPrint('🎙️ Recording started successfully');
+        
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          setState(() {
+            _recordingSeconds++;
+          });
+          debugPrint('🎙️ Recording: ${_recordingSeconds}s');
+        });
+      } catch (e, stackTrace) {
+        debugPrint('❌ Error starting recording: $e');
+        debugPrint('Stack trace: $stackTrace');
+      }
+    } else {
+      debugPrint('❌ No microphone permission');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone permission denied. Please enable it in settings.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  void _stopRecording() {
+  Future<void> _stopVoiceRecording() async {
+    debugPrint('🎙️ Stopping voice recording...');
+    
+    try {
+      final path = await _voiceRecorder.stop();
+      // Wait for file to be fully written
+      await Future.delayed(const Duration(milliseconds: 500));
+      debugPrint('🎙️ Recording stopped. Path: $path');
+      
+      if (path != null && path.isNotEmpty) {
+        final file = File(path);
+        final exists = await file.exists();
+        final size = exists ? await file.length() : 0;
+        debugPrint('🎙️ File exists: $exists, size: $size bytes');
+        
+        if (size == 0) {
+          debugPrint('⚠️ WARNING: Recorded file is empty!');
+        }
+      } else {
+        debugPrint('⚠️ WARNING: No path returned from recorder');
+      }
+    } catch (e) {
+      debugPrint('❌ Error stopping recording: $e');
+    }
+    
     _recordingTimer?.cancel();
     _updatePreviewState();
   }
@@ -199,31 +294,40 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 18),
+        child: Stack(children: [
+          Column(
+            children: [
+              const SizedBox(height: 18),
 
-            // Header with type selector and actions
-            _buildHeader(),
+              // Header with type selector and actions
+              _buildHeader(),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Mood selector
-            _buildMoodSelector(),
+              // Mood selector
+              _buildMoodSelector(),
 
-            const Spacer(),
+              const Spacer(),
 
-            // Content area based on type
-            _buildContentArea(),
+              // Content area based on type
+              _buildContentArea(),
 
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Preview button
-            _buildPreviewButton(),
+              // Preview button
+              _buildPreviewButton(),
 
-            const SizedBox(height: 32),
-          ],
-        ),
+              const SizedBox(height: 32),
+            ],
+          ),
+          if (_uploadProgress > 0 && _uploadProgress < 1.0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: LinearProgressIndicator(value: _uploadProgress),
+            ),
+        ]),
       ),
     );
   }
@@ -591,32 +695,36 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: false, // Prevent dismissing while sending
       barrierColor: const Color(0x33000000),
-      builder: (context) => PreviewModal(
-        content: content,
-        mood: _selectedMood,
-        type: _selectedType,
-        imagePath: _selectedImagePath,
-        onSend: () {
-          Navigator.pop(context); // Close preview
-          _sendBottle();
-        },
-        onSaveDraft: () {
-          Navigator.pop(context); // Close preview
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Saved as draft'),
-              backgroundColor: Color(0xFF0AC5C5),
-            ),
-          );
-        },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => PreviewModal(
+          content: content,
+          mood: _selectedMood,
+          type: _selectedType,
+          imagePath: _selectedImagePath,
+          audioPath: _selectedType == 'Voice Chat' ? _voicePath : null,
+          isLoading: _isSending,
+          onSend: () {
+            _sendBottle();
+          },
+          onSaveDraft: () {
+            Navigator.pop(context); // Close preview
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Saved as draft'),
+                backgroundColor: Color(0xFF0AC5C5),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   Future<void> _sendBottle() async {
     if (_isSending) return; // Prevent double-send
-    
+
     setState(() {
       _isSending = true;
     });
@@ -625,6 +733,35 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       final currentUser = Supabase.instance.client.auth.currentUser;
       if (currentUser == null) {
         throw Exception('User not authenticated');
+      }
+
+      // Check limits
+      final isPremium = await EntitlementsService().isPremium(currentUser.id);
+      final canSend = await _databaseService.canSendBottleToday(currentUser.id, isPremium);
+      
+      if (!canSend) {
+        setState(() => _isSending = false);
+        if (!mounted) return;
+        
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Daily Limit Reached', style: TextStyle(fontFamily: 'PlayfairDisplay', fontWeight: FontWeight.bold)),
+            content: const Text('You have reached your limit of 3 bottles per day.\n\nUpgrade to Premium for unlimited bottles and more!', style: TextStyle(fontFamily: 'Montserrat')),
+            actions: [
+              TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
+                child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                   Navigator.pop(context);
+                   // Navigate to subscription screen if available
+                },
+              ),
+            ],
+          ),
+        );
+        return;
       }
 
       // Determine content type
@@ -637,29 +774,173 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         contentType = 'voice';
       }
 
+      String? uploadedPhotoUrl;
+      String? uploadedAudioUrl;
+      if (contentType == 'photo' && _selectedImageFile != null) {
+        final userId = currentUser.id;
+        final taskId = DateTime.now().millisecondsSinceEpoch.toString();
+        final uploadStatus = await _uploadController.enqueue(UploadTask(id: taskId, bucket: 'content_images', userId: userId, file: _selectedImageFile!, prefix: 'content'));
+        
+        if (!uploadStatus.completed || uploadStatus.url == null) {
+          throw Exception('Image upload failed');
+        }
+        
+        uploadedPhotoUrl = uploadStatus.url;
+        await _databaseService.insertImageMetadata(
+          ownerId: userId,
+          bucket: 'content_images',
+          path: UploadService.buildPath(userId: userId, prefix: 'content', ext: _selectedImageFile!.path.split('.').last),
+          url: uploadedPhotoUrl!,
+          entityType: 'bottle_photo',
+          visibility: 'public',
+        );
+      }
+
+      if (contentType == 'voice' && _voicePath != null) {
+        final userId = currentUser.id;
+        final taskId = DateTime.now().millisecondsSinceEpoch.toString();
+        final uploadStatus = await _uploadController.enqueue(UploadTask(id: taskId, bucket: 'voice_clips', userId: userId, file: File(_voicePath!), prefix: 'voice'));
+        
+        if (!uploadStatus.completed || uploadStatus.url == null) {
+          throw Exception('Audio upload failed');
+        }
+        
+        uploadedAudioUrl = uploadStatus.url;
+      }
+
       // 1. Create sent bottle in database
       final bottleId = await _databaseService.createSentBottle(
         senderId: currentUser.id,
         contentType: contentType,
-        message: contentType == 'text' ? _messageController.text : null,
-        caption: contentType == 'photo' ? _captionController.text : null,
+        message: contentType == 'text' 
+            ? _messageController.text 
+            : contentType == 'photo' 
+                ? _captionController.text  // Save caption in message field for photos
+                : null,
         mood: _selectedMood,
-        // TODO: Upload audio/photo files and get URLs
-        audioUrl: contentType == 'voice' ? 'placeholder_audio_url' : null,
-        photoUrl: contentType == 'photo' && _selectedImagePath != null 
-            ? 'placeholder_photo_url' 
-            : null,
+        audioUrl: contentType == 'voice' ? uploadedAudioUrl : null,
+        photoUrl: uploadedPhotoUrl,
       );
 
       if (bottleId == null) {
         throw Exception('Failed to create bottle');
       }
 
+      // Increment counter
+      await _databaseService.incrementDailyBottles(currentUser.id);
+
+      // Check if this is a reply to a bottle
+      final isReply = widget.replyToBottleId != null && widget.replyToUserId != null;
+      
+      String? recipientId;
+      String? conversationId; // Only assigned in isReply block
+      
+      if (isReply) {
+        // This is a reply - send directly to the original sender
+        recipientId = widget.replyToUserId!;
+        
+        // Create or get existing conversation (will throw on error)
+        conversationId = await _databaseService.createConversation(
+          userAId: currentUser.id,
+          userBId: recipientId,
+        );
+        
+        debugPrint('✅ Reply conversation created/found: $conversationId');
+        
+        // 1. Fetch original bottle content to insert as first message
+        if (widget.replyToBottleId != null) {
+          final originalBottle = await _databaseService.getReceivedBottle(widget.replyToBottleId!);
+          
+          if (originalBottle != null) {
+            // Check if conversation is empty (newly created)
+            final messages = await _databaseService.getMessages(conversationId);
+            if (messages.isEmpty) {
+                debugPrint('✅ Inserting original bottle content as first message');
+                // Insert original bottle as the first message from the SENDER (not current user)
+                await _databaseService.sendMessage(
+                conversationId: conversationId,
+                senderId: originalBottle.senderId ?? widget.replyToUserId!, // The other person
+                type: originalBottle.contentType,
+                text: originalBottle.message ?? (originalBottle.contentType == 'text' ? '' : null),
+                mediaUrl: originalBottle.photoUrl ?? originalBottle.audioUrl,
+                // Note: datetime will be now, ideally we'd backdate it but sendMessage uses server time
+                );
+            }
+          }
+        }
+
+        // 2. Send the reply content (current message)
+        await _databaseService.sendMessage(
+          conversationId: conversationId,
+          senderId: currentUser.id, // Me
+          type: contentType,
+          text: contentType == 'text' ? _messageController.text : null,
+          mediaUrl: contentType == 'photo' ? uploadedPhotoUrl : uploadedAudioUrl,
+        );
+        
+        debugPrint('✅ Reply sent to conversation: $conversationId');
+        
+        // 3. Mark the original received bottle as replied
+        if (widget.replyToBottleId != null) {
+          await _databaseService.markBottleAsReplied(widget.replyToBottleId!);
+          debugPrint('✅ Marked bottle as replied: ${widget.replyToBottleId}');
+          
+          // 4. Mark the original SENT bottle as replied (for the sender's UI)
+          try {
+            final receivedBottle = await _databaseService.getReceivedBottle(widget.replyToBottleId!);
+            if (receivedBottle != null && receivedBottle.senderId != null) {
+              // Fetch the sent_bottle_id from the received bottle
+              final sentBottleData = await Supabase.instance.client
+                  .from('received_bottles')
+                  .select('sent_bottle_id')
+                  .eq('id', widget.replyToBottleId!)
+                  .maybeSingle();
+              
+              if (sentBottleData != null && sentBottleData['sent_bottle_id'] != null) {
+                await _databaseService.markSentBottleAsReplied(sentBottleData['sent_bottle_id'] as String);
+                debugPrint('✅ Marked sent bottle as replied: ${sentBottleData['sent_bottle_id']}');
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠️ Could not mark sent bottle as replied: $e');
+            // Non-critical, continue with flow
+          }
+        }
+
+        // 5. Navigate to Chat Screen
+        if (mounted) {
+           debugPrint('🔍 Navigating to conversation: $conversationId');
+           Navigator.pop(context); // Close send bottle screen
+           
+           if (conversationId != null) {
+               Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatConversationScreen(
+                    contactName: 'Sea Soul', 
+                    conversationId: conversationId!,
+                    isUnlocked: false,
+                  ),
+                ),
+               );
+               
+               ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Reply sent!'),
+                  backgroundColor: Color(0xFF0AC5C5),
+                  duration: Duration(seconds: 2),
+                ),
+               );
+           }
+        }
+        return; // Exit here - don't do matching logic
+      }
+
       // 2. Match bottle to a recipient
-      final recipientId = await _matchingService.matchBottle(
-        bottleId: bottleId,
-        senderId: currentUser.id,
-      );
+      recipientId = await _matchingService.matchBottle(
+          bottleId: bottleId,
+          senderId: currentUser.id,
+        );
 
       if (recipientId == null) {
         // No match found
@@ -669,7 +950,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No compatible users found. Your bottle will be sent when someone matches your preferences.'),
+              content: Text(
+                  'No compatible users found. Your bottle will be sent when someone matches your preferences.'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 4),
             ),
@@ -687,23 +969,22 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         message: contentType == 'text' ? _messageController.text : null,
         caption: contentType == 'photo' ? _captionController.text : null,
         mood: _selectedMood,
-        audioUrl: contentType == 'voice' ? 'placeholder_audio_url' : null,
-        photoUrl: contentType == 'photo' && _selectedImagePath != null 
-            ? 'placeholder_photo_url' 
-            : null,
+        audioUrl: contentType == 'voice' ? uploadedAudioUrl : null,
+        photoUrl: uploadedPhotoUrl,
       );
-      
+
       if (receivedBottleId == null) {
         throw Exception('Failed to create received bottle for recipient');
       }
 
-
-      // 4. Schedule delivery (floating in sea effect)
-      await _matchingService.scheduleBottleDelivery(
-        bottleId: bottleId,
-        senderId: currentUser.id,
-        recipientId: recipientId,
-      );
+      // 4. Schedule delivery (floating in sea effect) - only for non-replies
+      if (!isReply) {
+        await _matchingService.scheduleBottleDelivery(
+          bottleId: bottleId,
+          senderId: currentUser.id,
+          recipientId: recipientId,
+        );
+      }
 
       // 5. Increment counters
       await _databaseService.incrementBottleCounters(
@@ -714,36 +995,56 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       // 6. Update last active
       await _databaseService.updateLastActive(currentUser.id);
 
-      // Success! Show confirmation modal
+      // Success!
       if (mounted) {
         setState(() {
           _isSending = false;
         });
         
-        showDialog(
-          context: context,
-          barrierColor: const Color(0x33000000),
-          builder: (context) => SentConfirmationModal(
-            onClose: () {
-              Navigator.pop(context); // Close modal
-              Navigator.pop(context); // Return to home
-            },
-            onSendNew: () {
-              Navigator.pop(context); // Close modal
-              setState(() {
-                _messageController.clear();
-                _captionController.clear();
-                _selectedMood = 'Dreamy';
-                _selectedType = 'Text';
-                _canPreview = false;
-                _isRecording = false;
-                _recordingSeconds = 0;
-                _selectedImagePath = null;
-                _selectedImageFile = null;
-              });
-            },
-          ),
-        );
+        // Clear all input fields
+        _messageController.clear();
+        _captionController.clear();
+        _selectedImagePath = null;
+        _selectedImageFile = null;
+        _voicePath = null;
+        _selectedMood = 'Dreamy';
+        _selectedType = 'Text';
+        _canPreview = false;
+
+        if (isReply && conversationId != null) {
+          // Close preview modal
+          Navigator.pop(context);
+          // Navigate back and show success message
+          Navigator.pop(context); // Close send bottle screen
+          Navigator.pop(context); // Close bottle detail screen
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Reply sent! Check your Connections tab to see the conversation.'),
+              backgroundColor: Color(0xFF0AC5C5),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          // Close preview modal first
+          Navigator.pop(context);
+          
+          // Show confirmation modal for normal bottles
+          showDialog(
+            context: context,
+            barrierColor: const Color(0x33000000),
+            builder: (context) => SentConfirmationModal(
+              onClose: () {
+                Navigator.pop(context); // Close modal
+                Navigator.pop(context); // Return to home
+              },
+              onSendNew: () {
+                Navigator.pop(context); // Close modal
+                // Fields already cleared above
+              },
+            ),
+          );
+        }
       }
     } catch (e) {
       // Error handling
@@ -752,6 +1053,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           _isSending = false;
         });
         
+        // Close preview modal if open
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send bottle: $e'),

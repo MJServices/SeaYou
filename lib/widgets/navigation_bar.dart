@@ -31,9 +31,15 @@ class CustomNavigationBar extends StatelessWidget {
             onTap: () {},
           ),
           _buildNavItem(
+            icon: Icons.door_front_door_outlined,
+            label: 'Desires',
+            isActive: currentIndex == 2,
+            onTap: () {},
+          ),
+          _buildNavItem(
             icon: Icons.person_outline,
             label: 'Profile',
-            isActive: currentIndex == 2,
+            isActive: currentIndex == 3,
             onTap: () {},
             hasAvatar: true,
           ),

@@ -4,6 +4,8 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'create_account_screen.dart';
+import '../services/localization_service.dart';
+import '../i18n/app_localizations.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -25,28 +27,40 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 15),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
                 child: Text(
-                  'Select a language',
+                  AppLocalizations.of(context).tr('common.select_language'),
                   style: AppTextStyles.displayText,
                 ),
               ),
               const SizedBox(height: 32),
-              _buildLanguageOption('English (device\'s language)', true),
-              _buildLanguageOption('French', false),
-              _buildLanguageOption('German', false),
-              _buildLanguageOption('Spanish', false),
+              _buildLanguageOption(
+                  'English (device\'s language)', true, const Locale('en')),
+              _buildLanguageOption('French', false, const Locale('fr')),
+              _buildLanguageOption('German', false, const Locale('de')),
+              _buildLanguageOption('Spanish', false, const Locale('es')),
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
                   text: 'Continue',
                   isActive: selectedLanguage != null,
-                  onPressed: () {
+                  onPressed: () async {
                     if (selectedLanguage != null) {
+                      final ctx = context;
+                      // Persist selected locale
+                      final map = {
+                        'English (device\'s language)': const Locale('en'),
+                        'French': const Locale('fr'),
+                        'German': const Locale('de'),
+                        'Spanish': const Locale('es'),
+                      };
+                      final l = map[selectedLanguage!] ?? const Locale('en');
+                      await LocalizationService.instance.setLocale(l);
+                      if (!ctx.mounted) return;
                       Navigator.push(
-                        context,
+                        ctx,
                         MaterialPageRoute(
                           builder: (context) => CreateAccountScreen(
                             selectedLanguage: selectedLanguage!,
@@ -64,13 +78,14 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     );
   }
 
-  Widget _buildLanguageOption(String language, bool isDefault) {
+  Widget _buildLanguageOption(String language, bool isDefault, Locale locale) {
     final isSelected = selectedLanguage == language;
 
     return GestureDetector(
       onTap: () {
         setState(() {
           selectedLanguage = language;
+          LocalizationService.instance.setLocale(locale);
         });
       },
       child: Container(

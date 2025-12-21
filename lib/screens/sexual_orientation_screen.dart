@@ -42,6 +42,13 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
     super.initState();
     if (widget.userProfile.sexualOrientation != null) {
       _selectedOrientations.addAll(widget.userProfile.sexualOrientation!);
+      
+      // Add any custom orientations from profile that aren't in the default list
+      for (final orientation in _selectedOrientations) {
+        if (!orientations.contains(orientation)) {
+          orientations.add(orientation);
+        }
+      }
     }
     _showOnProfile = widget.userProfile.showOrientation;
   }

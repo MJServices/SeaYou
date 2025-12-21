@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../services/audio_service.dart';
+import '../../widgets/feeling_progress.dart';
 
 /// Connection Level Modal - Shows connection progress
-class ConnectionLevelModal extends StatelessWidget {
+class ConnectionLevelModal extends StatefulWidget {
   final String contactName;
   final int connectionPercentage;
 
@@ -10,6 +12,46 @@ class ConnectionLevelModal extends StatelessWidget {
     required this.contactName,
     this.connectionPercentage = 75,
   });
+
+  @override
+  State<ConnectionLevelModal> createState() => _ConnectionLevelModalState();
+}
+
+class _ConnectionLevelModalState extends State<ConnectionLevelModal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _progress;
+  bool _completed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _progress = Tween<double>(
+            begin: 0, end: widget.connectionPercentage.toDouble())
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _controller.addStatusListener((status) async {
+      if (status == AnimationStatus.completed && !_completed) {
+        if (widget.connectionPercentage >= 100) {
+          await GlobalAudioController.instance.playCompletionSfx();
+        }
+        setState(() {
+          _completed = true;
+        });
+      }
+    });
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,42 +101,12 @@ class ConnectionLevelModal extends StatelessWidget {
   }
 
   Widget _buildProgressIndicator() {
-    return Row(
-      children: [
-        Expanded(
-          child: Stack(
-            children: [
-              Container(
-                height: 20,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3E3E3),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: connectionPercentage / 100,
-                child: Container(
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0AC5C5),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          '$connectionPercentage%',
-          style: const TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF151515),
-          ),
-        ),
-      ],
+    return AnimatedBuilder(
+      animation: _progress,
+      builder: (context, _) {
+        final value = (_progress.value.clamp(0, 100)).toInt();
+        return FeelingProgress(percent: value);
+      },
     );
   }
 

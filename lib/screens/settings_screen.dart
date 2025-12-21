@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
 import '../services/auth_service.dart';
 import 'blocked_users_screen.dart';
 import 'splash_screen.dart';
+import '../widgets/profile_avatar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -51,8 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (mounted) {
         setState(() {
-          _userProfile = results[0] as Map<String, dynamic>?;
-          _preferences = results[1] as Map<String, dynamic>?;
+          _userProfile = results[0];
+          _preferences = results[1];
 
           // Set preferences if they exist
           if (_preferences != null) {
@@ -234,30 +234,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildProfileSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Avatar
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: _userProfile?['avatar_url'] != null
-                    ? NetworkImage(_userProfile!['avatar_url'])
-                    : const AssetImage('assets/images/profile_avatar.png')
-                        as ImageProvider,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Name and email
-          Expanded(
-            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -327,7 +303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _acceptFromGender,
+              initialValue: _acceptFromGender,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -418,7 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               value: _notifyOnReceived,
-              activeColor: const Color(0xFF0AC5C5),
+              activeThumbColor: const Color(0xFF0AC5C5),
               onChanged: (value) {
                 setState(() {
                   _notifyOnReceived = value;
@@ -438,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               value: _notifyOnRead,
-              activeColor: const Color(0xFF0AC5C5),
+              activeThumbColor: const Color(0xFF0AC5C5),
               onChanged: (value) {
                 setState(() {
                   _notifyOnRead = value;
@@ -517,6 +493,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: Color(0xFF737373),
                 ),
               ),
+            ),
+            const Divider(height: 1),
+            // DEBUG: Premium Toggle
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              title: const Text(
+                'DEBUG: Activate Premium',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange,
+                ),
+              ),
+              subtitle: const Text('Testing only', style: TextStyle(fontSize: 12)),
+              onTap: () async {
+                final userId = AuthService().currentUser?.id;
+                if (userId != null) {
+                  try {
+                    await Supabase.instance.client.from('entitlements').upsert({
+                      'user_id': userId,
+                      'tier': 'premium',
+                      'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+                    }, onConflict: 'user_id');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('✅ Premium activated! Restart app.'), backgroundColor: Colors.green),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                }
+              },
             ),
             const Divider(height: 1),
             ListTile(

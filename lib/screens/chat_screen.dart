@@ -1,11 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import '../widgets/custom_keyboard.dart';
-
-class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
-
-  @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
@@ -41,29 +33,6 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 24,
             colorFilter: const ColorFilter.mode(
               Colors.white,
-              BlendMode.srcIn,
-            ),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: AssetImage('assets/images/profile_avatar.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
                   'Anonymous',
                   style: TextStyle(
                     fontFamily: 'Inter',
@@ -110,7 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Image.asset(
-                          'assets/images/empty bottle.png',
+                          'assets/images/empty-bottle.png',
                           width: 120,
                           height: 120,
                         ),

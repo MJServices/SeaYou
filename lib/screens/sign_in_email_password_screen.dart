@@ -6,26 +6,34 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../services/auth_service.dart';
 import 'verification_screen.dart';
+import 'forgot_password_screen.dart';
+import 'home_screen.dart';
+import '../i18n/app_localizations.dart';
 
 class SignInEmailPasswordScreen extends StatefulWidget {
   const SignInEmailPasswordScreen({super.key});
 
   @override
-  State<SignInEmailPasswordScreen> createState() => _SignInEmailPasswordScreenState();
+  State<SignInEmailPasswordScreen> createState() =>
+      _SignInEmailPasswordScreenState();
 }
 
 class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
-  
+
   bool isFormValid = false;
   bool isLoading = false;
   String? emailError;
+  bool usePassword = true;
+  bool _obscureText = true;
 
   @override
   void initState() {
     super.initState();
     _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
   }
 
   void _validateForm() {
@@ -44,8 +52,14 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
         emailError = null;
       }
 
-      // Form is valid if email is filled and has no errors
-      isFormValid = email.isNotEmpty && emailError == null;
+      // Form is valid if email is filled and has no errors; password required when usePassword
+      if (usePassword) {
+        isFormValid = email.isNotEmpty &&
+            emailError == null &&
+            _passwordController.text.isNotEmpty;
+      } else {
+        isFormValid = email.isNotEmpty && emailError == null;
+      }
     });
   }
 
@@ -58,48 +72,53 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
 
     try {
       final email = _emailController.text.trim();
-
-      print('Checking if email exists and sending OTP to: $email');
-
-      // Check if email exists and send OTP
-      await _authService.signInWithEmailOtp(email);
+      if (usePassword) {
+        await _authService.signInWithPassword(email, _passwordController.text);
+      } else {
+        await _authService.signInWithEmailOtp(email);
+      }
 
       if (!mounted) return;
 
-      print('OTP sent successfully, navigating to verification');
-
-      // Navigate to verification screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VerificationScreen(
-            email: email,
-            selectedLanguage: null, // No language selection for sign-in
-            isSignIn: true, // This is a sign-in flow
+      if (!usePassword) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VerificationScreen(
+              email: email,
+              selectedLanguage: null,
+              isSignIn: true,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      
+
       print('Sign in error: $e');
       print('Error type: ${e.runtimeType}');
-      
+
       // Handle specific error messages
       String errorMessage = 'An error occurred. Please try again.';
-      
+
       final errorString = e.toString().toLowerCase();
-      
-      if (errorString.contains('user not found') || 
+
+      if (errorString.contains('user not found') ||
           errorString.contains('no user found')) {
-        errorMessage = 'No account found with this email. Please sign up first.';
+        errorMessage =
+            'No account found with this email. Please sign up first.';
       } else if (errorString.contains('rate limit')) {
         errorMessage = 'Too many attempts. Please try again later.';
       } else {
         // Show the actual error for debugging
         errorMessage = 'Error: $e';
       }
-      
+
       _showErrorDialog(errorMessage);
     } finally {
       if (mounted) {
@@ -133,7 +152,7 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              Padding(
+              SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 15),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,26 +162,65 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
                     GestureDetector(
                       onTap: isLoading ? null : () => Navigator.pop(context),
                       child: Icon(
-                        Icons.arrow_back, 
-                        color: isLoading ? AppColors.black.withOpacity(0.3) : AppColors.black,
+                        Icons.arrow_back,
+                        color: isLoading
+                            ? AppColors.black.withValues(alpha: 0.3)
+                            : AppColors.black,
                       ),
                     ),
                     const SizedBox(height: 32),
-                    const Text(
-                      'Sign In',
-                      style: AppTextStyles.displayText,
-                    ),
+                    Text(AppLocalizations.of(context).tr('auth.sign_in_title'),
+                        style: AppTextStyles.displayText),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Enter your email to receive a verification code',
-                      style: AppTextStyles.bodyText,
-                    ),
+                    // Only password login for returning users
+                    const SizedBox(height: 16),
+                    Text(
+                        AppLocalizations.of(context)
+                            .tr('auth.sign_in_password_description'),
+                        style: AppTextStyles.bodyText),
                     const SizedBox(height: 32),
                     CustomTextField(
-                      hintText: 'Email',
+                      hintText: AppLocalizations.of(context).tr('auth.email'),
                       controller: _emailController,
                       isActive: !isLoading,
                       keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      hintText:
+                          AppLocalizations.of(context).tr('auth.password'),
+                      controller: _passwordController,
+                      isActive: !isLoading,
+                      obscureText: _obscureText,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureText ? Icons.visibility_off : Icons.visibility,
+                          color: AppColors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureText = !_obscureText;
+                          });
+                        },
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                        child: Text(AppLocalizations.of(context)
+                            .tr('auth.forgot_password')),
+                      ),
                     ),
                     if (emailError != null && _emailController.text.isNotEmpty)
                       Padding(
@@ -175,12 +233,18 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
                           ),
                         ),
                       ),
-                    const Spacer(),
+                    const SizedBox(height: 24),
                     CustomButton(
-                      text: isLoading ? 'Sending Code...' : 'Continue',
+                      text: isLoading
+                          ? AppLocalizations.of(context).tr('auth.continue')
+                          : AppLocalizations.of(context).tr('auth.continue'),
                       isActive: isFormValid && !isLoading,
                       onPressed: _handleSignIn,
                     ),
+                    SizedBox(
+                        height: MediaQuery.of(context).viewInsets.bottom == 0
+                            ? 32
+                            : MediaQuery.of(context).viewInsets.bottom),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -188,7 +252,7 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
               // Loading overlay
               if (isLoading)
                 Container(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   child: const Center(
                     child: CircularProgressIndicator(),
                   ),

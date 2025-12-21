@@ -28,23 +28,22 @@ class WarmGradientBackground extends StatelessWidget {
       );
     }
 
-    // Use gradient background
+    // Soft ellipse gradient matching Figma design
+    // Color: #0AC5C5 with blur effect fading to cream
     return Container(
       constraints: const BoxConstraints.expand(),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+        gradient: RadialGradient(
+          center: Alignment(0.0, -0.8), // Positioned near top center
+          radius: 1.2,
           colors: [
-            Color(0xFFFFB5A7), // Warm peach/coral
-            Color(0xFFFFC8B8), // Light peach
-            Color(0xFFFFD4C8), // Lighter peach
-            Color(0xFFFFE0D8), // Very light peach
-            Color(0xFFF5D4E8), // Light pink
-            Color(0xFFE8C8F0), // Soft purple
-            Color(0xFFD8B8F8), // Light purple
+            Color(0xFF0AC5C5), // Teal center (#0AC5C5)
+            Color(0x800AC5C5), // 50% opacity teal
+            Color(0x400AC5C5), // 25% opacity teal
+            Color(0x200AC5C5), // 12% opacity teal
+            Color(0xFFFFF8F0), // Cream/beige background
           ],
-          stops: [0.0, 0.15, 0.3, 0.5, 0.7, 0.85, 1.0],
+          stops: [0.0, 0.15, 0.35, 0.55, 0.8],
         ),
       ),
       child: child,

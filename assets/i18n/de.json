@@ -1,0 +1,47 @@
+{
+  "home": {
+    "ongoing_conversations": "Laufende Unterhaltungen",
+    "secret_souls": "Geheime Seelen",
+    "door_of_desires": "Tür der Wünsche",
+    "discover": "Entdecken",
+    "premium_cta": "SEAYOU PREMIUM ENTDECKEN",
+    "discovery_card_title": "3 neue Nachrichten",
+    "discovery_card_subtitle": "Und wenn Sie es dem Zufall überlassen...",
+    "discovery_card_cta": "Entdecken",
+    "conversation_list_header": "Sie haben {count} Unterhaltungen"
+  },
+  "auth": {
+    "sign_up": "Kostenlos registrieren",
+    "log_in": "Anmelden",
+    "email": "E‑Mail",
+    "password": "Passwort",
+    "login_with_password": "Mit Passwort anmelden",
+    "login_with_code": "Mit Code anmelden",
+    "forgot_password": "Passwort vergessen",
+    "continue": "Weiter",
+    "send_code": "Bestätigungscode senden",
+    "sign_in_title": "Anmeldung",
+    "sign_in_description": "Geben Sie Ihre E‑Mail ein, um einen Bestätigungscode zu erhalten",
+    "create_password_title": "Passwort erstellen",
+    "create_account_title": "Konto erstellen",
+    "create_account_description": "Ein Bestätigungscode wird sofort gesendet, um Ihre E‑Mail‑Adresse zu bestätigen",
+    "terms_notice": "Mit Klick auf Weiter akzeptieren Sie die Nutzungsbedingungen und die Datenschutzrichtlinie",
+    "sign_in_password_description": "Geben Sie Ihre E‑Mail und Ihr Passwort ein",
+    "recover_title": "Passwort zurücksetzen",
+    "recover_description": "Geben Sie Ihre E‑Mail ein, um einen Link zur Zurücksetzung zu erhalten",
+    "reset_link_sent": "Link zum Zurücksetzen gesendet"
+  },
+  "error": {
+    "invalid_email": "Bitte geben Sie eine gültige E‑Mail ein",
+    "generic": "Fehler"
+  },
+  "splash": {
+    "subtitle": "Und wenn Sie es dem ZUFALL überlassen..."
+  },
+  "common": {
+    "back": "Zurück",
+    "ok": "OK",
+    "cancel": "Abbrechen",
+    "select_language": "Wählen Sie eine Sprache"
+  }
+}

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../widgets/tutorial_modal.dart'; // Added for tutorial modal
 import 'home_screen.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/upload_service.dart';
 
 class AccountSetupDoneScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -32,9 +35,58 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
         throw Exception('No user logged in');
       }
       
+      
       debugPrint('Creating profile for user: ${user.id}');
       debugPrint('User email: ${user.email}');
       debugPrint('Profile email: ${widget.userProfile.email}');
+      debugPrint('📋 UserProfile values:');
+      debugPrint('  fullName: ${widget.userProfile.fullName}');
+      debugPrint('  age: ${widget.userProfile.age}');
+      debugPrint('  city: ${widget.userProfile.city}');
+      debugPrint('  about: ${widget.userProfile.about}');
+      debugPrint('  sexualOrientation: ${widget.userProfile.sexualOrientation}');
+      debugPrint('  showOrientation: ${widget.userProfile.showOrientation}');
+      debugPrint('  expectation: ${widget.userProfile.expectation}');
+      debugPrint('  interestedIn: ${widget.userProfile.interestedIn}');
+      debugPrint('  interests: ${widget.userProfile.interests}');
+      debugPrint('  avatarUrl: ${widget.userProfile.avatarUrl}');
+      debugPrint('  language: ${widget.userProfile.language}');
+      debugPrint('  secretDesire: ${widget.userProfile.secretDesire}');
+      
+      // Upload secret audio if provided
+      String? secretAudioUrl;
+      
+      // Check if it's already a remote URL
+      if (widget.userProfile.secretAudioUrl != null && 
+          widget.userProfile.secretAudioUrl!.startsWith('http')) {
+        secretAudioUrl = widget.userProfile.secretAudioUrl;
+        debugPrint('✅ Using existing secret audio URL: $secretAudioUrl');
+      }
+
+      if (widget.userProfile.secretAudioUrl != null && 
+          widget.userProfile.secretAudioUrl!.isNotEmpty &&
+          secretAudioUrl == null) {
+        try {
+          debugPrint('📤 Uploading secret audio...');
+          final file = File(widget.userProfile.secretAudioUrl!);
+          
+          final uploadResult = await UploadService().uploadFile(
+            file: file,
+            bucket: 'voice_clips',
+            userId: user.id,
+            prefix: 'secret_audio',
+          );
+          
+          if (uploadResult != null) {
+            secretAudioUrl = uploadResult.url;
+            debugPrint('✅ Secret audio uploaded: $secretAudioUrl');
+          }
+        } catch (e) {
+          debugPrint('❌ Error uploading secret audio: $e');
+          // If upload fails, we should stop and alert the user, rather than silently creating a profile without audio
+          throw Exception('Failed to upload audio: $e');
+        }
+      }
       
       await DatabaseService().createProfile(
         userId: user.id,
@@ -50,6 +102,8 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
         interests: widget.userProfile.interests ?? [],
         avatarUrl: widget.userProfile.avatarUrl,
         language: widget.userProfile.language,
+        secretDesire: widget.userProfile.secretDesire,
+        secretAudioUrl: secretAudioUrl,
       );
       
       if (mounted) {
@@ -80,7 +134,16 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
                 MaterialPageRoute(
                   builder: (context) => const HomeScreen(),
                 ),
-              );
+              ).then((_) {
+                // Show tutorial modal after navigating to home
+                if (mounted) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      TutorialModal.show(context);
+                    }
+                  });
+                }
+              });
             }
           });
         } else if (e.toString().contains('violates foreign key')) {

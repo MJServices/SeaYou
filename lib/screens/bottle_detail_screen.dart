@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/reply_sent_modal.dart';
 import '../screens/send_bottle_screen.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../widgets/profile_avatar.dart';
 
 /// Bottle Detail Screen - Shows the full message from a bottle
 class BottleDetailScreen extends StatefulWidget {
@@ -11,6 +12,9 @@ class BottleDetailScreen extends StatefulWidget {
   final String messageType;
   final String message;
   final bool isReceived;
+  final String? bottleId;
+  final String? senderId;
+  final bool isReplied;
 
   const BottleDetailScreen({
     super.key,
@@ -18,6 +22,9 @@ class BottleDetailScreen extends StatefulWidget {
     required this.messageType,
     required this.message,
     this.isReceived = true,
+    this.bottleId,
+    this.senderId,
+    this.isReplied = false,
   });
 
   @override
@@ -30,6 +37,9 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
   String get messageType => widget.messageType;
   String get message => widget.message;
   bool get isReceived => widget.isReceived;
+  bool get isReplied => widget.isReplied;
+
+// ... (omitted lines) ...
 
   List<Color> get _moodGradientColors {
     switch (mood.toLowerCase()) {
@@ -94,39 +104,34 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: Row(
                       children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: AssetImage(
-                                  'assets/images/profile_avatar.png'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
                         FutureBuilder<Map<String, dynamic>>(
                           future: Supabase.instance.client
                               .from('profiles')
-                              .select('full_name')
+                              .select('full_name, avatar_url')
                               .eq('id', Supabase.instance.client.auth.currentUser?.id ?? '')
                               .single(),
                           builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              debugPrint('Error fetching name: ${snapshot.error}');
-                            }
-                            
                             final name = snapshot.data?['full_name'] as String? ?? 'User';
-                            return Text(
-                              'Hey $name',
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF151515),
-                              ),
+                            final avatarUrl = snapshot.data?['avatar_url'] as String?;
+                            
+                            return Row(
+                              children: [
+                                ProfileAvatar(
+                                  imageUrl: avatarUrl,
+                                  radius: 12,
+                                  isLoading: snapshot.connectionState == ConnectionState.waiting,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Hey $name',
+                                  style: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF151515),
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
@@ -320,33 +325,50 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                               const SizedBox(height: 16),
                               // Send reply button
                               GestureDetector(
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const SendBottleScreen(),
-                                    ),
-                                  );
-                                  if (context.mounted) {
-                                    _showReplySentModal(context);
+                                onTap: isReplied ? null : () async {
+                                  if (widget.bottleId != null && widget.senderId != null) {
+                                    // Navigate to SendBottleScreen with reply context
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => SendBottleScreen(
+                                          replyToBottleId: widget.bottleId!,
+                                          replyToUserId: widget.senderId!,
+                                        ),
+                                      ),
+                                    );
+                                    if (context.mounted) {
+                                      Navigator.pop(context); // Close detail screen
+                                    }
+                                  } else {
+                                    // Fallback to old behavior
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const SendBottleScreen(),
+                                      ),
+                                    );
+                                    if (context.mounted) {
+                                      _showReplySentModal(context);
+                                    }
                                   }
                                 },
                                 child: Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: isReplied ? const Color(0xFFF5F5F5) : Colors.white,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    'Send a reply',
+                                    isReplied ? 'Already Replied' : 'Send a reply',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily: 'Montserrat',
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
-                                      color: _textColor,
+                                      color: isReplied ? const Color(0xFFAAAAAA) : _textColor,
                                     ),
                                   ),
                                 ),

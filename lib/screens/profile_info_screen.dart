@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../widgets/animated_waveform.dart';
 import 'sexual_orientation_screen.dart';
 import '../models/user_profile.dart';
 
@@ -26,12 +31,21 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _aboutController = TextEditingController();
+  final TextEditingController _secretDesireController = TextEditingController();
+  
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  int _recordingSeconds = 0;
+  Timer? _recordingTimer;
+  String? _secretAudioPath;
 
   bool get isFormValid =>
       _nameController.text.isNotEmpty &&
       _ageController.text.isNotEmpty &&
       _cityController.text.isNotEmpty &&
-      _aboutController.text.isNotEmpty;
+      _aboutController.text.isNotEmpty &&
+      _secretDesireController.text.isNotEmpty &&
+      _secretAudioPath != null;
 
   @override
   void initState() {
@@ -41,6 +55,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     _ageController.addListener(_updateFormState);
     _cityController.addListener(_updateFormState);
     _aboutController.addListener(_updateFormState);
+    _secretDesireController.addListener(_updateFormState);
   }
 
   void _updateFormState() {
@@ -162,6 +177,93 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        
+                        // Secret Desire Section
+                        Text(
+                          'Secret Desire',
+                          style: AppTextStyles.bodyText.copyWith(
+                            color: AppColors.darkGrey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        CustomTextField(
+                          hintText: 'Add your secret fantasy',
+                          controller: _secretDesireController,
+                          isActive: _secretDesireController.text.isNotEmpty,
+                          maxLines: 3,
+                          maxLength: 200,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Note: This will be anonymous to everyone. At least 200 words.',
+                                style: AppTextStyles.bodyText.copyWith(
+                                  fontSize: 12,
+                                  color: AppColors.darkGrey,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${_secretDesireController.text.length}/200',
+                              style: AppTextStyles.bodyText,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Secret Audio Section
+                        Text(
+                          'Add a secret audio',
+                          style: AppTextStyles.bodyText.copyWith(
+                            color: AppColors.darkGrey,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Recording button
+                        GestureDetector(
+                          onTap: _toggleRecording,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isRecording 
+                                  ? AppColors.primary 
+                                  : AppColors.primary.withValues(alpha: 0.2),
+                            ),
+                            child: Icon(
+                              _isRecording ? Icons.stop : Icons.mic,
+                              color: AppColors.white,
+                              size: 40,
+                            ),
+                          ),
+                        ),
+                        
+                        if (_isRecording || _secretAudioPath != null) ...[
+                          const SizedBox(height: 16),
+                          AnimatedWaveform(
+                            isAnimating: _isRecording,
+                            color: AppColors.primary,
+                            barCount: 30,
+                            height: 60,
+                            barWidth: 3,
+                            spacing: 2,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isRecording 
+                                ? 'Recording: ${_formatRecordingTime()}'
+                                : 'Recording saved: ${_formatRecordingTime()}',
+                            style: AppTextStyles.bodyText,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -180,6 +282,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           city: _cityController.text,
                           about: _aboutController.text,
                           language: widget.selectedLanguage ?? "English (device's language)",
+                          secretDesire: _secretDesireController.text,
+                          secretAudioUrl: _secretAudioPath, // Will be uploaded later
                         );
                         Navigator.push(
                           context,
@@ -202,12 +306,89 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     );
   }
 
+  void _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    final hasPerm = await _audioRecorder.hasPermission();
+    if (!hasPerm) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone permission required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final path = '${dir.path}/secret_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+          numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+        path: path,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordingSeconds = 0;
+      });
+
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          _recordingSeconds++;
+        });
+      });
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      _recordingTimer?.cancel();
+      
+      setState(() {
+        _isRecording = false;
+        _secretAudioPath = path;
+      });
+    } catch (e) {
+      debugPrint('Error stopping recording: $e');
+    }
+  }
+
+  String _formatRecordingTime() {
+    final minutes = _recordingSeconds ~/ 60;
+    final seconds = _recordingSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
     _cityController.dispose();
     _aboutController.dispose();
+    _secretDesireController.dispose();
+    _recordingTimer?.cancel();
+    _audioRecorder.dispose();
     super.dispose();
   }
 }

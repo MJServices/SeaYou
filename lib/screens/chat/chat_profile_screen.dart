@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
+import '../../models/user_profile.dart';
+import '../../services/database_service.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/voice_player.dart';
 
-/// Chat Profile Screen - View contact profile
+/// Chat Profile Screen - Dynamic profile viewer with conditional content
 class ChatProfileScreen extends StatefulWidget {
+  final String conversationId;
+  final String partnerId;
+  final int feelingPercent;
   final String contactName;
   final String? mood;
-  final bool isUnlocked;
 
   const ChatProfileScreen({
     super.key,
+    required this.conversationId,
+    required this.partnerId,
+    required this.feelingPercent,
     required this.contactName,
     this.mood,
-    this.isUnlocked = false,
   });
 
   @override
@@ -19,7 +28,54 @@ class ChatProfileScreen extends StatefulWidget {
 }
 
 class _ChatProfileScreenState extends State<ChatProfileScreen> {
+  final _db = DatabaseService();
+  bool _isLoading = true;
+  Map<String, dynamic>? _partnerProfile;
+  String? _naughtyAnswer;
   bool _reportToSeaYou = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPartnerProfile();
+  }
+
+  Future<void> _loadPartnerProfile() async {
+    try {
+      // Fetch partner profile
+      final profile = await _db.getProfile(widget.partnerId);
+      
+      // Fetch naughty answer if feeling >= 75%
+      String? naughtyAnswer;
+      if (widget.feelingPercent >= 75) {
+        final convData = await Supabase.instance.client
+            .from('conversations')
+            .select('user_a_id, user1_naughty_answer, user2_naughty_answer')
+            .eq('id', widget.conversationId)
+            .single();
+        
+        final currentUserId = AuthService().currentUser?.id;
+        final isUserA = convData['user_a_id'] == currentUserId;
+        // Get partner's answer (opposite of current user)
+        naughtyAnswer = isUserA 
+            ? convData['user2_naughty_answer']
+            : convData['user1_naughty_answer'];
+      }
+
+      if (mounted) {
+        setState(() {
+          _partnerProfile = profile;
+          _naughtyAnswer = naughtyAnswer;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading partner profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +86,9 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             children: [
               _buildHeader(context),
               Expanded(
-                child: _buildProfileContent(),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildProfileContent(),
               ),
             ],
           ),
@@ -67,18 +125,32 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   }
 
   Widget _buildProfileContent() {
+    if (_partnerProfile == null) {
+      return const Center(child: Text('Profile not found'));
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           _buildProfileHeader(),
           const SizedBox(height: 32),
-          _buildInfoSection(),
-          const SizedBox(height: 24),
-          _buildInterestsSection(),
-          const SizedBox(height: 24),
-          _buildSharedMedia(),
-          const SizedBox(height: 24),
+          if (widget.feelingPercent >= 25) ...[
+            _buildBioSection(),
+            const SizedBox(height: 24),
+          ],
+          if (widget.feelingPercent >= 50) ...[
+            _buildAudioSection(),
+            const SizedBox(height: 24),
+          ],
+          if (widget.feelingPercent >= 75 && _naughtyAnswer != null) ...[
+            _buildNaughtyAnswerSection(),
+            const SizedBox(height: 24),
+          ],
+          if (widget.feelingPercent >= 100) ...[
+            _buildPhotoRevealButton(),
+            const SizedBox(height: 24),
+          ],
           _buildActions(),
         ],
       ),
@@ -86,6 +158,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
+    final showPhoto = widget.feelingPercent >= 100;
+    
     return Column(
       children: [
         Container(
@@ -93,11 +167,16 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           height: 100,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: widget.isUnlocked ? null : _getMoodGradient(widget.mood),
-            color: widget.isUnlocked ? const Color(0xFFE3E3E3) : null,
+            gradient: showPhoto ? null : _getMoodGradient(widget.mood),
+            image: showPhoto && _partnerProfile?['avatar_url'] != null
+                ? DecorationImage(
+                    image: NetworkImage(_partnerProfile!['avatar_url'] as String),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
-          child: widget.isUnlocked
-              ? const Icon(Icons.person, size: 48, color: Color(0xFF737373))
+          child: !showPhoto
+              ? const Icon(Icons.lock, size: 48, color: Colors.white)
               : null,
         ),
         const SizedBox(height: 16),
@@ -111,245 +190,191 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        if (widget.isUnlocked)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'I love reading novels and taking walks.',
-              textAlign: TextAlign.center,
+        Text(
+          'Feeling Level: ${widget.feelingPercent}%',
+          style: const TextStyle(
+            fontFamily: 'Montserrat',
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF737373),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBioSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Bio Unlocked (25%)',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0AC5C5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _partnerProfile?['about'] as String? ?? 'No bio available',
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFF363636),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Secret Audio Unlocked (50%)',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0AC5C5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (_partnerProfile?['secret_audio_url'] != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0AC5C5).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: VoicePlayer(
+                audioUrl: _partnerProfile!['secret_audio_url'],
+                color: const Color(0xFF0AC5C5),
+              ),
+            )
+          else
+            const Row(
+              children: [
+                Icon(Icons.play_circle_filled, color: Colors.grey, size: 40),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No audio available',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF737373),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNaughtyAnswerSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Intimate Answer Unlocked (75%)',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0AC5C5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _naughtyAnswer!,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFF363636),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoRevealButton() {
+    return GestureDetector(
+      onTap: () {
+        // TODO: Show photo reveal modal
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF6EC7), Color(0xFFFFB347)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.photo, color: Colors.white, size: 24),
+            SizedBox(width: 12),
+            Text(
+              'Reveal Photo (100%)',
               style: TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF737373),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildInfoSection() {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'What I\'m looking for',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF737373),
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'A casual relationship',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-        SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Age',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF737373),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '18',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF363636),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Location',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF737373),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'France',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF363636),
-                    ),
-                  ),
-                ],
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
               ),
             ),
           ],
         ),
-        SizedBox(height: 16),
-        Text(
-          'Sexual Orientation',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF737373),
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'Gay',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Aromantic',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Bisexual',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Asexual',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInterestsSection() {
-    final interests = [
-      'Pole Dance',
-      'Anime',
-      'Rugby',
-      'Sports',
-      'K-dramas',
-      'Fitness',
-      'Thrillers',
-      'Movie'
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Interest',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF737373),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 17,
-          runSpacing: 8,
-          children: interests
-              .map((interest) => Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0AC5C5),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    child: Text(
-                      interest,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSharedMedia() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Shared Media (39)',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF737373),
-              ),
-            ),
-            Icon(Icons.keyboard_arrow_down, size: 24, color: Color(0xFF151515)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: List.generate(
-              3,
-              (index) => Expanded(
-                    child: Container(
-                      margin: EdgeInsets.only(right: index < 2 ? 4 : 0),
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  )),
-        ),
-      ],
+      ),
     );
   }
 

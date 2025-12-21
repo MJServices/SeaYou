@@ -1,0 +1,6 @@
+Initialising login role...
+failed to connect as temp role: failed to connect to `host=aws-1-ap-southeast-1.pooler.supabase.com user=cli_login_postgres.nenugkyvcewatuddrwvf database=postgres`: server error (FATAL: MaxClientsInSessionMode: max clients reached - in Session mode max clients are limited to pool_size (SQLSTATE XX000))
+Retry (3/8): Forgot your password? Reset it from the Dashboard: https://supabase.com/dashboard/project/nenugkyvcewatuddrwvf/settings/database
+Enter your database password: Connecting to remote database...
+failed to connect to postgres: failed to connect to `host=aws-1-ap-southeast-1.pooler.supabase.com user=postgres.nenugkyvcewatuddrwvf database=postgres`: failed SASL auth (FATAL: password authentication failed for user "postgres" (SQLSTATE 28P01))
+Try rerunning the command with --debug to troubleshoot the error.

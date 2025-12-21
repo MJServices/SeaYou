@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
 import '../../widgets/custom_button.dart';
+import '../../services/database_service.dart';
+import '../../widgets/voice_player.dart';
 
 /// Edit Bio Screen - Allows user to edit their bio/email
 class EditBioScreen extends StatefulWidget {
@@ -16,9 +19,102 @@ class EditBioScreen extends StatefulWidget {
 class _EditBioScreenState extends State<EditBioScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
+  final DatabaseService _databaseService = DatabaseService();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  String? _errorMessage;
+  String? _voiceClipUrl;
 
   bool get isFormValid =>
-      _emailController.text.isNotEmpty && _bioController.text.isNotEmpty;
+      _bioController.text.trim().isNotEmpty && !_isSaving;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentBio();
+  }
+
+  Future<void> _loadCurrentBio() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final profile = await _databaseService.getProfile(userId);
+      if (profile != null && mounted) {
+        setState(() {
+          _bioController.text = profile['about'] ?? '';
+          _emailController.text = profile['email'] ?? '';
+          _isLoading = false;
+        });
+
+        // Fetch voice clip separately
+        final prefs = await _databaseService.getUserPreferences(userId);
+        if (prefs != null && mounted) {
+          setState(() {
+            _voiceClipUrl = prefs['voice_clip_url'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading bio: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load bio';
+        });
+      }
+    }
+  }
+
+  Future<void> _saveBio() async {
+    if (!isFormValid) return;
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('No user logged in');
+      }
+
+      final bio = _bioController.text.trim();
+      
+      // Validate bio length
+      if (bio.length > 500) {
+        throw Exception('Bio must be 500 characters or less');
+      }
+
+      await _databaseService.updateBio(userId, bio);
+
+      if (!mounted) return;
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bio updated successfully!'),
+          backgroundColor: Color(0xFF0AC5C5),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Navigate back
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Error saving bio: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isSaving = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -187,6 +283,37 @@ class _EditBioScreenState extends State<EditBioScreen> {
                               contentPadding: const EdgeInsets.all(12),
                             ),
                           ),
+                          const SizedBox(height: 24),
+                          
+                          // Voice Intro Section
+                          if (_voiceClipUrl != null) ...[
+                            const Text(
+                              'Voice Intro',
+                              style: TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF363636),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: VoicePlayer(
+                                audioUrl: _voiceClipUrl,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                          ] else 
+                            const SizedBox(height: 32),
                           const SizedBox(height: 32),
                         ],
                       ),
@@ -195,14 +322,9 @@ class _EditBioScreenState extends State<EditBioScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: 'Save',
+                      text: _isSaving ? 'Saving...' : 'Save',
                       isActive: isFormValid,
-                      onPressed: isFormValid
-                          ? () {
-                              // Save bio
-                              Navigator.pop(context);
-                            }
-                          : null,
+                      onPressed: isFormValid ? _saveBio : null,
                     ),
                   ),
                 ],

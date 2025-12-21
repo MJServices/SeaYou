@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'language_selection_screen.dart';
-import '../widgets/status_bar.dart';
+import 'home_screen.dart';
+import '../services/audio_service.dart';
+import '../i18n/app_localizations.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,22 +16,39 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   late VideoPlayerController _controller;
   bool _isVideoInitialized = false;
+  VoidCallback? _muteListener;
 
   @override
   void initState() {
     super.initState();
+
     _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
+      ..setLooping(true)
       ..initialize().then((_) {
-        setState(() {
-          _isVideoInitialized = true;
-        });
-        _controller.setLooping(true);
-        _controller.play();
+        if (mounted) {
+          setState(() {
+            _isVideoInitialized = true;
+          });
+          // Apply current mute state to video volume
+          _controller.setVolume(
+              GlobalAudioController.instance.muted.value ? 0.0 : 1.0);
+          _controller.play();
+        }
       });
+
+    // Listen for global mute changes and update video volume
+    _muteListener = () {
+      final isMuted = GlobalAudioController.instance.muted.value;
+      _controller.setVolume(isMuted ? 0.0 : 1.0);
+    };
+    GlobalAudioController.instance.muted.addListener(_muteListener!);
   }
 
   @override
   void dispose() {
+    if (_muteListener != null) {
+      GlobalAudioController.instance.muted.removeListener(_muteListener!);
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -75,37 +95,38 @@ class _SplashScreenState extends State<SplashScreen> {
           SafeArea(
             child: Column(
               children: [
-                const CustomStatusBar(color: Colors.white),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 40, 24, 0), // Changed to 40px top padding
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // SeaYou Logo/Title with serif font
-                      Text(
-                        'Sea You',
+                      const Text(
+                        'SeaYou',
                         style: TextStyle(
-                          fontFamily: 'serif',
-                          fontSize: 48,
-                          fontWeight: FontWeight.w400,
+                          fontFamily: 'PlayfairDisplay',
+                          fontFamilyFallback: ['serif'],
+                          fontSize: 56, // Reverted back to 56px
+                          fontWeight: FontWeight.w300,
                           color: Colors.white,
-                          letterSpacing: 1.2,
+                          letterSpacing: 2.0,
+                          height: 1.2,
                           shadows: [
                             Shadow(
-                              color: Colors.black38,
-                              blurRadius: 12,
-                              offset: Offset(0, 2),
+                              color: Colors.black45,
+                              blurRadius: 16,
+                              offset: Offset(0, 3),
                             ),
                           ],
                         ),
                         textAlign: TextAlign.center,
                       ),
 
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
                       Text(
-                        'Let romance go',
-                        style: TextStyle(
+                        AppLocalizations.of(context).tr('splash.subtitle'),
+                        style: const TextStyle(
                           fontFamily: 'serif',
                           fontSize: 13,
                           fontWeight: FontWeight.w300,
@@ -124,9 +145,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     ],
                   ),
                 ),
-
                 const Spacer(),
-
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                   child: Column(
@@ -134,7 +153,8 @@ class _SplashScreenState extends State<SplashScreen> {
                     children: [
                       // White card with profiles and progress bar
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
@@ -148,14 +168,15 @@ class _SplashScreenState extends State<SplashScreen> {
                         ),
                         child: Row(
                           children: [
-                            // Left profile picture
+                            // Left profile picture (Woman)
                             Container(
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 image: const DecorationImage(
-                                  image: AssetImage('assets/images/profile_avatar.png'),
+                                  image:
+                                      AssetImage('assets/images/avatar_2.jpeg'),
                                   fit: BoxFit.cover,
                                 ),
                                 border: Border.all(
@@ -172,55 +193,47 @@ class _SplashScreenState extends State<SplashScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            // Progress bar section
+                            // Animated bar GIF
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    'Feeling 100%',
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF666666),
-                                      letterSpacing: 0.2,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  height: 48,
+                                  child: OverflowBox(
+                                    maxHeight: 70, // Make animation bigger
+                                    child: Image.asset(
+                                      'assets/videos/animated_bar.gif',
+                                      height: 70,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Container(
+                                          height: 70,
+                                          decoration: const BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Color(0xFFFFB347),
+                                                Color(0xFFFF6EC7),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  // Gradient progress bar
-                                  Container(
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(3),
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFFFFB347),
-                                          Color(0xFFFF6EC7),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
-                            // Heart icon
-                            const Icon(
-                              Icons.favorite,
-                              color: Color(0xFFFF6B9D),
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            // Right profile picture
+                            // Right profile picture (Man)
                             Container(
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 image: const DecorationImage(
-                                  image: AssetImage('assets/images/profile_avatar.png'),
+                                  image:
+                                      AssetImage('assets/images/avatar_1.jpeg'),
                                   fit: BoxFit.cover,
                                 ),
                                 border: Border.all(
@@ -245,36 +258,40 @@ class _SplashScreenState extends State<SplashScreen> {
                       // Sign up button
                       GestureDetector(
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LanguageSelectionScreen(),
-                            ),
-                          );
+                          // Mute the video before navigating
+                          _controller.setVolume(0.0);
+                          
+                          final session = Supabase.instance.client.auth.currentSession;
+                          if (session != null) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HomeScreen(),
+                              ),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const LanguageSelectionScreen(),
+                              ),
+                            );
+                          }
                         },
                         child: Container(
-                          height: 52,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(26),
-                            color: const Color(0xFFFFD4E5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           alignment: Alignment.center,
                           child: const Text(
-                            "S'inscrire gratuitement",
+                            "S'inscrire gratuitement !",
                             style: TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 15,
+                              fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFFD4788D),
+                              color: Colors.white,
                               letterSpacing: 0.3,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.white,
                             ),
                           ),
                         ),

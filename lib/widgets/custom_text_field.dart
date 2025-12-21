@@ -10,6 +10,9 @@ class CustomTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final int maxLines;
+  final int? maxLength;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onChanged;
 
   const CustomTextField({
     super.key,
@@ -20,6 +23,9 @@ class CustomTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.maxLines = 1,
+    this.maxLength,
+    this.focusNode,
+    this.onChanged,
   });
 
   @override
@@ -34,9 +40,12 @@ class CustomTextField extends StatelessWidget {
       ),
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
         obscureText: obscureText,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        maxLength: maxLength,
+        onChanged: onChanged,
         style: AppTextStyles.bodyText.copyWith(
           color: isActive ? AppColors.darkGrey : AppColors.grey,
         ),
@@ -46,6 +55,7 @@ class CustomTextField extends StatelessWidget {
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(12),
           suffixIcon: suffixIcon,
+          counterText: '', // Hide the counter text
         ),
       ),
     );

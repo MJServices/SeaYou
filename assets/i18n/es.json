@@ -1,0 +1,47 @@
+{
+  "home": {
+    "ongoing_conversations": "Conversaciones en curso",
+    "secret_souls": "Almas secretas",
+    "door_of_desires": "La puerta de los deseos",
+    "discover": "Descubrir",
+    "premium_cta": "DESCUBRIR SEAYOU PREMIUM",
+    "discovery_card_title": "3 nuevos mensajes",
+    "discovery_card_subtitle": "¿Y si lo dejaras al AZAR...?",
+    "discovery_card_cta": "Descubrir",
+    "conversation_list_header": "Tienes {count} conversaciones"
+  },
+  "auth": {
+    "sign_up": "Regístrate gratis",
+    "log_in": "Iniciar sesión",
+    "email": "Correo",
+    "password": "Contraseña",
+    "login_with_password": "Iniciar con contraseña",
+    "login_with_code": "Iniciar con código",
+    "forgot_password": "¿Olvidaste tu contraseña?",
+    "continue": "Continuar",
+    "send_code": "Enviar código de verificación",
+    "sign_in_title": "Iniciar sesión",
+    "sign_in_description": "Introduce tu correo para recibir un código de verificación",
+    "create_password_title": "Crea tu contraseña",
+    "create_account_title": "Crear una cuenta",
+    "create_account_description": "Se enviará de inmediato un código de verificación para validar tu dirección de correo",
+    "terms_notice": "Al hacer clic en Continuar, aceptas los términos de servicio y la política de privacidad",
+    "sign_in_password_description": "Introduce tu correo y contraseña",
+    "recover_title": "Recuperar contraseña",
+    "recover_description": "Introduce tu correo para recibir un enlace de restablecimiento",
+    "reset_link_sent": "Enlace de restablecimiento enviado"
+  },
+  "error": {
+    "invalid_email": "Por favor introduce un correo válido",
+    "generic": "Error"
+  },
+  "splash": {
+    "subtitle": "¿Y si lo dejaras al AZAR...?"
+  },
+  "common": {
+    "back": "Atrás",
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "select_language": "Selecciona un idioma"
+  }
+}

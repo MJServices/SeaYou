@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../profile_screen.dart';
+import '../door_of_desires_screen.dart';
 import 'chat_conversation_screen.dart';
 import 'archived_chats_screen.dart';
+import '../../widgets/feeling_progress.dart';
+import '../../services/database_service.dart';
+import '../../models/conversation.dart';
 
 /// Chat List Screen - Shows all conversations with full functionality
 class ChatListScreen extends StatefulWidget {
@@ -18,221 +23,69 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, dynamic>> _allConversations = [
-    {
-      'name': 'Boat',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '10:47 am',
-      'mood': 'Curious',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Blake Johnson',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '09:21 am',
-      'avatar': 'assets/images/avatar_1.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Sunset',
-      'lastMessage': 'Voice Chat',
-      'time': '10:47 am',
-      'mood': 'Playful',
-      'isVoice': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Violet Harrid',
-      'lastMessage': 'Picture',
-      'time': '10:47 am',
-      'avatar': 'assets/images/avatar_2.png',
-      'isImage': true,
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Dream',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '10:47 am',
-      'mood': 'Dreamy',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'May Wint',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '10:47 am',
-      'avatar': 'assets/images/avatar_3.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Water',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '10:47 am',
-      'mood': 'Calm',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Alexis Warren',
-      'lastMessage':
-          'Hi. Prior to our previous conversation, I saw the river while the sun was setting and it was exactly as described.',
-      'time': '10:47 am',
-      'avatar': 'assets/images/avatar_4.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Spring',
-      'lastMessage': 'Voice Chat',
-      'time': '10:47 am',
-      'mood': 'Dreamy',
-      'isVoice': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Sorren Xaden',
-      'lastMessage': 'Voice Chat',
-      'time': '10:47 am',
-      'avatar': 'assets/images/avatar_5.png',
-      'isVoice': true,
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Ocean',
-      'lastMessage': 'That sounds amazing! I would love to see that picture.',
-      'time': '08:15 am',
-      'mood': 'Calm',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Emma Stone',
-      'lastMessage': 'Thanks for sharing that with me!',
-      'time': '07:45 am',
-      'avatar': 'assets/images/avatar_1.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Moonlight',
-      'lastMessage': 'Picture',
-      'time': '07:30 am',
-      'mood': 'Dreamy',
-      'isImage': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Adventure',
-      'lastMessage':
-          'I went hiking yesterday and the view from the top was breathtaking!',
-      'time': '06:52 am',
-      'mood': 'Curious',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Sarah Miller',
-      'lastMessage': 'Good morning! How are you today?',
-      'time': '06:20 am',
-      'avatar': 'assets/images/avatar_2.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Sunrise',
-      'lastMessage': 'Voice Chat',
-      'time': '05:45 am',
-      'mood': 'Playful',
-      'isVoice': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Michael Chen',
-      'lastMessage': 'See you later!',
-      'time': 'Yesterday',
-      'avatar': 'assets/images/avatar_3.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Forest',
-      'lastMessage':
-          'The trees here are so peaceful. I could stay here forever.',
-      'time': 'Yesterday',
-      'mood': 'Calm',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Joy',
-      'lastMessage': 'Picture',
-      'time': 'Yesterday',
-      'mood': 'Playful',
-      'isImage': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'David Park',
-      'lastMessage': 'That was a great conversation!',
-      'time': 'Yesterday',
-      'avatar': 'assets/images/avatar_4.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Starlight',
-      'lastMessage': 'Voice Chat',
-      'time': 'Yesterday',
-      'mood': 'Dreamy',
-      'isVoice': true,
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Lisa Anderson',
-      'lastMessage': 'Looking forward to our next chat!',
-      'time': 'Yesterday',
-      'avatar': 'assets/images/avatar_5.png',
-      'isUnlocked': true,
-    },
-    {
-      'name': 'Thunder',
-      'lastMessage':
-          'The storm last night was incredible. Did you see the lightning?',
-      'time': 'Yesterday',
-      'mood': 'Curious',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Peace',
-      'lastMessage': 'Just enjoying the quiet moments of life.',
-      'time': '2 days ago',
-      'mood': 'Calm',
-      'isUnlocked': false,
-    },
-    {
-      'name': 'Rainbow',
-      'lastMessage': 'Picture',
-      'time': '2 days ago',
-      'mood': 'Playful',
-      'isImage': true,
-      'isUnlocked': false,
-    },
-  ];
+  List<Conversation> _conversations = [];
+  final DatabaseService _db = DatabaseService();
+  final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
+  String? _avatarUrl;
 
-  List<Map<String, dynamic>> get _filteredConversations {
-    var conversations = _allConversations;
+  @override
+  void initState() {
+    super.initState();
+    _loadConversations();
+    _loadUserAvatar();
+  }
+
+  Future<void> _loadUserAvatar() async {
+    if (_currentUserId == null) return;
+    try {
+      final profile = await _db.getProfile(_currentUserId!);
+      if (profile != null && mounted) {
+        setState(() {
+          _avatarUrl = profile['avatar_url'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading avatar: $e');
+    }
+  }
+
+  Future<void> _loadConversations() async {
+    if (_currentUserId == null) {
+      debugPrint('❌ Cannot load conversations: user not logged in');
+      return;
+    }
+    debugPrint('🔄 Loading conversations for user: $_currentUserId');
+    final convs = await _db.getUserConversations(_currentUserId!);
+    debugPrint('✅ Loaded ${convs.length} conversations');
+    for (var conv in convs) {
+      debugPrint('  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
+    }
+    if (mounted) {
+      setState(() {
+        _conversations = convs;
+      });
+    }
+  }
+
+  List<Conversation> get _filteredConversations {
+    var conversations = _conversations;
 
     // Apply filter
     if (_selectedFilter == 'Unlocked') {
       conversations =
-          conversations.where((conv) => conv['isUnlocked'] == true).toList();
+          conversations.where((conv) => conv.feelingPercent >= 25).toList();
     } else if (_selectedFilter == 'Anon') {
       conversations =
-          conversations.where((conv) => conv['isUnlocked'] == false).toList();
+          conversations.where((conv) => conv.feelingPercent < 25).toList();
     }
 
-    // Apply search
+    // Apply search (Local search on loaded conversations - might need optimization later)
     if (_searchQuery.isNotEmpty) {
+      // Simple search on last message for now, as names require async fetch
       conversations = conversations.where((conv) {
-        final name = conv['name'].toString().toLowerCase();
-        final message = conv['lastMessage'].toString().toLowerCase();
+        final message = (conv.lastMessage ?? '').toLowerCase();
         final query = _searchQuery.toLowerCase();
-        return name.contains(query) || message.contains(query);
+        return message.contains(query);
       }).toList();
     }
 
@@ -410,17 +263,33 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Widget _buildConversationsList() {
     final conversations = _filteredConversations;
+    debugPrint('📋 _buildConversationsList called with ${conversations.length} conversations');
 
     if (conversations.isEmpty) {
-      return _buildEmptyState();
+      debugPrint('⚠️ Conversations list is empty, showing empty state');
+      return RefreshIndicator(
+        onRefresh: _loadConversations,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: _buildEmptyState(),
+          ),
+        ),
+      );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        return _buildConversationItem(conversations[index]);
-      },
+    debugPrint('✅ Building ListView with ${conversations.length} conversations');
+    return RefreshIndicator(
+      onRefresh: _loadConversations,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: conversations.length,
+        itemBuilder: (context, index) {
+          debugPrint('  Building conversation item $index: ${conversations[index].id}');
+          return _buildConversationItem(conversations[index]);
+        },
+      ),
     );
   }
 
@@ -431,113 +300,29 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ? 'Keep the conversations going to unlock a connection'
             : 'You have not established a connection yet. Retrieve a bottle or wait for your bottle to be retrieved.';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: Column(
-        children: [
-          const Spacer(flex: 2),
-          Image.asset(
-            'assets/images/empty bottle.png',
-            width: 360,
-            height: 480,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            emptyMessage,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF151515),
-            ),
-          ),
-          const Spacer(flex: 3),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConversationItem(Map<String, dynamic> conversation) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatConversationScreen(
-              contactName: conversation['name'],
-              mood: conversation['mood'],
-              isUnlocked: conversation['isUnlocked'] ?? false,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 28),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildAvatar(conversation),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        conversation['name'],
-                        style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF151515),
-                        ),
-                      ),
-                      Text(
-                        conversation['time'],
-                        style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF363636),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (conversation['isVoice'] == true)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.mic,
-                              size: 16, color: Color(0xFF363636)),
-                        ),
-                      if (conversation['isImage'] == true)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.image,
-                              size: 16, color: Color(0xFF363636)),
-                        ),
-                      Expanded(
-                        child: Text(
-                          conversation['lastMessage'],
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            color: Color(0xFF363636),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+            Flexible(
+              child: Image.asset(
+                'assets/images/empty-bottle.png',
+                width: 200,
+                height: 250,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              emptyMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF151515),
               ),
             ),
           ],
@@ -546,8 +331,162 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Widget _buildAvatar(Map<String, dynamic> conversation) {
-    if (conversation['isUnlocked'] == true && conversation['avatar'] != null) {
+  Widget _buildConversationItem(Conversation conversation) {
+    if (_currentUserId == null) return const SizedBox.shrink();
+    
+    final otherUserId = conversation.getOtherUserId(_currentUserId!);
+    debugPrint('  👤 Building conversation item, fetching profile for: $otherUserId');
+    
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _db.getProfile(otherUserId),
+      builder: (context, snapshot) {
+        debugPrint('  📊 Profile FutureBuilder state: ${snapshot.connectionState}, hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}');
+        if (snapshot.hasError) {
+          debugPrint('  ❌ Profile fetch error: ${snapshot.error}');
+        }
+        // Show skeleton only while actively loading
+        if (snapshot.connectionState != ConnectionState.done) {
+          // Loading skeleton or simple placeholder
+          return Container(
+            margin: const EdgeInsets.only(bottom: 28),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFE3E3E3),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(width: 100, height: 16, color: const Color(0xFFE3E3E3)),
+                      const SizedBox(height: 6),
+                      Container(width: 200, height: 12, color: const Color(0xFFE3E3E3)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Profile loaded (or null if doesn't exist) - display conversation anyway
+        final profile = snapshot.data ?? {};
+        final name = conversation.feelingPercent >= 100 
+            ? (profile['full_name'] ?? 'Unknown') 
+            : (conversation.title ?? 'Anonymous');
+        // Use profile mood if available, otherwise default
+        final mood = 'Curious'; // TODO: Store mood in profile or conversation
+        final isUnlocked = conversation.feelingPercent >= 100;
+        final lastMessage = conversation.lastMessage ?? 'Start chatting...';
+        final time = _formatTime(conversation.lastMessageTime);
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatConversationScreen(
+                  contactName: name,
+                  mood: mood,
+                  isUnlocked: isUnlocked,
+                  conversationId: conversation.id,
+                ),
+              ),
+            ).then((_) => _loadConversations()); // Refresh on return
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 28),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAvatar(isUnlocked, mood, profile['avatar_url']),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF151515),
+                            ),
+                          ),
+                          Text(
+                            time,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF363636),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      FeelingProgress(
+                        percent: conversation.feelingPercent,
+                        compact: true,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              lastMessage,
+                              style: const TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFF363636),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTime(DateTime? time) {
+    if (time == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    
+    if (diff.inDays == 0) {
+      final h = time.hour % 12 == 0 ? 12 : time.hour % 12;
+      final m = time.minute.toString().padLeft(2, '0');
+      final ampm = time.hour >= 12 ? 'pm' : 'am';
+      return '$h:$m $ampm';
+    } else if (diff.inDays == 1) {
+      return 'Yesterday';
+    } else {
+      return '${diff.inDays} days ago';
+    }
+  }
+
+  Widget _buildAvatar(bool isUnlocked, String mood, String? avatarUrl) {
+    if (isUnlocked) {
       return Container(
         width: 46,
         height: 46,
@@ -555,7 +494,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
           shape: BoxShape.circle,
           color: Color(0xFFE3E3E3),
         ),
-        child: const Icon(Icons.person, color: Color(0xFF737373)),
+        child: avatarUrl != null 
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(23),
+                child: Image.network(avatarUrl, fit: BoxFit.cover),
+              )
+            : const Icon(Icons.person, color: Color(0xFF737373)),
       );
     } else {
       return Container(
@@ -563,7 +507,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         height: 46,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: _getMoodGradient(conversation['mood']),
+          gradient: _getMoodGradient(mood),
         ),
       );
     }
@@ -663,6 +607,36 @@ class _ChatListScreenState extends State<ChatListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  builder: (context) => const DoorOfDesiresScreen(),
+                ),
+              );
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.door_front_door_outlined,
+                  size: 24,
+                  color: Color(0xFF737373),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Desires',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
                   builder: (context) => const ProfileScreen(),
                 ),
               );
@@ -692,11 +666,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
           Container(
             width: 24,
             height: 24,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xFFE3E3E3),
+              color: const Color(0xFFE0E0E0),
+              image: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(_avatarUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: const Icon(Icons.person, size: 16, color: Color(0xFF737373)),
+            child: _avatarUrl == null || _avatarUrl!.isEmpty
+                ? const Icon(Icons.person, size: 16, color: Color(0xFF737373))
+                : null,
           )
         else if (iconPath != null)
           SvgPicture.asset(

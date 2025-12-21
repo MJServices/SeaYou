@@ -1,0 +1,160 @@
+{
+  "home": {
+    "ongoing_conversations": "Ongoing Conversations",
+    "secret_souls": "Secret Souls",
+    "door_of_desires": "Door of Desires",
+    "discover": "Discover",
+    "premium_cta": "DISCOVER SEAYOU PREMIUM",
+    "discovery_card_title": "3 new messages",
+    "new_messages_count": "{count} new messages",
+    "discovery_card_subtitle": "What if you left it to chance...",
+    "discovery_card_cta": "Discover",
+    "conversation_list_header": "You have {count} conversations"
+  },
+  "auth": {
+    "sign_up": "Sign up for free",
+    "log_in": "Log in",
+    "email": "Email",
+    "password": "Password",
+    "login_with_password": "Login with password",
+    "login_with_code": "Login with code",
+    "forgot_password": "Forgot password",
+    "continue": "Continue",
+    "send_code": "Send verification code",
+    "sign_in_title": "Sign In",
+    "sign_in_description": "Enter your email to receive a verification code",
+    "create_password_title": "Create your password",
+    "create_account_title": "Create an account",
+    "create_account_description": "A verification code will be sent right away to validate your email address",
+    "terms_notice": "By clicking continue, you accept the terms of service and privacy policy",
+    "sign_in_password_description": "Enter your email and password",
+    "recover_title": "Recover Password",
+    "recover_description": "Enter your email to receive a password reset link",
+    "reset_link_sent": "Reset link sent"
+  },
+  "error": {
+    "invalid_email": "Please enter a valid email",
+    "generic": "Error"
+  },
+  "splash": {
+    "subtitle": "What if you let chance do the rest ?"
+  },
+  "voice": {
+    "title": "Secret Voice",
+    "secret_title": "Secret voice message",
+    "secret_description": "This voice message is mandatory, but will remain secret and anonymous.\n\nIt will only be revealed to your interlocutor if mutual Feeling reaches 50%.\n\nThis is the opportunity to let your voice be guessed, without revealing everything too quickly.",
+    "step_label": "2/4",
+    "processing": "Processing recording...",
+    "duration_label": "{duration}s (required 5–15s)",
+    "record": "Record",
+    "stop": "Stop",
+    "next": "Next",
+    "tip_cta": "Got it"
+  },
+  "common": {
+    "back": "Back",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "select_language": "Select a language",
+    "all": "All",
+    "pictures": "Pictures",
+    "audio": "Audio",
+    "quote": "Quote"
+  },
+  "surprise": {
+    "modal_title": "Intimate question unlocked!",
+    "modal_subtitle": "3 questions for your mysterious. Answer at least one to continue.",
+    "q1": "If you could describe a perfect vibe, what would it be?",
+    "q2": "If I whisper something in your ear, should it be gentle… or clearly not innocent?",
+    "q3": "What can a partner do to leave you totally speechless?",
+    "input_placeholder": "Your answer",
+    "continue": "Continue",
+    "banner_required": "Answer at least one question to continue."
+  },
+  "tutorial": {
+    "welcome": {
+      "title": "Welcome to SeaYou!",
+      "subtitle": "The first 3.0 dating place, where souls choose each other before the physical.",
+      "line1": "Here, your first encounters will be 100% anonymous.",
+      "line2": "You will discover each other progressively, through conversations.",
+      "line3": "Each message will be sent like a bottle thrown into the sea, anonymously and securely, only to people matching your criteria.",
+      "line4": "When you receive a reply, a conversation starts between you, allowing you to increase your Feeling through your exchanges, and the more your Feeling rises, the more you unlock exclusive revelations…",
+      "line5": "",
+      "cta": "Your turn to play!"
+    },
+    "home": {
+      "title": "Welcome to SeaYou",
+      "line1": "Anonymous encounters start here. Send bottles to matched criteria.",
+      "line2": "Replies open conversations. Your Feeling grows with each exchange.",
+      "line3": "Higher Feeling unlocks secrets like Quote (25%) and Voice (50%).",
+      "cta": "Your turn!"
+    },
+    "signup": {
+      "title": "Start Anonymous",
+      "message": "SeaYou is anonymous-first. Explore, then reveal only when you decide.",
+      "cta": "Got it"
+    },
+    "face_required": {
+      "title": "Face Photo Required",
+      "message": "Add a confidential face photo to enable final reveal at mutual 100%.",
+      "cta": "Add now"
+    }
+  },
+  "tooltip": {
+    "photo": {
+      "title": "Your face photo",
+      "line1": "Mandatory and confidential. Revealed only at mutual 100% Feeling.",
+      "line2": "May appear in Secret Souls if you authorize it.",
+      "line3": "You can add up to 5 more photos later.",
+      "ok": "Got it"
+    }
+  },
+  "premium": {
+    "gate": {
+      "title": "Premium area",
+      "message": "This section is reserved for PREMIUM members.",
+      "subscribe": "Subscribe to premium"
+    }
+  },
+  "secret_souls": {
+    "title": "Secret Souls",
+    "no_contact": "Viewing only. No direct contact from this section.",
+    "manage_photos": "Manage my photos",
+    "toggle_label": "Make visible in Secret Souls",
+    "main_photo_warning_title": "Main photo change",
+    "main_photo_warning_message": "Make sure to put a photo of your face (AI-verified).\nThis one will be revealed when you reach 100% Feeling with someone.",
+    "set_as_main_photo": "Set as Main Photo",
+    "delete_photo": "Delete Photo",
+    "delete_confirmation": "Are you sure you want to delete this photo?",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "set_main": "Set Main",
+    "photo_limit_reached": "You can only have up to 6 photos.",
+    "popup": {
+      "title": "Secret Souls",
+      "description": "Enter a confidential space where you will find photos, quotes, and voice messages from SeaYou members, always 100% anonymous.\n\nEach content is an intimate imprint, meant to be felt before being understood.\n\nWith SeaYou PREMIUM, you can directly contact the authors of quotes and voice messages to initiate authentic, subtle, and respectful exchanges"
+    }
+  },
+  "chamber": {
+    "title": "Chamber of Secrets",
+    "subtitle": "Anonymized, random fantasies from SeaYou members",
+    "write_placeholder": "Your fantasy...",
+    "report": "Report",
+    "elite_dm": "Message anonymously",
+    "send_message": "Send a message",
+    "non_premium_bubble": "Fantasies are for PREMIUM members.",
+    "upgrade_elite": "Upgrade to Elite to message anonymously",
+    "swipe": "Swipe"
+  },
+  "door_of_desires": {
+    "gate": {
+      "title": "Door of Desires",
+      "description": "Here you will find all the secrets and unspoken fantasies of SeaYou members.\n\nContent appears randomly, under total anonymity.\n\nYou can send a message directly to the owner of the secret or fantasy, in a 100% anonymous framework for both sides.\n\nThis space is exclusively reserved for SeaYou PREMIUM members.",
+      "action": {
+        "premium": "Become Premium",
+        "access": "Direct access",
+        "close": "Close"
+      }
+    }
+  }
+}

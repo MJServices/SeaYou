@@ -1,21 +1,82 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-                import '../widgets/warm_gradient_background.dart';
+import '../widgets/warm_gradient_background.dart';
 import 'home_screen.dart';
 import 'chat/chat_screen.dart';
+import 'door_of_desires_screen.dart';
 import 'profile/edit_bio_screen.dart';
 import 'profile/help_center_screen.dart';
+
+import 'profile/change_password_screen.dart';
+import 'profile/premium_screen.dart';
 import 'sexual_orientation_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/rate_seayou_modal.dart';
 import '../widgets/sign_out_modal.dart';
 import '../widgets/delete_account_modal.dart';
 import '../models/user_profile.dart';
+import '../i18n/app_localizations.dart';
+import 'manage_gallery_photos_screen.dart';
+import '../services/database_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'upload_picture_screen.dart';
+import '../widgets/profile_avatar.dart';
+import '../widgets/tutorial_modal.dart'; // Added for tutorial access
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  String? _avatarUrl;
+  bool _isLoading = true;
+  String _userName = 'User';
+  List<String> _sexualOrientations = [];
+  List<String> _interests = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final profile = await _databaseService.getProfile(userId);
+      if (profile != null && mounted) {
+        setState(() {
+          _avatarUrl = profile['avatar_url'];
+          _userName = profile['full_name'] ?? 'User';
+          
+          if (profile['sexual_orientation'] != null) {
+            _sexualOrientations = List<String>.from(profile['sexual_orientation']);
+          }
+          
+          if (profile['interests'] != null) {
+            _interests = List<String>.from(profile['interests']);
+          }
+          
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +91,7 @@ class ProfileScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 60), // Status bar space
-                    
+
                     // Header
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -85,16 +146,10 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         // Profile avatar
                         Center(
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              image: DecorationImage(
-                                image: AssetImage('assets/images/profile_avatar.png'),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
+                          child: ProfileAvatar(
+                            imageUrl: _avatarUrl,
+                            radius: 60,
+                            isLoading: _isLoading,
                           ),
                         ),
                         // Edit Photo button
@@ -103,26 +158,45 @@ class ProfileScreen extends StatelessWidget {
                           left: 0,
                           right: 0,
                           child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFCFCFC),
-                                border: Border.all(
-                                  color: const Color(0xFFE3E3E3),
-                                  width: 0.8,
+                            child: GestureDetector(
+                              onTap: () async {
+                                final profile = UserProfile(
+                                  fullName: _userName,
+                                  avatarUrl: _avatarUrl,
+                                  email: _supabase.auth.currentUser?.email,
+                                );
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UploadPictureScreen(
+                                      userProfile: profile,
+                                      isOnboarding: false, // Profile update mode
+                                    ),
+                                  ),
+                                );
+                                _loadProfile();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
-                                borderRadius: BorderRadius.circular(32),
-                              ),
-                              child: const Text(
-                                'Edit Photo',
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF363636),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFCFCFC),
+                                  border: Border.all(
+                                    color: const Color(0xFFE3E3E3),
+                                    width: 0.8,
+                                  ),
+                                  borderRadius: BorderRadius.circular(32),
+                                ),
+                                child: const Text(
+                                  'Edit Photo',
+                                  style: TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF363636),
+                                  ),
                                 ),
                               ),
                             ),
@@ -136,59 +210,72 @@ class ProfileScreen extends StatelessWidget {
                     // Upgrade to Pro Section
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFCFCFC),
-                          border: Border.all(
-                            color: const Color(0xFFE3E3E3),
-                            width: 0.8,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PremiumScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xFFFFC700),
+                                Color(0xFFFAB959),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: const Color(0xFFEFA000),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0AC5C5),
-                                borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            children: [
+                              // Crown icon
+                              Container(
+                                width: 32,
+                                height: 32,
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  '👑',
+                                  style: TextStyle(fontSize: 24),
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 20,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Upgrade to Pro',
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF363636),
+                              const SizedBox(width: 16),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Upgrade to Pro',
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF824E00),
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Unlock premium reserved just for YOU.',
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                      color: Color(0xFF363636),
+                                    Text(
+                                      'Unlock premium reserved just for YOU.',
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: Color(0xFF824E00),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -212,6 +299,22 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
 
+                          // Manage gallery photos
+                          _buildSectionItem(
+                            title: AppLocalizations.of(context)
+                                .tr('secret_souls.manage_photos'),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ManageGalleryPhotosScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
                           // Edit bio
                           _buildSectionItem(
                             title: 'Edit bio',
@@ -225,23 +328,19 @@ class ProfileScreen extends StatelessWidget {
                             },
                           ),
 
+
+
                           const SizedBox(height: 16),
 
-                          // Sexual Orientation
-                          _buildSectionWithContent(
-                            label: 'Sexual Orientation',
-                            content: const ['Gay', 'Aromantic', 'Bisexual', 'Asexual'],
-                            onEdit: () {
+                          // Change password
+                          _buildSectionItem(
+                            title: 'Change password',
+                            onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => SexualOrientationScreen(
-                                    userProfile: UserProfile(
-                                      sexualOrientation: ['Gay', 'Aromantic', 'Bisexual', 'Asexual'],
-                                      showOrientation: true,
-                                    ),
-                                    isEditMode: true,
-                                  ),
+                                  builder: (context) =>
+                                      const ChangePasswordScreen(),
                                 ),
                               );
                             },
@@ -249,39 +348,45 @@ class ProfileScreen extends StatelessWidget {
 
                           const SizedBox(height: 16),
 
-                          // Interest
-                          _buildInterestSection(
-                            interests: const [
-                              'Pole Dance',
-                              'Anime',
-                              'Rugby',
-                              'Sports',
-                              'K-dramas',
-                              'Fitness',
-                              'Thrillers',
-                              'Movie',
-                            ],
-                            onEdit: () {
-                              Navigator.push(
+                          // Sexual Orientation
+                          _buildSectionWithContent(
+                            label: 'Sexual Orientation',
+                            content: _sexualOrientations,
+                            onEdit: () async {
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => InterestsScreen(
+                                  builder: (context) => SexualOrientationScreen(
                                     userProfile: UserProfile(
-                                      interests: [
-                                        'Pole Dance',
-                                        'Anime',
-                                        'Rugby',
-                                        'Sports',
-                                        'K-dramas',
-                                        'Fitness',
-                                        'Thrillers',
-                                        'Movie',
-                                      ],
+                                      sexualOrientation: _sexualOrientations,
+                                      showOrientation: true,
                                     ),
                                     isEditMode: true,
                                   ),
                                 ),
                               );
+                              _loadProfile();
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Interest
+                          _buildInterestSection(
+                            interests: _interests,
+                            onEdit: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => InterestsScreen(
+                                    userProfile: UserProfile(
+                                      interests: _interests,
+                                    ),
+                                    isEditMode: true,
+                                  ),
+                                ),
+                              );
+                              _loadProfile();
                             },
                           ),
                         ],
@@ -312,7 +417,8 @@ class ProfileScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const HelpCenterScreen(),
+                                  builder: (context) =>
+                                      const HelpCenterScreen(),
                                 ),
                               );
                             },
@@ -344,9 +450,17 @@ class ProfileScreen extends StatelessWidget {
                             onTap: () {
                               showDialog(
                                 context: context,
-                                barrierColor: Colors.black.withValues(alpha: 0.5),
+                                barrierColor:
+                                    Colors.black.withValues(alpha: 0.5),
                                 builder: (context) => const RateSeaYouModal(),
                               );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSectionItem(
+                            title: 'Understand how SeaYou works',
+                            onTap: () {
+                              TutorialModal.show(context);
                             },
                           ),
                           const SizedBox(height: 12),
@@ -380,7 +494,8 @@ class ProfileScreen extends StatelessWidget {
                             onTap: () {
                               showDialog(
                                 context: context,
-                                barrierColor: Colors.black.withValues(alpha: 0.5),
+                                barrierColor:
+                                    Colors.black.withValues(alpha: 0.5),
                                 builder: (context) => const SignOutModal(),
                               );
                             },
@@ -392,8 +507,10 @@ class ProfileScreen extends StatelessWidget {
                             onTap: () {
                               showDialog(
                                 context: context,
-                                barrierColor: Colors.black.withValues(alpha: 0.5),
-                                builder: (context) => const DeleteAccountModal(),
+                                barrierColor:
+                                    Colors.black.withValues(alpha: 0.5),
+                                builder: (context) =>
+                                    const DeleteAccountModal(),
                               );
                             },
                           ),
@@ -416,7 +533,8 @@ class ProfileScreen extends StatelessWidget {
                 decoration: const BoxDecoration(
                   color: Color(0xFFF8F8F8),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -448,6 +566,37 @@ class ProfileScreen extends StatelessWidget {
                         iconPath: 'assets/icons/chat_lines.svg',
                         label: 'Chat',
                         isActive: false,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DoorOfDesiresScreen(),
+                          ),
+                        );
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.door_front_door_outlined,
+                            size: 24,
+                            color: Color(0xFF737373),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Desires',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF737373),
+                              letterSpacing: 0.24,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     _buildNavItem(
@@ -653,10 +802,13 @@ class ProfileScreen extends StatelessWidget {
           Container(
             width: 24,
             height: 24,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
-                image: AssetImage('assets/images/profile_avatar.png'),
+                image: _avatarUrl != null
+                    ? NetworkImage(_avatarUrl!)
+                    : const AssetImage('assets/images/profile_avatar.png')
+                        as ImageProvider,
                 fit: BoxFit.cover,
               ),
             ),
@@ -686,4 +838,3 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-
