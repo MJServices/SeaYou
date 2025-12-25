@@ -17,7 +17,6 @@ class EditBioScreen extends StatefulWidget {
 }
 
 class _EditBioScreenState extends State<EditBioScreen> {
-  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -46,7 +45,6 @@ class _EditBioScreenState extends State<EditBioScreen> {
       if (profile != null && mounted) {
         setState(() {
           _bioController.text = profile['about'] ?? '';
-          _emailController.text = profile['email'] ?? '';
           _isLoading = false;
         });
 
@@ -118,7 +116,6 @@ class _EditBioScreenState extends State<EditBioScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
     _bioController.dispose();
     super.dispose();
   }
@@ -181,57 +178,6 @@ class _EditBioScreenState extends State<EditBioScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Email Address',
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF363636),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            onChanged: (_) => setState(() {}),
-                            style: AppTextStyles.bodyText.copyWith(
-                              color: _emailController.text.isNotEmpty
-                                  ? AppColors.darkGrey
-                                  : AppColors.grey,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Enter your email address',
-                              hintStyle: AppTextStyles.bodyText,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: _emailController.text.isNotEmpty
-                                      ? AppColors.primary
-                                      : AppColors.grey,
-                                  width: 0.8,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: _emailController.text.isNotEmpty
-                                      ? AppColors.primary
-                                      : AppColors.grey,
-                                  width: 0.8,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: AppColors.primary,
-                                  width: 0.8,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.all(12),
-                            ),
-                          ),
                           const SizedBox(height: 24),
                           const Text(
                             'Bio',

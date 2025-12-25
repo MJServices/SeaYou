@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../widgets/bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'chat/chat_screen.dart';
 import 'door_of_desires_screen.dart';
 import 'profile/edit_bio_screen.dart';
 import 'profile/help_center_screen.dart';
-
 import 'profile/change_password_screen.dart';
 import 'profile/premium_screen.dart';
 import 'sexual_orientation_screen.dart';
@@ -21,7 +21,8 @@ import '../services/database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/profile_avatar.dart';
-import '../widgets/tutorial_modal.dart'; // Added for tutorial access
+import '../widgets/tutorial_modal.dart';
+
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -86,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             // Scrollable content
             Positioned.fill(
-              bottom: 76, // Space for navigation bar
+              bottom: 90, // Space for navigation bar
               child: SingleChildScrollView(
                 child: Column(
                   children: [
@@ -524,90 +525,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            // Fixed Navigation Bar
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8F8F8),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HomeScreen(),
-                          ),
-                        );
-                      },
-                      child: _buildNavItem(
-                        iconPath: 'assets/icons/home_simple.svg',
-                        label: 'Home',
-                        isActive: false,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChatScreen(),
-                          ),
-                        );
-                      },
-                      child: _buildNavItem(
-                        iconPath: 'assets/icons/chat_lines.svg',
-                        label: 'Chat',
-                        isActive: false,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DoorOfDesiresScreen(),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.door_front_door_outlined,
-                            size: 24,
-                            color: Color(0xFF737373),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Desires',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: Color(0xFF737373),
-                              letterSpacing: 0.24,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildNavItem(
-                      iconPath: null,
-                      label: 'Profile',
-                      isActive: true,
-                      hasAvatar: true,
-                    ),
-                  ],
-                ),
-              ),
+            // Bottom Navigation
+            BottomNavBar(
+              activeScreen: 'profile',
+              userProfile: _avatarUrl != null ? {
+                'avatar_url': _avatarUrl,
+              } : null,
             ),
           ],
         ),

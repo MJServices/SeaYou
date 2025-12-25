@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
+import '../../widgets/bottom_nav_bar.dart';
 import '../profile_screen.dart';
 import '../door_of_desires_screen.dart';
 import 'chat_conversation_screen.dart';
@@ -9,6 +10,7 @@ import 'archived_chats_screen.dart';
 import '../../widgets/feeling_progress.dart';
 import '../../services/database_service.dart';
 import '../../models/conversation.dart';
+
 
 /// Chat List Screen - Shows all conversations with full functionality
 class ChatListScreen extends StatefulWidget {
@@ -27,12 +29,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final DatabaseService _db = DatabaseService();
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
   String? _avatarUrl;
+  int _archivedCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
     _loadUserAvatar();
+    _loadArchivedCount();
   }
 
   Future<void> _loadUserAvatar() async {
@@ -64,7 +68,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
       setState(() {
         _conversations = convs;
       });
+      _loadArchivedCount(); // Refresh archived count when conversations change
     }
+  }
+
+  Future<void> _loadArchivedCount() async {
+    if (_currentUserId == null) return;
+    // Count conversations where is_archived = true
+    // For now, set to 0 since we need to check if archived field exists
+    // This will be updated when database has archived conversations
+    setState(() {
+      _archivedCount = 0; // TODO: Fetch from database when archived feature is implemented
+    });
   }
 
   List<Conversation> get _filteredConversations {
@@ -96,18 +111,32 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: WarmGradientBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(context),
-              _buildFilterTabs(),
-              Expanded(
-                child: _buildConversationsList(),
+        child: Stack(
+          children: [
+            // Main content
+            Positioned.fill(
+              bottom: 90, // Space for navigation bar
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _buildHeader(context),
+                    _buildFilterTabs(),
+                    Expanded(
+                      child: _buildConversationsList(),
+                    ),
+                    _buildArchiveButton(),
+                  ],
+                ),
               ),
-              _buildArchiveButton(),
-              _buildNavigationBar(context),
-            ],
-          ),
+            ),
+            
+            // Bottom Navigation
+            BottomNavBar(
+              activeScreen: 'chat',
+              userProfile: _avatarUrl != null ? {'avatar_url': _avatarUrl} : null,
+            ),
+          ],
         ),
       ),
     );
@@ -563,10 +592,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ),
           );
         },
-        child: const Center(
+        child: Center(
           child: Text(
-            'View Archived (32)',
-            style: TextStyle(
+            _archivedCount > 0 
+                ? 'View Archived ($_archivedCount)'
+                : 'View Archived',
+            style: const TextStyle(
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w400,

@@ -293,7 +293,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          '2/3',
+                          '2/2',
                           style: AppTextStyles.bodyText,
                         ),
                       ],

@@ -72,7 +72,7 @@ class _QuoteRegistrationScreenState extends State<QuoteRegistrationScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('1/3', style: AppTextStyles.bodyText),
+                  child: Text('1/2', style: AppTextStyles.bodyText),
                 ),
               ),
               const SizedBox(height: 16),

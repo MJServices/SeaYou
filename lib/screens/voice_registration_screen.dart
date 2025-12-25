@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../utils/app_text_styles.dart';
 import '../utils/app_colors.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/custom_button.dart';
 import '../models/user_profile.dart';
+import '../services/upload_controller.dart';
+import '../services/upload_service.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/coachmark_bubble.dart';
 import '../services/tutorial_service.dart';
@@ -25,8 +28,10 @@ class VoiceRegistrationScreen extends StatefulWidget {
 
 class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
   final _recorder = AudioRecorder();
+  final _audioPlayer = AudioPlayer();
   bool _recording = false;
   bool _isProcessing = false;
+  bool _isPlaying = false;
   int _duration = 0;
   String? _path;
   Timer? _timer;
@@ -132,6 +137,23 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
     }
   }
 
+  Future<void> _togglePlayback() async {
+    if (_path == null) return;
+
+    if (_isPlaying) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _isPlaying = false);
+    } else {
+      await _audioPlayer.play(DeviceFileSource(_path!));
+      if (mounted) setState(() => _isPlaying = true);
+      
+      // Listen for completion
+      _audioPlayer.onPlayerComplete.listen((_) {
+        if (mounted) setState(() => _isPlaying = false);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use localized strings
@@ -184,9 +206,28 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
               Text(
                 _isProcessing 
                   ? tr.tr('voice.processing')
-                  : tr.tr('voice.duration_label', args: {'duration': _duration.toString()}), 
+                  : (_path != null ? 'Recording saved: ${_duration.toString().padLeft(2, '0')}:${(_duration % 60).toString().padLeft(2, '0')}' : tr.tr('voice.duration_label', args: {'duration': _duration.toString()})), 
                 style: AppTextStyles.bodyText,
               ),
+              if (_path != null && !_recording) ...[
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: _togglePlayback,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                    ),
+                    child: Icon(
+                      _isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -289,10 +330,10 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
     _recorder.dispose();
+    _audioPlayer.dispose();
+    _timer?.cancel();
     _uploadController.dispose();
     super.dispose();
   }
 }
-

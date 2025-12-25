@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'custom_button.dart';
 import '../services/auth_service.dart';
+import '../services/tutorial_service.dart';
 import '../screens/splash_screen.dart';
 
 /// Sign Out Modal - Confirmation dialog for signing out
@@ -100,6 +101,9 @@ class SignOutModal extends StatelessWidget {
                       text: 'Sign Out',
                       isActive: true,
                       onPressed: () async {
+                        // Clear all tutorial flags so they show again for new accounts
+                        await TutorialService().clearAllTutorials();
+                        
                         // Sign out logic
                         await AuthService().signOut();
                         

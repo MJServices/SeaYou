@@ -179,12 +179,13 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       return;
     }
 
-    // Show confirmation modal
-    final confirmed = await showDialog<bool>(
+    // Show message input dialog
+    final messageController = TextEditingController();
+    final message = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF7E6), // Cream parchment background
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -198,32 +199,62 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Start Anonymous Conversation?',
+                'Start Anonymous Conversation',
                 style: TextStyle(
-                  fontFamily: 'SF Pro Text',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF3E2723),
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               const Text(
-                'You will start an anonymous conversation. The owner will see it in their messages.',
+                'Write your first message to start the conversation',
                 style: TextStyle(
-                  fontFamily: 'SF Pro Text',
+                  fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                   color: Color(0xFF5D4037),
                 ),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 20),
+              // Message input field
+              TextField(
+                controller: messageController,
+                maxLines: 4,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Type your message here...',
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    color: Color(0xFF9E9E9E),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  color: Color(0xFF3E2723),
+                ),
+              ),
               const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
+                      onPressed: () => Navigator.pop(dialogContext, null),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -234,7 +265,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                       child: const Text(
                         'Cancel',
                         style: TextStyle(
-                          fontFamily: 'SF Pro Text',
+                          fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF5D4037),
@@ -245,7 +276,12 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
+                      onPressed: () {
+                        final msg = messageController.text.trim();
+                        if (msg.isNotEmpty) {
+                          Navigator.pop(dialogContext, msg);
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFD700),
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -254,9 +290,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                         ),
                       ),
                       child: const Text(
-                        'Start',
+                        'Send',
                         style: TextStyle(
-                          fontFamily: 'SF Pro Text',
+                          fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF3E2723),
@@ -272,14 +308,16 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    // If user cancelled or didn't type a message, return
+    if (message == null || message.isEmpty || !mounted) return;
 
-    // Create conversation
+    // Create conversation WITH the message
     try {
       final convId = await _db.startSecretSoulsConversation(
         contentId: content['id'] as String,
         requesterId: user.id,
         ownerId: content['user_id'] as String,
+        initialMessage: message, // Pass the message
       );
       
       if (convId != null) {
@@ -291,14 +329,14 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         if (convId != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Conversation started! Check your messages.'),
+              content: Text('Message sent! They will see it in their conversations.'),
               backgroundColor: Color(0xFF4CAF50),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to start conversation'),
+              content: Text('Failed to send message'),
               backgroundColor: Color(0xFFF44336),
             ),
           );

@@ -1593,9 +1593,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         mood: _currentMood,
       );
       
-      // Dynamic feeling increment based on message length
-      final points = _db.calculateFeelingPoints(type: 'text', text: text);
-      _feelingController.increment(widget.conversationId!, amount: points);
+      // Check if this is an exchange (partner sent last message)
+      _incrementFeelingIfExchange(userId, 'text', text: text);
     }
   }
 
@@ -2206,9 +2205,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 duration: duration,
                 mood: _currentMood,
             );
-            // Dynamic feeling increment based on voice duration
-            final points = _db.calculateFeelingPoints(type: 'voice', duration: duration);
-            _feelingController.increment(widget.conversationId!, amount: points);
+            // Check if this is an exchange before incrementing feeling
+            _incrementFeelingIfExchange(userId, 'voice', duration: duration);
         }
     }
     
@@ -2275,6 +2273,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     });
   }
 
+
   @override
   void dispose() {
     _msgSub?.cancel();
@@ -2288,6 +2287,46 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     _q2Controller.dispose();
     _q3Controller.dispose();
     super.dispose();
+  }
+
+  /// Only increment feeling if this is a message exchange (last message was from other user)
+  Future<void> _incrementFeelingIfExchange(
+    String currentUserId, 
+    String messageType, 
+    {String? text, int? duration}
+  ) async {
+    if (widget.conversationId == null) return;
+    
+    try {
+      // Check if there are any messages in this conversation
+      if (_messages.length <= 1) {
+        // First message in conversation - don't increment yet
+        debugPrint('🚫 First message - no increment');
+        return;
+      }
+      
+      // Find the last message before current one (skip the optimistic message we just added)
+      final previousMessages = _messages.where((msg) => msg.id != _messages.last.id).toList();
+      if (previousMessages.isEmpty) {
+        debugPrint('🚫 No previous messages - no increment');
+        return;
+      }
+      
+      final lastMessage = previousMessages.last;
+      
+      // Check if last message was from the OTHER user
+      if (lastMessage.senderId != currentUserId) {
+        // This is an exchange! Increment feeling by 5%
+        const int exchangePoints = 5;
+        debugPrint('✅ Exchange detected! Incrementing feeling by $exchangePoints%');
+        await _feelingController.increment(widget.conversationId!, amount: exchangePoints);
+      } else {
+        // User sent consecutive messages - don't increment
+        debugPrint('🚫 Consecutive message from same user - no increment');
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking message exchange: $e');
+    }
   }
 }
 

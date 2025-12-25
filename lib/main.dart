@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'screens/create_password_screen.dart';
+import 'widgets/tap_to_mute_wrapper.dart';
 // import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
 
 final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
@@ -76,6 +77,9 @@ class SeaYouApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
+        builder: (context, child) => TapToMuteWrapper(
+          child: child ?? const SizedBox(),
+        ),
         home: const SplashScreen(),
       ),
     );

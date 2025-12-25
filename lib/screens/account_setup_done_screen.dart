@@ -88,6 +88,9 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
         }
       }
       
+      // Note: Using upsert below, so it will either create or update the profile
+      debugPrint('✅ Creating/updating profile...');
+      
       await DatabaseService().createProfile(
         userId: user.id,
         email: widget.userProfile.email ?? user.email ?? '',
@@ -111,15 +114,18 @@ class _AccountSetupDoneScreenState extends State<AccountSetupDoneScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
-      debugPrint('Error in _createProfile: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌❌❌ CRITICAL ERROR in _createProfile ❌❌❌');
+      debugPrint('Error: $e');
+      debugPrint('Error Type: ${e.runtimeType}');
+      debugPrint('Stack Trace: $stackTrace');
       
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
         
-        String errorMessage = 'Error creating profile. Please try again.';
+        String errorMessage = 'Error creating profile: ${e.toString()}';
         bool shouldRedirectToOnboarding = true;
         
         // Provide more specific error messages

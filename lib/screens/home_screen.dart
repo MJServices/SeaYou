@@ -28,6 +28,7 @@ import '../services/tutorial_service.dart';
 import '../services/auth_service.dart';
 import 'secret_souls_screen.dart';
 import 'door_of_desires_screen.dart';
+import 'premium_screen.dart';
 import 'upload_picture_screen.dart';
 // removed unused temp imports
 import 'package:seayou_app/screens/outbox_compose_screen.dart' as outbox;
@@ -184,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Scrollable content
             Positioned.fill(
-              bottom: 76, // Space for navigation bar
+              bottom: 90, // Updated: 70 (height) + 10 (bottom) + 10 (buffer) = 90
               child: SingleChildScrollView(
                 child: Center(
                   child: ConstrainedBox(
@@ -218,7 +219,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Hey $_userName',
+                                () {
+                                  // Extract first name only (split on space, take first word, remove any digits)
+                                  final String firstName = _userName.split(' ').first.replaceAll(RegExp(r'\d+'), '');
+                                  return 'Hey $firstName';
+                                }(),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 18,
@@ -370,20 +375,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: GestureDetector(
                             onTap: () {
-                              // Navigate to premium screen
-                              // TODO: Add premium screen navigation
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => PremiumScreen()),
+                              );
                             },
                             child: Container(
                               width: double.infinity,
                               height: 48,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFFF9D4E6), Color(0xFFF9D4E6)],
+                                  colors: [Color(0xFF0AC5C5), Color(0xFF65ADA9)],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
                                 ),
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFF9D4E6).withValues(alpha: 0.5),
+                                    color: const Color(0xFF0AC5C5).withValues(alpha: 0.3),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -396,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFFF92889),
+                                    color: Colors.white,
                                     letterSpacing: 0.5,
                                   ),
                                 ),
@@ -471,63 +480,42 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: 10, // Increased from 0 to prevent cutoff
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8F8F8),
+                height: 70, // Increased from 66 to fix overflow
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6), // Reduced vertical padding
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
                 ),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    GestureDetector(
-                      onTap: () {
-                        // Already on home, refresh data
-                        _loadData();
-                      },
-                      child: _buildNavItem(
-                        iconPath: 'assets/icons/home_simple.svg',
-                        label: 'Home',
-                        isActive: true,
-                      ),
+                    _buildNavItem(
+                      iconPath: 'assets/icons/home_simple.svg',
+                      label: 'Home',
+                      isActive: true,
                     ),
                     GestureDetector(
                       onTap: () {
-                        // Navigate to chat screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ChatScreen(),
+                            builder: (context) => const ChatListScreen(),
                           ),
-                        ).then((_) {
-                          if (mounted) {
-                            setState(() {
-                              _newMessagesCount = 0;
-                            });
-                          }
-                        });
+                        );
                       },
                       child: _buildNavItem(
                         iconPath: 'assets/icons/chat_lines.svg',
                         label: 'Chat',
                         isActive: false,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DoorOfDesiresScreen(),
-                          ),
-                        );
-                      },
-                      child: _buildNavItem(
-                        iconPath: null,
-                        label: 'Desires',
-                        isActive: false,
-                        customIcon: Icons.door_front_door_outlined,
                       ),
                     ),
                     GestureDetector(
@@ -1250,55 +1238,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPremiumBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0AC5C5), Color(0xFF65ADA9)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PremiumScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0AC5C5), Color(0xFF65ADA9)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x331E1E1E),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x331E1E1E),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              AppLocalizations.of(context).tr('home.premium_cta'),
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.8,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                AppLocalizations.of(context).tr('home.premium_cta'),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
               ),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-            ),
-            child: const Text(
-              'En savoir plus',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+              ),
+              child: const Text(
+                'En savoir plus',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

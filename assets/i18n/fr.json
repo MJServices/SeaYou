@@ -1,59 +1,85 @@
 {
   "home": {
     "ongoing_conversations": "Conversations en cours",
-    "secret_souls": "Les âmes secrètes",
-    "door_of_desires": "La porte des désirs",
+    "secret_souls": "Secret Souls",
+    "door_of_desires": "Porte des Désirs",
     "discover": "Découvrir",
     "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
     "discovery_card_title": "3 nouveaux messages",
     "new_messages_count": "{count} nouveaux messages",
-    "discovery_card_subtitle": "Et si vous laissiez la chance...",
+    "discovery_card_subtitle": "Et si vous laissiez le hasard faire le reste...",
     "discovery_card_cta": "Découvrir",
     "conversation_list_header": "Vous avez {count} conversations"
   },
   "auth": {
-    "sign_up": "Inscription gratuite",
+    "sign_up": "S'inscrire gratuitement",
     "log_in": "Se connecter",
-    "email": "E‑mail",
+    "email": "Email",
     "password": "Mot de passe",
-    "login_with_password": "Connexion par mot de passe",
-    "login_with_code": "Connexion par code",
+    "login_with_password": "Se connecter avec mot de passe",
+    "login_with_code": "Se connecter avec code",
     "forgot_password": "Mot de passe oublié",
     "continue": "Continuer",
     "send_code": "Envoyer le code de vérification",
-    "sign_in_title": "Connexion",
-    "sign_in_description": "Entrez votre e‑mail pour recevoir un code de vérification",
+    "sign_in_title": "Se connecter",
+    "sign_in_description": "Entrez votre email pour recevoir un code de vérification",
     "create_password_title": "Créez votre mot de passe",
     "create_account_title": "Créer un compte",
-    "create_account_description": "Un code de vérification vous sera envoyé immédiatement pour valider votre adresse e‑mail",
-    "terms_notice": "En cliquant sur Continuer, vous acceptez les conditions d’utilisation et la politique de confidentialité",
-    "sign_in_password_description": "Entrez votre e‑mail et votre mot de passe",
+    "create_account_description": "Un code de vérification sera envoyé immédiatement pour valider votre adresse email",
+    "terms_notice": "En cliquant sur Continuer, vous acceptez les conditions d'utilisation et la politique de confidentialité",
+    "sign_in_password_description": "Entrez votre email et mot de passe",
     "recover_title": "Réinitialiser le mot de passe",
-    "recover_description": "Entrez votre e‑mail pour recevoir un lien de réinitialisation",
+    "recover_description": "Entrez votre email pour recevoir un lien de réinitialisation",
     "reset_link_sent": "Lien de réinitialisation envoyé"
   },
   "error": {
-    "invalid_email": "Veuillez saisir un e‑mail valide",
+    "invalid_email": "Veuillez entrer un email valide",
     "generic": "Erreur"
   },
   "splash": {
     "subtitle": "Et si vous laissiez le hasard faire le reste ?"
   },
+  "bottles": {
+    "empty": {
+      "new": "0 Nouvelles bouteilles",
+      "replied": "0 Bouteilles répondues"
+    }
+  },
+  "voice": {
+    "title": "Voix Secrète",
+    "secret_title": "Message vocal secret",
+    "secret_description": "Ce message vocal est obligatoire, mais restera secret et anonyme.\n\nIl ne sera révélé à votre interlocuteur que si le Feeling mutuel atteint 50%.\n\nC'est l'opportunité de laisser deviner votre voix, sans tout révéler trop vite.",
+    "step_label": "2/4",
+    "processing": "Traitement de l'enregistrement...",
+    "duration_label": "{duration}s (requis 5–15s)",
+    "record": "Enregistrer",
+    "stop": "Stop",
+    "error_too_short": "Message vocal trop court (minimum 5 secondes)",
+    "error_too_long": "Message vocal trop long (maximum 15 secondes)",
+    "next": "Suivant",
+    "skip": "Passer",
+    "min_duration": "Durée minimale : 5 secondes",
+    "max_duration": "Durée maximale : 15 secondes"
+  },
   "common": {
     "back": "Retour",
     "ok": "OK",
     "cancel": "Annuler",
-    "select_language": "Sélectionnez une langue"
+    "select_language": "Sélectionner la langue",
+    "all": "Tout",
+    "pictures": "Photos",
+    "audio": "Audio",
+    "quote": "Citation"
   },
   "surprise": {
     "modal_title": "Question coquine débloquée !",
-    "modal_subtitle": "3 questions pour votre mystérieux. Répondez à au moins une pour continuer.",
-    "q1": "Si tu pouvais décrire une ambiance parfaite, ce serait quoi ?",
-    "q2": "Si je te murmure quelque chose à l’oreille, tu préfères que ce soit doux… ou clairement pas innocent ?",
-    "q3": "Qu’est‑ce qu’un partenaire peut faire pour te laisser totalement sans voix ?",
-    "input_placeholder": "Ta réponse",
+    "modal_subtitle": "Félicitations, vous êtes presque à 100% !\nVous êtes sur le point de découvrir la personne avec qui vous discutez.\n\nMalheureusement, la version gratuite s'arrête ici.\n\nPassez à SeaYou PREMIUM pour continuer l'aventure et lever le mystère.",
+    "q1": "Si vous pouviez décrire une atmosphère parfaite, ce serait quoi ?",
+    "q2": "Si je vous murmure quelque chose à l'oreille, vous préféreriez que ce soit doux… ou clairement pas innocent ?",
+    "q3": "Qu'est-ce qu'un partenaire peut faire pour vous laisser totalement sans voix ?",
+    "input_placeholder": "Votre réponse",
     "continue": "Continuer",
-    "banner_required": "Répondez à au moins une question pour poursuivre."
+    "banner_required": "Répondez à au moins une question pour continuer."
   },
   "tutorial": {
     "welcome": {
@@ -63,19 +89,19 @@
       "line2": "Vous vous découvrirez progressivement, à travers des conversations.",
       "line3": "Chaque message sera envoyé comme une bouteille jetée à la mer, de manière anonyme et sécurisée, uniquement aux personnes correspondant à vos critères.",
       "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant d'augmenter votre Feeling à travers vos échanges, et plus votre Feeling monte, plus vous débloquez des révélations exclusives…",
-      "line5": "",
-      "cta": "À vous de jouer !"
+      "line5": "À vous de jouer !",
+      "cta": "C'est parti !"
     },
     "home": {
       "title": "Bienvenue sur SeaYou",
-      "line1": "Des rencontres anonymes commencent ici. Envoyez des bouteilles selon des critères correspondants.",
+      "line1": "Les rencontres anonymes commencent ici. Envoyez des bouteilles selon les critères de correspondance.",
       "line2": "Les réponses ouvrent la conversation. Votre Feeling augmente à chaque échange.",
-      "line3": "Un Feeling plus élevé débloque des secrets comme la Citation (25%) et la Voix (50%).",
-      "cta": "À vous de jouer !"
+      "line3": "Un Feeling plus élevé débloque des secrets comme Citation (25%) et Voix (50%).",
+      "cta": "C'est parti !"
     },
     "signup": {
       "title": "Commencez anonymement",
-      "message": "SeaYou est d’abord anonyme. Explorez, puis révélez uniquement quand vous le décidez.",
+      "message": "SeaYou est avant tout anonyme. Explorez, puis révélez-vous uniquement quand vous le décidez.",
       "cta": "Compris"
     },
     "face_required": {
@@ -86,33 +112,132 @@
   },
   "tooltip": {
     "photo": {
-      "title": "Votre photo de visage",
-      "line1": "Obligatoire et confidentielle. Révélée uniquement à 100% Feeling mutuel.",
-      "line2": "Peut apparaître dans Les Âmes Secrètes si vous l’autorisez.",
-      "line3": "Vous pourrez ajouter jusqu’à 5 photos supplémentaires plus tard.",
+      "title": "Photo de profil",
+      "line1": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle.",
+      "line2": "Elle ne sera révélée que si vous obtenez 100% de Feeling mutuel avec votre interlocuteur, et n'apparaîtra que si autorisée dans la catégorie \"Secret Souls\", et aucune autre information sur votre identité ne sera divulguée.",
+      "line3": "Vous pourrez ensuite ajouter 5 photos supplémentaires de votre choix.",
       "ok": "Compris"
+    },
+    "quote": {
+      "title": "Citation secrète",
+      "line1": "Ce message est obligatoire, mais restera secret et anonyme.",
+      "line2": "Il ne sera révélé à votre interlocuteur que si le Feeling mutuel atteint 25%.",
+      "line3": "Soyez mystérieux, drôle, profond… ou tout à la fois.",
+      "ok": "Compris"
+    },
+    "audio": {
+      "title": "Message vocal secret",
+      "line1": "Ce message vocal est obligatoire, mais restera secret et anonyme.",
+      "line2": "Il ne sera révélé à votre interlocuteur que si le Feeling mutuel atteint 50%.",
+      "line3": "C'est l'opportunité de laisser deviner votre voix, sans tout révéler trop vite.",
+      "ok": "Compris"
+    }
+  },
+  "registration": {
+    "incomplete": {
+      "title": "Impossible de créer le compte.",
+      "message": "Pour finaliser l'inscription, l'utilisateur doit compléter les 3 éléments suivants :\n\n• Une photo de profil\n• Une citation écrite\n• Un message audio",
+      "ok": "OK"
     }
   },
   "premium": {
     "gate": {
       "title": "Espace Premium",
       "message": "Cette zone est réservée aux membres PREMIUM.",
-      "subscribe": "S’abonner à premium"
+      "subscribe": "S'abonner au premium"
+    },
+    "upgrade": {
+      "title": "Passer à SeaYou PREMIUM",
+      "price": "Seulement 9,90€/mois",
+      "continue": "C'est parti !",
+      "coming_soon": "Bientôt disponible !"
+    },
+    "classique": {
+      "bottles_limit": "Limité à 3 envois de bouteilles/jour",
+      "bottles_locked": "Nouvelles bouteilles reçues inaccessibles jusqu'à ce que vous répondiez à votre propre envoi",
+      "distance_limit": "Envoyer des bouteilles uniquement dans un rayon de 150km",
+      "souls_locked": "Secret Souls verrouillé",
+      "desires_locked": "Porte des Désirs verrouillée"
+    },
+    "premium": {
+      "bottles_unlimited": "Envois de bouteilles illimités",
+      "bottles_open_unlimited": "Ouverture de bouteilles illimitée",
+      "distance_flexible": "Envoyer des bouteilles dans un rayon de 5 à 150km",
+      "souls_access": "Accès gratuit à Secret Souls",
+      "desires_access": "Accès gratuit à la Porte des Désirs",
+      "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans Secret Souls et Porte des Désirs"
+    }
+  },
+  "limits": {
+    "daily": {
+      "title": "Limite quotidienne atteinte",
+      "message": "Vous avez atteint la limite de 3 envois par jour.\nPour continuer à créer des connexions, passez à SeaYou Premium.",
+      "cta": "Découvrir SeaYou Premium"
+    },
+    "weekly": {
+      "title": "Limite atteinte",
+      "message": "Vous avez atteint le nombre maximum de messages autorisés cette semaine.\n\nDécouvrez nos packs de messages\nLes tarifs seront envoyés ultérieurement",
+      "ok": "OK"
     }
   },
   "secret_souls": {
-    "title": "Les Âmes Secrètes",
-    "no_contact": "Consultation uniquement. Aucun contact direct depuis cette section.",
+    "title": "Secret Souls",
+    "no_contact": "Visualisation uniquement. Aucun contact direct depuis cette section.",
     "manage_photos": "Gérer les photos de galerie",
-    "toggle_label": "Afficher dans Les Âmes Secrètes"
+    "toggle_label": "Afficher dans Secret Souls",
+    "popup": {
+      "title": "Secret Souls",
+      "description": "Entrez dans un espace confidentiel où vous trouverez des photos, citations et messages vocaux des membres SeaYou, toujours 100% anonymes.\n\nChaque contenu est une empreinte intime, destinée à être ressentie avant d'être comprise.\n\nAvec SeaYou PREMIUM, vous pouvez contacter directement les auteurs de citations et messages vocaux pour initier des échanges authentiques, subtils et respectueux."
+    },
+    "main_photo_warning": {
+      "title": "Attention",
+      "message": "Assurez-vous de mettre une photo de votre visage (vérifiée par IA).\nCelle-ci sera révélée lorsque vous atteindrez 100% de Feeling avec quelqu'un.",
+      "cancel": "Annuler",
+      "set_main": "Définir comme principale"
+    },
+    "photo_limit_reached": "Maximum de 6 photos atteint",
+    "delete_photo": "Supprimer la photo",
+    "delete_confirmation": "Êtes-vous sûr de vouloir supprimer cette photo ?",
+    "delete": "Supprimer",
+    "cancel": "Annuler",
+    "set_as_main_photo": "Définir comme photo principale"
   },
   "chamber": {
-    "title": "La Porte des Désirs",
-    "subtitle": "Fantasies anonymisées de membres SeaYou",
-    "write_placeholder": "Votre fantasie...",
+    "title": "Chambre des Secrets",
+    "subtitle": "Fantasmes anonymisés des membres SeaYou",
+    "write_placeholder": "Votre fantasme...",
     "report": "Signaler",
-    "elite_dm": "Envoyer un message anonymement",
-    "non_premium_bubble": "Les fantasies sont réservées aux membres PREMIUM.",
-    "upgrade_elite": "Passez à Elite pour envoyer des messages anonymes"
+    "elite_dm": "Envoyer un message anonyme",
+    "non_premium_bubble": "Les fantasmes sont réservés aux membres PREMIUM.",
+    "upgrade_elite": "Passez à Elite pour envoyer des messages anonymes",
+    "send_message": "Envoyer un message"
+  },
+  "fantasy": {
+    "title": "Vos Fantasmes",
+    "step_label": "3/4",
+    "subtitle": "Partagez vos désirs anonymement",
+    "description": "Ajoutez au moins un fantasme pour continuer. Ceux-ci seront visibles par certains utilisateurs, mais resteront 100% anonymes jusqu'à ce que vous atteigniez tous les deux 100% de feeling mutuel.",
+    "input_label": "Fantasme {number}",
+    "input_placeholder": "Décrivez votre fantasme...",
+    "at_least_one": "Au moins un fantasme requis",
+    "next": "Suivant"
+  },
+  "door_of_desires": {
+    "gate": {
+      "title": "Porte des Désirs",
+      "description": "Ici vous trouverez tous les secrets et fantasmes inavoués des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secret ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
+      "action": {
+        "access": "Accéder à la Porte des Désirs",
+        "premium": "Passer à Premium",
+        "close": "Fermer"
+      }
+    }
+  },
+  "location": {
+    "reminder": {
+      "title": "Activer la localisation",
+      "message": "N'oubliez pas d'activer la localisation et de choisir le rayon dans lequel vous souhaitez envoyer des messages.",
+      "ok": "OK"
+    }
   }
 }

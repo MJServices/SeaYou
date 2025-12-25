@@ -198,7 +198,7 @@ class _ArchivedChatsScreenState extends State<ArchivedChatsScreen> {
         children: [
           const Spacer(flex: 2),
           Image.asset(
-            'assets/images/empty bottle.png',
+            'assets/images/empty-bottle.png',
             width: 360,
             height: 480,
             fit: BoxFit.contain,

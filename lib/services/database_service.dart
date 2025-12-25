@@ -35,7 +35,7 @@ class DatabaseService {
       debugPrint('Age: $age');
       debugPrint('City: $city');
 
-      await _supabase.from('profiles').insert({
+      final response = await _supabase.from('profiles').upsert({
         'id': userId,
         'email': email,
         'full_name': fullName,
@@ -51,14 +51,10 @@ class DatabaseService {
         'language': language,
         'secret_desire': secretDesire,
         'secret_audio_url': secretAudioUrl,
-        'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
-        // Freemium defaults
-        'bottles_sent_today': 0,
-        'last_bottle_sent_date': DateTime.now().toIso8601String(),
-        'messages_sent_week': 0,
-        'last_message_sent_week_start': DateTime.now().toIso8601String(),
-      });
+      }, onConflict: 'id');
+      
+      debugPrint('✅ Profile upsert response: $response');
 
       debugPrint('Profile created successfully!');
     } catch (e) {
@@ -67,6 +63,7 @@ class DatabaseService {
       rethrow; // Re-throw to let the UI handle it
     }
   }
+
 
   // --- Freemium/Premium Logic ---
 
@@ -1348,6 +1345,7 @@ class DatabaseService {
     required String contentId,
     required String requesterId,
     required String ownerId,
+    String? initialMessage,
   }) async {
     debugPrint('--- startSecretSoulsConversation ---');
     debugPrint('requesterId: $requesterId');
@@ -1383,6 +1381,17 @@ class DatabaseService {
 
       final convId = response['id'] as String;
       debugPrint('Created conversation: $convId');
+
+      // Send initial message if provided
+      if (initialMessage != null && initialMessage.isNotEmpty) {
+        debugPrint('Sending initial message: $initialMessage');
+        await sendMessage(
+          conversationId: convId,
+          senderId: requesterId,
+          type: 'text',
+          text: initialMessage,
+        );
+      }
 
       // Send notification
       await _supabase.from('notifications').insert({
@@ -1455,9 +1464,9 @@ class DatabaseService {
       final String ext = imageFile.path.split('.').last;
       final String path =
           '$userId/gallery_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await _supabase.storage.from('gallery_photos').upload(path, imageFile,
+      await _supabase.storage.from('face_photos').upload(path, imageFile,
           fileOptions: const FileOptions(upsert: false));
-      final url = _supabase.storage.from('gallery_photos').getPublicUrl(path);
+      final url = _supabase.storage.from('face_photos').getPublicUrl(path);
       await _supabase.from('profile_photos').insert({
         'user_id': userId,
         'url': url,
@@ -1727,4 +1736,5 @@ class DatabaseService {
       text: text,
     );
   }
+
 }

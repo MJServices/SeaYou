@@ -22,6 +22,9 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
+    // Check if user is already logged in
+    _checkAuthAndNavigate();
+
     _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
       ..setLooping(true)
       ..initialize().then((_) {
@@ -29,9 +32,8 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _isVideoInitialized = true;
           });
-          // Apply current mute state to video volume
-          _controller.setVolume(
-              GlobalAudioController.instance.muted.value ? 0.0 : 1.0);
+          // Start unmuted by default (GlobalAudioController.muted starts as false)
+          _controller.setVolume(1.0);
           _controller.play();
         }
       });
@@ -42,6 +44,24 @@ class _SplashScreenState extends State<SplashScreen> {
       _controller.setVolume(isMuted ? 0.0 : 1.0);
     };
     GlobalAudioController.instance.muted.addListener(_muteListener!);
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Small delay to show splash briefly even for logged-in users
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      // User is logged in - navigate directly to HomeScreen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    }
   }
 
   @override
@@ -55,8 +75,25 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+    return GestureDetector(
+      // Global tap-to-mute - wraps entire screen
+      behavior: HitTestBehavior.opaque, // Capture ALL taps, even over buttons
+      onTap: () {
+        print('🎵 Screen tapped - toggling mute');
+        print('🎵 Before toggle - muted: ${GlobalAudioController.instance.muted.value}');
+        print('🎵 Before toggle - video volume: ${_controller.value.volume}');
+        
+        GlobalAudioController.instance.toggleMute();
+        
+        // Give the listener time to execute
+        Future.delayed(const Duration(milliseconds: 100), () {
+          print('🎵 After toggle - muted: ${GlobalAudioController.instance.muted.value}');
+          print('🎵 After toggle - video volume: ${_controller.value.volume}');
+        });
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Prevent white background showing
+        body: Stack(
         children: [
           // Fullscreen video background
           Positioned.fill(
@@ -93,10 +130,11 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
 
           SafeArea(
+            bottom: false, // Allow content to extend to bottom edge
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 40, 24, 0), // Changed to 40px top padding
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0), // Moved to top
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -147,10 +185,30 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const Spacer(),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16), // Reduced bottom padding
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // "Feeling" label above animation
+                      const Text(
+                        'Feeling',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black38,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      
                       // White card with profiles and progress bar
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -303,6 +361,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'voice_chat_modal.dart';
 import 'photo_stamp_modal.dart';
 import '../services/database_service.dart';
 import '../models/bottle.dart';
+import '../i18n/app_localizations.dart';
 
 /// Received Bottles Viewer - Shows received messages one at a time with navigation
 /// Displays voice, text, and photo messages separately with arrow navigation
@@ -111,26 +112,105 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
     if (_bottles.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
+        body: Container(
+          // Solid cream background
+          color: const Color(0xFFFAF0D6),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                _showReplied ? 'No replied bottles yet' : 'No new bottles',
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 18,
-                  color: Colors.white,
+              const Spacer(),
+              // No bottles image (full width)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Image.asset(
+                  'assets/images/nobottles.jpeg',
+                  width: double.infinity,
+                  fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF0AC5C5),
+              const SizedBox(height: 24),
+              // Text with localization (with fallback)
+              Builder(
+                builder: (context) {
+                  try {
+                    return Text(
+                      _showReplied 
+                          ? AppLocalizations.of(context).tr('bottles.empty.replied')
+                          : AppLocalizations.of(context).tr('bottles.empty.new'),
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF151515),
+                      ),
+                    );
+                  } catch (e) {
+                    // Fallback if localization not available
+                    return Text(
+                      _showReplied ? '0 Nouvelles bouteilles répondues' : '0 Nouvelles bouteilles',
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF151515),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const Spacer(),
+              // Retour button
+              Padding(
+                padding: const EdgeInsets.only(bottom: 48),
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(
+                        color: const Color(0xFFE3E3E3),
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        try {
+                          return Text(
+                            AppLocalizations.of(context).tr('common.back'),
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0AC5C5),
+                            ),
+                          );
+                        } catch (e) {
+                          return const Text(
+                            'Retour',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0AC5C5),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
                 ),
-                child: const Text('Go Back'),
               ),
             ],
           ),

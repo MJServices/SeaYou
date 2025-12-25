@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
@@ -34,7 +35,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   final TextEditingController _secretDesireController = TextEditingController();
   
   final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isRecording = false;
+  bool _isPlaying = false;
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
   String? _secretAudioPath;
@@ -258,9 +261,30 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             _isRecording 
                                 ? 'Recording: ${_formatRecordingTime()}'
                                 : 'Recording saved: ${_formatRecordingTime()}',
-                            style: AppTextStyles.bodyText,
-                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodyText.copyWith(
+                              color: AppColors.grey,
+                              fontSize: 12,
+                            ),
                           ),
+                          if (_secretAudioPath != null && !_isRecording) ...[
+                            const SizedBox(height: 16),
+                            GestureDetector(
+                              onTap: _togglePlayback,
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.primary,
+                                ),
+                                child: Icon(
+                                  _isPlaying ? Icons.pause : Icons.play_arrow,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                         
                         const SizedBox(height: 24),
@@ -374,6 +398,23 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     }
   }
 
+  Future<void> _togglePlayback() async {
+    if (_secretAudioPath == null) return;
+
+    if (_isPlaying) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _isPlaying = false);
+    } else {
+      await _audioPlayer.play(DeviceFileSource(_secretAudioPath!));
+      if (mounted) setState(() => _isPlaying = true);
+      
+      // Listen for completion
+      _audioPlayer.onPlayerComplete.listen((_) {
+        if (mounted) setState(() => _isPlaying = false);
+      });
+    }
+  }
+
   String _formatRecordingTime() {
     final minutes = _recordingSeconds ~/ 60;
     final seconds = _recordingSeconds % 60;
@@ -387,8 +428,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     _cityController.dispose();
     _aboutController.dispose();
     _secretDesireController.dispose();
-    _recordingTimer?.cancel();
     _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    _recordingTimer?.cancel();
     super.dispose();
   }
 }

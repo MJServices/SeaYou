@@ -1,0 +1,144 @@
+{
+  "home": {
+    "ongoing_conversations": "Conversations en cours",
+    "secret_souls": "Les âmes secrètes",
+    "door_of_desires": "La porte des désirs",
+    "discover": "Découvrir",
+    "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
+    "discovery_card_title": "3 nouveaux messages",
+    "new_messages_count": "{count} nouveaux messages",
+    "discovery_card_subtitle": "Et si vous laissiez la chance...",
+    "discovery_card_cta": "Découvrir",
+    "conversation_list_header": "Vous avez {count} conversations"
+  },
+  "auth": {
+    "sign_up": "Inscription gratuite",
+    "log_in": "Se connecter",
+    "email": "E‑mail",
+    "password": "Mot de passe",
+    "login_with_password": "Connexion par mot de passe",
+    "login_with_code": "Connexion par code",
+    "forgot_password": "Mot de passe oublié",
+    "continue": "Continuer",
+    "send_code": "Envoyer le code de vérification",
+    "sign_in_title": "Connexion",
+    "sign_in_description": "Entrez votre e‑mail pour recevoir un code de vérification",
+    "create_password_title": "Créez votre mot de passe",
+    "create_account_title": "Créer un compte",
+    "create_account_description": "Un code de vérification vous sera envoyé immédiatement pour valider votre adresse e‑mail",
+    "terms_notice": "En cliquant sur Continuer, vous acceptez les conditions d’utilisation et la politique de confidentialité",
+    "sign_in_password_description": "Entrez votre e‑mail et votre mot de passe",
+    "recover_title": "Réinitialiser le mot de passe",
+    "recover_description": "Entrez votre e‑mail pour recevoir un lien de réinitialisation",
+    "reset_link_sent": "Lien de réinitialisation envoyé"
+  },
+  "error": {
+    "invalid_email": "Veuillez saisir un e‑mail valide",
+    "generic": "Erreur"
+  },
+  "splash": {
+    "subtitle": "Et si vous laissiez le hasard faire le reste ?"
+  },
+  "common": {
+    "back": "Retour",
+    "ok": "OK",
+    "cancel": "Annuler",
+    "select_language": "Sélectionner la langue",
+    "all": "Tout",
+    "pictures": "Photos",
+    "audio": "Audio",
+    "quote": "Citation"
+  },
+  "bottles": {
+    "empty": {
+      "new": "0 Nouvelles bouteilles",
+      "replied": "0 Nouvelles bouteilles répondues"
+    }
+  },
+  "surprise": {
+    "modal_title": "Question coquine débloquée !",
+    "modal_subtitle": "3 questions pour votre mystérieux. Répondez à au moins une pour continuer.",
+    "q1": "Si tu pouvais décrire une ambiance parfaite, ce serait quoi ?",
+    "q2": "Si je te murmure quelque chose à l’oreille, tu préfères que ce soit doux… ou clairement pas innocent ?",
+    "q3": "Qu’est‑ce qu’un partenaire peut faire pour te laisser totalement sans voix ?",
+    "input_placeholder": "Ta réponse",
+    "continue": "Continuer",
+    "banner_required": "Répondez à au moins une question pour poursuivre."
+  },
+  "tutorial": {
+    "welcome": {
+      "title": "Bienvenue sur SeaYou !",
+      "subtitle": "Le premier lieu de rencontre 3.0, où les âmes se choisissent avant le physique.",
+      "line1": "Ici, vos premières rencontres seront 100% anonymes.",
+      "line2": "Vous vous découvrirez progressivement, à travers des conversations.",
+      "line3": "Chaque message sera envoyé comme une bouteille jetée à la mer, de manière anonyme et sécurisée, uniquement aux personnes correspondant à vos critères.",
+      "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant d'augmenter votre Feeling à travers vos échanges, et plus votre Feeling monte, plus vous débloquez des révélations exclusives…",
+      "line5": "",
+      "cta": "À vous de jouer !"
+    },
+    "home": {
+      "title": "Bienvenue sur SeaYou",
+      "line1": "Des rencontres anonymes commencent ici. Envoyez des bouteilles selon des critères correspondants.",
+      "line2": "Les réponses ouvrent la conversation. Votre Feeling augmente à chaque échange.",
+      "line3": "Un Feeling plus élevé débloque des secrets comme la Citation (25%) et la Voix (50%).",
+      "cta": "À vous de jouer !"
+    },
+    "signup": {
+      "title": "Commencez anonymement",
+      "message": "SeaYou est d’abord anonyme. Explorez, puis révélez uniquement quand vous le décidez.",
+      "cta": "Compris"
+    },
+    "face_required": {
+      "title": "Photo de visage requise",
+      "message": "Ajoutez une photo de visage confidentielle pour activer la révélation finale à 100% mutuel.",
+      "cta": "Ajouter maintenant"
+    }
+  },
+  "tooltip": {
+    "photo": {
+      "title": "Votre photo de visage",
+      "line1": "Obligatoire et confidentielle. Révélée uniquement à 100% Feeling mutuel.",
+      "line2": "Peut apparaître dans Les Âmes Secrètes si vous l’autorisez.",
+      "line3": "Vous pourrez ajouter jusqu’à 5 photos supplémentaires plus tard.",
+      "ok": "Compris"
+    }
+  },
+  "premium": {
+    "gate": {
+      "title": "Espace Premium",
+      "message": "Cette zone est réservée aux membres PREMIUM.",
+      "subscribe": "S’abonner à premium"
+    }
+  },
+  "secret_souls": {
+    "title": "Les Âmes Secrètes",
+    "no_contact": "Consultation uniquement. Aucun contact direct depuis cette section.",
+    "manage_photos": "Gérer les photos de galerie",
+    "toggle_label": "Afficher dans Les Âmes Secrètes",
+    "popup": {
+      "title": "Bienvenue dans Les Âmes Secrètes",
+      "description": "Découvrez des profils de manière anonyme. Faites défiler pour explorer les photos et messages audio des autres membres."
+    }
+  },
+  "chamber": {
+    "title": "La Chambre des Secrets",
+    "subtitle": "Fantasmes anonymisés des membres SeaYou",
+    "write_placeholder": "Votre fantasme...",
+    "report": "Signaler",
+    "elite_dm": "Envoyer un message anonyme",
+    "non_premium_bubble": "Les fantasmes sont réservés aux membres PREMIUM.",
+    "upgrade_elite": "Passer à Elite pour envoyer des messages anonymes",
+    "send_message": "Envoyer un message"
+  },
+  "door_of_desires": {
+    "gate": {
+      "title": "La Porte des Désirs",
+      "description": "Cet espace exclusif est réservé aux membres premium. Déverrouillez l'accès pour partager et découvrir des désirs intimes.",
+      "action": {
+        "access": "Accéder à la Porte des Désirs",
+        "premium": "Passer à Premium",
+        "close": "Fermer"
+      }
+    }
+  }
+}

@@ -67,4 +67,15 @@ class TutorialService {
     final p = await SharedPreferences.getInstance();
     await p.setBool(_keySeenPremiumGateTip, true);
   }
+
+  /// Clears all tutorial flags - call this on logout to ensure tutorials show for new accounts
+  Future<void> clearAllTutorials() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(_keySeenHomeTutorial);
+    await p.remove(_keySeenPhotoTooltip);
+    await p.remove(_keySeenSignupCoachmark);
+    await p.remove(_keySeenQuoteTip);
+    await p.remove(_keySeenAudioTip);
+    await p.remove(_keySeenPremiumGateTip);
+  }
 }

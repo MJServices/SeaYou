@@ -104,19 +104,19 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
           children: [
             const Icon(Icons.warning_amber_rounded, color: Colors.orange),
             const SizedBox(width: 8),
-            Text(tr.tr('secret_souls.main_photo_warning_title')),
+            Text(tr.tr('secret_souls.main_photo_warning.title')),
           ],
         ),
-        content: Text(tr.tr('secret_souls.main_photo_warning_message')),
+        content: Text(tr.tr('secret_souls.main_photo_warning.message')),
         actions: [
           TextButton(
              onPressed: () => Navigator.pop(context, false),
-             child: Text(tr.tr('secret_souls.cancel')),
+             child: Text(tr.tr('secret_souls.main_photo_warning.cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
             onPressed: () => Navigator.pop(context, true),
-            child: Text(tr.tr('secret_souls.set_main')),
+            child: Text(tr.tr('secret_souls.main_photo_warning.set_main')),
           ),
         ],
       ),
@@ -131,9 +131,9 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
     try {
       if (photo['id'] != 'main_legacy') {
         await _db.setMainPhoto(
-          userId: user.id, 
-          photoUrl: photo['url'], 
-          photoId: photo['id']
+          userId: user.id,
+          photoId: photo['id'],
+          photoUrl: photo['url'],
         );
       }
       await _load();
@@ -185,9 +185,9 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
     try {
       if (photo['id'] != 'main_legacy') {
         await _db.deletePhoto(
-          photoId: photo['id'], 
-          userId: user.id, 
-          photoUrl: photo['url']
+          userId: user.id,
+          photoId: photo['id'],
+          photoUrl: photo['url'],
         );
       }
       await _load();
@@ -213,33 +213,41 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
     final file = await _upload.pickFromGallery();
     if (file != null) {
       final f = File(file.path);
-      // If prompt requests "Add photos", we'll just upload to gallery.
-      // If it's the very first photo ever, we might want to make it main?
-      // Logic: uploadGalleryPhoto defaults to non-main.
       
-      final id = DateTime.now().millisecondsSinceEpoch.toString();
-      // Show local progress
-      setState(() => _progress = 0.1); 
-      
-      await _controller.enqueue(UploadTask(id: id, bucket: 'gallery_photos', userId: user.id, file: f, prefix: 'gallery'));
-      // Note: UpgradeController logic in existing code didn't actually wait for completion signal properly in UI
-      // But let's assume standard UploadService for simplicity if Controller is complex.
-      // Actually, let's reuse the simpler logical flow:
+      setState(() {
+        _loading = true;
+        _progress = 0.1;
+      }); 
       
       try {
-        final url = await _db.uploadGalleryPhoto(user.id, f);
-        if (url != null) {
-           await _load();
-           // Also set as visible in secret souls by default as per previous task? 
-           // Yes, uploadGalleryPhoto sets it to false in code I viewed? 
-           // Wait, previous user request asked to set it to true.
-           // Let's ensure uploadGalleryPhoto sets it to true (I edited that in Step 603/605).
-           // So new photos are visible.
+       final url = await _db.uploadGalleryPhoto(user.id, f);
+        if (url != null && mounted) {
+          // Reload photos from database
+          await _load();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Photo uploaded successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         }
       } catch (e) {
-         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload failed')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Upload failed: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _progress = 0.0;
+          });
+        }
       }
-      setState(() => _progress = 0.0);
     }
   }
 

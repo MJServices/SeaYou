@@ -3,6 +3,7 @@ import '../i18n/app_localizations.dart';
 import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
 import '../services/auth_service.dart';
+import 'premium_screen.dart';
 
 class ChamberOfSecretsScreen extends StatefulWidget {
   const ChamberOfSecretsScreen({super.key});
@@ -97,7 +98,15 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                 child: Row(
                   children: [
                     Expanded(child: Text(tr.tr('chamber.non_premium_bubble'))),
-                    TextButton(onPressed: () {}, child: Text(AppLocalizations.of(context).tr('premium.gate.subscribe'))),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => PremiumScreen()),
+                        );
+                      },
+                      child: Text(AppLocalizations.of(context).tr('premium.gate.subscribe')),
+                    ),
                   ],
                 ),
               ),
