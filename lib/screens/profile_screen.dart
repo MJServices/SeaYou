@@ -6,6 +6,8 @@ import 'home_screen.dart';
 import 'chat/chat_screen.dart';
 import 'door_of_desires_screen.dart';
 import 'profile/edit_bio_screen.dart';
+import 'profile/edit_quote_screen.dart';
+import 'profile/edit_voice_message_screen.dart';
 import 'profile/help_center_screen.dart';
 import 'profile/change_password_screen.dart';
 import 'profile/premium_screen.dart';
@@ -329,7 +331,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             },
                           ),
 
+                          const SizedBox(height: 16),
 
+                          // Edit my quote
+                          _buildSectionItem(
+                            title: 'Edit my quote',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EditQuoteScreen(),
+                                ),
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Edit my voice message
+                          _buildSectionItem(
+                            title: 'Edit my voice message',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EditVoiceMessageScreen(),
+                                ),
+                              );
+                            },
+                          ),
 
                           const SizedBox(height: 16),
 

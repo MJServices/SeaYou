@@ -102,8 +102,22 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       _msgSub = _db.subscribeMessages(widget.conversationId!).listen((row) {
         final currentUserId = Supabase.instance.client.auth.currentUser?.id;
         final msg = ChatMessage.fromJson(row, currentUserId: currentUserId);
+        
+        debugPrint('📨 Message received via subscription: ${msg.createdAt} - ${msg.senderId}');
+        
         setState(() {
-          _messages.add(msg);
+          // Check if message already exists to avoid duplicates
+          final exists = _messages.any((m) => m.id == msg.id);
+          if (!exists) {
+            debugPrint('  ➕ Adding message to list (total will be ${_messages.length + 1})');
+            // Add message
+            _messages.add(msg);
+            // CRITICAL: Sort by createdAt to maintain chronological order
+            _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+            debugPrint('  ✅ Messages sorted by timestamp');
+          } else {
+            debugPrint('  ⚠️ Message already exists, skipping');
+          }
         });
         _scrollToBottom();
       });
@@ -207,7 +221,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Future<void> _loadInitialMessages() async {
     if (widget.conversationId == null) return;
+    debugPrint('🔄 Loading initial messages for conversation: ${widget.conversationId}');
     final msgs = await _db.getMessages(widget.conversationId!);
+    debugPrint('📥 Loaded ${msgs.length} messages');
+    for (var i = 0; i < msgs.length && i < 5; i++) {
+      final preview = msgs[i].text != null && msgs[i].text!.length > 20 
+          ? msgs[i].text!.substring(0, 20)
+          : (msgs[i].text ?? 'no text');
+      debugPrint('  Message $i: ${msgs[i].createdAt} - ${msgs[i].senderId} - $preview');
+    }
     setState(() {
       _messages = msgs;
     });
@@ -922,13 +944,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           Row(
             children: [
               GestureDetector(
-                onTap: _surpriseRequired ? null : _showAttachmentOptions,
+                onTap: (!_surpriseRequired && _feelingPercent >= 75)
+                    ? _showAttachmentOptions
+                    : null,
                 child: Icon(
                   Icons.camera_alt,
                   size: 24,
-                  color: _surpriseRequired
-                      ? const Color(0xFFE3E3E3)
-                      : const Color(0xFF151515),
+                  color: (!_surpriseRequired && _feelingPercent >= 75)
+                      ? const Color(0xFF151515)
+                      : const Color(0xFFE3E3E3),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1057,6 +1081,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     setState(() {
       _messages.add(msg);
+      _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
     _scrollToBottom();
 
@@ -1556,7 +1581,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
     final text = _messageController.text.trim();
@@ -1567,34 +1592,61 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (widget.conversationId != null && userId != null) {
-      // Optimistic UI update - add message immediately
-      final tempMsg = ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        conversationId: widget.conversationId!,
-        senderId: userId,
-        type: 'text',
-        text: text,
-        createdAt: DateTime.now(),
-        isMe: true,
-        mood: _currentMood,
-      );
-      
-      setState(() {
-        _messages.add(tempMsg);
-      });
-      _scrollToBottom();
-      
-      // Send to database
-      _db.sendMessage(
-        conversationId: widget.conversationId!,
-        senderId: userId,
-        type: 'text',
-        text: text,
-        mood: _currentMood,
-      );
-      
-      // Check if this is an exchange (partner sent last message)
-      _incrementFeelingIfExchange(userId, 'text', text: text);
+      try {
+        // Query last message directly from messages table
+        final lastMessages = await Supabase.instance.client
+            .from('messages')
+            .select('sender_id')
+            .eq('conversation_id', widget.conversationId!)
+            .order('created_at', ascending: false)
+            .limit(1);
+        
+        final lastSenderId = lastMessages.isNotEmpty 
+            ? lastMessages[0]['sender_id'] as String?
+            : null;
+        final isExchange = lastSenderId != null && lastSenderId != userId;
+        
+        debugPrint('📨 Last sender from messages table: $lastSenderId');
+        debugPrint('📨 Current user: $userId');
+        debugPrint('📨 Is exchange: $isExchange');
+        
+        // Add optimistic UI message immediately
+        final optimisticMessage = ChatMessage(
+          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+          conversationId: widget.conversationId!,
+          senderId: userId,
+          text: text,
+          type: 'text',
+          createdAt: DateTime.now(),
+          isMe: true,
+          mood: _currentMood,
+        );
+        
+        setState(() {
+          _messages.add(optimisticMessage);
+          _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        });
+        _scrollToBottom();
+        
+        // Send message to database
+        await _db.sendMessage(
+          conversationId: widget.conversationId!,
+          senderId: userId,
+          type: 'text',
+          text: text,
+          mood: _currentMood,
+        );
+        
+        // Increment feeling ONLY if this was an exchange
+        if (isExchange) {
+          debugPrint('✅ Exchange detected! Incrementing feeling by 5%');
+          await _feelingController.increment(widget.conversationId!, amount: 5);
+        } else {
+          debugPrint('🚫 Consecutive message - no increment');
+        }
+      } catch (e) {
+        debugPrint('❌ Error in _sendMessage: $e');
+      }
     }
   }
 
@@ -1823,6 +1875,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 isMe: true,
                 mood: _currentMood,
               ));
+              _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
             });
             _scrollToBottom();
           } else {
@@ -1904,6 +1957,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 isMe: true,
                 mood: _currentMood,
               ));
+              _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
             });
             _scrollToBottom();
           } else {
@@ -2189,6 +2243,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     
     setState(() {
       _messages.add(tempMsg);
+      // Sort to maintain chronological order
+      _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
     _scrollToBottom();
     

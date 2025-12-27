@@ -198,6 +198,34 @@ class DatabaseService {
     }
   }
 
+  /// Update user's secret quote/desire
+  Future<void> updateSecretDesire(String userId, String secretDesire) async {
+    try {
+      await _supabase.from('profiles').update({
+        'secret_desire': secretDesire,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
+      debugPrint('✅ Secret desire updated successfully');
+    } catch (e) {
+      debugPrint('❌ Error updating secret desire: $e');
+      rethrow;
+    }
+  }
+
+  /// Update user's secret audio message
+  Future<void> updateSecretAudio(String userId, String audioUrl) async {
+    try {
+      await _supabase.from('profiles').update({
+        'secret_audio_url': audioUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
+      debugPrint('✅ Secret audio updated successfully');
+    } catch (e) {
+      debugPrint('❌ Error updating secret audio: $e');
+      rethrow;
+    }
+  }
+
   /// Update sexual orientation
   Future<void> updateSexualOrientation(
     String userId,
@@ -1180,27 +1208,40 @@ class DatabaseService {
     }
   }
 
+
   Stream<Map<String, dynamic>> subscribeMessages(String conversationId) {
     try {
+      debugPrint('🔌 Setting up realtime subscription for conversation: $conversationId');
       final controller = StreamController<Map<String, dynamic>>();
       final channel = _supabase.channel('messages_$conversationId');
+      
       channel
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
             schema: 'public',
             table: 'messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'conversation_id',
+              value: conversationId,
+            ),
             callback: (payload) {
+              debugPrint('🔔🔔🔔 Realtime callback FIRED! 🔔🔔🔔');
               final newRec = payload.newRecord;
-              if (newRec['conversation_id'] == conversationId) {
-                controller.add(newRec.cast<String, dynamic>());
-              }
+              debugPrint('📨 New record: $newRec');
+              controller.add(newRec.cast<String, dynamic>());
             },
           )
-          .subscribe();
+          .subscribe((status, error) {
+        debugPrint('📡 Subscription status: $status');
+        if (error != null) {
+          debugPrint('❌ Subscription error: $error');
+        }
+      });
 
       return controller.stream;
     } catch (e) {
-      debugPrint('Error subscribing to messages: $e');
+      debugPrint('❌ Error subscribing to messages: $e');
       return const Stream.empty();
     }
   }
