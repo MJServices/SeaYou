@@ -1451,6 +1451,102 @@ class DatabaseService {
     }
   }
 
+  /// Start anonymous conversation from Door of Desires fantasy
+  Future<String?> startAnonymousFantasyConversation({
+    required String fantasyId,
+    required String requesterId,
+    required String ownerId,
+    String? initialMessage,
+  }) async {
+    debugPrint('--- startAnonymousFantasyConversation ---');
+    debugPrint('requesterId: $requesterId');
+    debugPrint('ownerId: $ownerId');
+
+    try {
+      // 1. Check for existing conversation
+      debugPrint('Checking for existing conversation...');
+      final existing = await _supabase
+          .from('conversations')
+          .select('id')
+          .eq('user_a_id', requesterId)
+          .eq('user_b_id', ownerId)
+          .maybeSingle();
+
+      if (existing != null) {
+        debugPrint('Found existing conversation: ${existing['id']}');
+        return existing['id'] as String;
+      }
+
+      debugPrint('No existing conversation found. Creating new one...');
+      
+      // 2. Create conversation
+      final response = await _supabase.from('conversations').insert({
+        'user_a_id': requesterId,
+        'user_b_id': ownerId,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'title': 'Door of Desires',
+        'mask_a': 'Desire',
+        'mask_b': 'Fantasy',
+      }).select('id').single();
+
+      final convId = response['id'] as String;
+      debugPrint('Created conversation: $convId');
+
+      // Send initial message if provided
+      if (initialMessage != null && initialMessage.isNotEmpty) {
+        debugPrint('Sending initial message: $initialMessage');
+        await sendMessage(
+          conversationId: convId,
+          senderId: requesterId,
+          type: 'text',
+          text: initialMessage,
+        );
+      }
+
+      // Send notification (optional - don't fail if notifications table doesn't exist)
+      try {
+        await _supabase.from('notifications').insert({
+          'user_id': ownerId,
+          'type': 'fantasy_message',
+          'title': 'New Fantasy Message',
+          'message': 'Someone wants to connect with you about your fantasy',
+          'data': {'conversation_id': convId, 'fantasy_id': fantasyId},
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        debugPrint('✅ Notification sent successfully');
+      } catch (notifError) {
+        debugPrint('⚠️ Could not send notification (table may not exist): $notifError');
+        // Continue anyway - notification is optional
+      }
+
+      return convId;
+    } catch (e) {
+      debugPrint('ERROR starting Fantasy conversation: $e');
+      return null;
+    }
+  }
+
+  /// List fantasies for Door of Desires
+  Future<List<Map<String, dynamic>>> listFantasies({
+    int page = 0,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('fantasies')
+          .select()
+          .eq('is_active', true)
+          .order('created_at', ascending: false)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('Error loading fantasies: $e');
+      return [];
+    }
+  }
+
   // Legacy method - kept for backward compatibility
   Future<List<Map<String, dynamic>>> getSecretSoulsPhotos({
     required int page,
@@ -1698,26 +1794,6 @@ class DatabaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> listFantasies({
-    required int page,
-    int pageSize = 30,
-  }) async {
-    try {
-      final from = page * pageSize;
-      final to = from + pageSize - 1;
-      final response = await _supabase
-          .from('fantasies')
-          .select()
-          .eq('is_active', true)
-          .range(from, to)
-          .order('created_at', ascending: false);
-      return (response as List).cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('Error listing fantasies: $e');
-      return [];
-    }
-  }
-
   Future<void> reportFantasy({
     required String fantasyId,
     required String reporterId,
@@ -1736,34 +1812,6 @@ class DatabaseService {
   }
 
   // ==================== ELITE ANONYMOUS DM ====================
-
-  Future<String?> startAnonymousFantasyConversation({
-    required String fantasyId,
-    required String requesterId,
-    required String ownerId,
-  }) async {
-    try {
-      final rec = await _supabase
-          .from('conversations')
-          .insert({
-            'user_a_id': requesterId,
-            'user_b_id': ownerId,
-            'title': 'Anonymous fantasy',
-            'is_anonymous_elite': true,
-            'fantasy_id': fantasyId,
-            'mask_a': 'Voyager',
-            'mask_b': 'Muse',
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-      return rec['id'] as String?;
-    } catch (e) {
-      debugPrint('Error starting anonymous fantasy conversation: $e');
-      return null;
-    }
-  }
 
   Future<void> sendMessageAnonymous({
     required String conversationId,

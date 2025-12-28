@@ -31,6 +31,14 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
   void initState() {
     super.initState();
     _loadQuestions();
+    
+    // Listen to text changes to update button state
+    _answerController.addListener(() {
+      setState(() {
+        // This will trigger a rebuild when text changes
+        // enabling/disabling the submit button in real-time
+      });
+    });
   }
 
   Future<void> _loadQuestions() async {
@@ -146,12 +154,15 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                             // Question Cards
                             ..._questions.map((question) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: GestureDetector(
+                              child: InkWell(
                                 onTap: () {
+                                  debugPrint('🎯 Question tapped: ${question.questionText}');
                                   setState(() {
                                     _selectedQuestion = question;
                                   });
+                                  debugPrint('✅ Selected question set: ${_selectedQuestion?.questionText}');
                                 },
+                                borderRadius: BorderRadius.circular(12),
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(

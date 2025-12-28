@@ -38,7 +38,7 @@ class ChatMessage {
       mediaUrl: json['media_url'] as String?,
       voicePath: json['voice_path'] as String?,
       duration: json['duration'] as int?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toUtc(),
       isRead: json['is_read'] as bool? ?? false,
       isMe: currentUserId != null && json['sender_id'] == currentUserId,
       mood: json['mood'] as String?,

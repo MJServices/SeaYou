@@ -22,6 +22,7 @@ import '../../models/conversation.dart';
 import '../../models/feeling_milestone.dart';
 import '../../widgets/milestone_unlock_modal.dart';
 import '../naughty_questions_screen.dart';
+import '../../services/notification_service.dart';
 
 /// Chat Conversation Screen - Individual chat with full functionality
 class ChatConversationScreen extends StatefulWidget {
@@ -103,7 +104,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         final currentUserId = Supabase.instance.client.auth.currentUser?.id;
         final msg = ChatMessage.fromJson(row, currentUserId: currentUserId);
         
-        debugPrint('📨 Message received via subscription: ${msg.createdAt} - ${msg.senderId}');
+        debugPrint('📨 Message received via subscription: ${msg.createdAt} - ${msg.senderId} - ${msg.text}');
         
         setState(() {
           // Check if message already exists to avoid duplicates
@@ -115,6 +116,14 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             // CRITICAL: Sort by createdAt to maintain chronological order
             _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
             debugPrint('  ✅ Messages sorted by timestamp');
+            
+            // Debug: Print last 3 messages to verify order
+            final lastThree = _messages.length >= 3 
+                ? _messages.sublist(_messages.length - 3)
+                : _messages;
+            for (var m in lastThree) {
+              debugPrint('    📝 ${m.createdAt} - ${m.text?.substring(0, m.text!.length > 20 ? 20 : m.text!.length)}');
+            }
           } else {
             debugPrint('  ⚠️ Message already exists, skipping');
           }
@@ -208,9 +217,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           onComplete: () {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Answer submitted! Waiting for your match...'),
-                backgroundColor: AppColors.primary,
+              const SnackBar(
+                content: Text('Answer submitted!'),
+                backgroundColor: Colors.green,
               ),
             );
           },
@@ -234,6 +243,20 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       _messages = msgs;
     });
     _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
   }
 
   String _formatTime(dynamic createdAt) {
@@ -1089,7 +1112,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       _db.sendMessage(
         conversationId: widget.conversationId!,
         senderId: userId,
-        type: 'text', // Treat as text for DB compatibility if needed, or 'quote'
+        type: 'quote', // Treat as text for DB compatibility if needed, or 'quote'
         text: '“A shared moment matters more.”',
         mood: _currentMood,
       );
@@ -1202,6 +1225,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Future<void> _showMilestoneModal(FeelingMilestone milestone) async {
     debugPrint('🎉 _showMilestoneModal called for: ${milestone.title}');
     
+    // Show in-app notification for milestone unlock
+    if (mounted) {
+      NotificationService().show(
+        context: context,
+        title: '🎁 Milestone Unlocked!',
+        message: milestone.title,
+        icon: Text(
+          milestone.icon,
+          style: const TextStyle(fontSize: 32),
+        ),
+      );
+    }
+    
     // Get partner's data for the milestone
     String? partnerBio;
     String? partnerSecretAudioUrl;
@@ -1268,9 +1304,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                     debugPrint('✅ Naughty question answered');
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Answer submitted! Waiting for your match...'),
-                        backgroundColor: AppColors.primary,
+                      const SnackBar(
+                        content: Text('Answer submitted!'),
+                        backgroundColor: Colors.green,
                       ),
                     );
                   },
@@ -1596,39 +1632,24 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         // Query last message directly from messages table
         final lastMessages = await Supabase.instance.client
             .from('messages')
-            .select('sender_id')
+            .select('sender_id, text, created_at')
             .eq('conversation_id', widget.conversationId!)
             .order('created_at', ascending: false)
             .limit(1);
+        
+        debugPrint('🔍 Checking for exchange:');
+        debugPrint('  Last message query result: $lastMessages');
         
         final lastSenderId = lastMessages.isNotEmpty 
             ? lastMessages[0]['sender_id'] as String?
             : null;
         final isExchange = lastSenderId != null && lastSenderId != userId;
         
-        debugPrint('📨 Last sender from messages table: $lastSenderId');
-        debugPrint('📨 Current user: $userId');
-        debugPrint('📨 Is exchange: $isExchange');
+        debugPrint('  📨 Last sender ID: $lastSenderId');
+        debugPrint('  📨 Current user ID: $userId');
+        debugPrint('  📨 Is exchange (different sender): $isExchange');
         
-        // Add optimistic UI message immediately
-        final optimisticMessage = ChatMessage(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          conversationId: widget.conversationId!,
-          senderId: userId,
-          text: text,
-          type: 'text',
-          createdAt: DateTime.now(),
-          isMe: true,
-          mood: _currentMood,
-        );
-        
-        setState(() {
-          _messages.add(optimisticMessage);
-          _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        });
-        _scrollToBottom();
-        
-        // Send message to database
+        // Send message to database (will appear via realtime subscription)
         await _db.sendMessage(
           conversationId: widget.conversationId!,
           senderId: userId,
@@ -2315,18 +2336,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final minute = now.minute.toString().padLeft(2, '0');
     final period = now.hour >= 12 ? 'pm' : 'am';
     return '$hour:$minute $period';
-  }
-
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
   }
 
 

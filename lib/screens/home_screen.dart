@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/user_profile.dart';
 import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -36,6 +37,7 @@ import '../widgets/coachmark_bubble.dart';
 import '../widgets/profile_avatar.dart';
 
 import '../widgets/tutorial_modal.dart';
+import '../services/notification_service.dart';
 
 /// Home Screen - Dynamic with database integration
 class HomeScreen extends StatefulWidget {
@@ -69,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadData();
     GlobalAudioController.instance.playAmbient();
     _subscribeNewMessages();
+    _subscribeNewBottles();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
@@ -157,14 +160,61 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
+      
       final convs = await _databaseService.getUserConversations(userId);
+      
+      // Calculate actual unread count from conversations
+      int totalUnread = 0;
+      for (final c in convs) {
+        totalUnread += c.unreadCount;
+      }
+      
+      setState(() {
+        _newMessagesCount = totalUnread;
+      });
+      
+      // Subscribe to new messages to update count in realtime
       for (final c in convs) {
         final convId = c.id;
-        final sub = _databaseService.subscribeMessages(convId).listen((msg) {
+        final sub = _databaseService.subscribeMessages(convId).listen((msg) async {
           final senderId = msg['sender_id'] as String?;
           if (senderId != null && senderId != userId) {
+            // Show notification for new message
+            final messageText = msg['text'] as String?;
+            final conversationTitle = c.title ?? 'New Message';
+            
+            if (mounted) {
+              NotificationService().show(
+                context: context,
+                title: '💬 $conversationTitle',
+                message: messageText ?? 'You have a new message',
+                icon: const Icon(
+                  Icons.chat_bubble,
+                  color: Colors.white,
+                  size: 32,
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatConversationScreen(
+                        conversationId: convId,
+                        contactName: conversationTitle,
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+            
+            // Reload conversations to get updated unread counts
+            final updatedConvs = await _databaseService.getUserConversations(userId);
+            int newTotalUnread = 0;
+            for (final conv in updatedConvs) {
+              newTotalUnread += conv.unreadCount;
+            }
             setState(() {
-              _newMessagesCount += 1;
+              _newMessagesCount = newTotalUnread;
             });
           }
         });
@@ -172,6 +222,52 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       debugPrint('Error subscribing new messages: $e');
+    }
+  }
+
+  Future<void> _subscribeNewBottles() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Subscribe to bottles table for new bottles sent to this user
+      _supabase
+          .from('bottles')
+          .stream(primaryKey: ['id'])
+          .eq('receiver_id', userId)
+          .listen((data) {
+            if (data.isNotEmpty && mounted) {
+              final latestBottle = data.last;
+              final senderId = latestBottle['sender_id'] as String?;
+              
+              // Only show notification for bottles from others
+              if (senderId != null && senderId != userId) {
+                NotificationService().show(
+                  context: context,
+                  title: '🍾 New Bottle!',
+                  message: 'You received a new message in a bottle',
+                  icon: const Icon(
+                    Icons.mail,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AllBottlesScreen(),
+                      ),
+                    );
+                  },
+                );
+                
+                // Reload data to update bottle count
+                _loadData();
+              }
+            }
+          });
+    } catch (e) {
+      debugPrint('Error subscribing to bottles: $e');
     }
   }
 

@@ -112,8 +112,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     final user = AuthService().currentUser;
     if (user == null) return;
 
-    // Show confirmation modal
-    final confirmed = await showDialog<bool>(
+    // Show message input dialog (like Secret Souls)
+    final messageController = TextEditingController();
+    final message = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (dialogContext) => Dialog(
@@ -127,11 +128,11 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               const Icon(
                 Icons.message_outlined,
                 size: 48,
-                color: Color(0xFFFFD700),
+                color: Color(0xFF8A2BE2),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Start Anonymous Conversation?',
+                'Start Anonymous Conversation',
                 style: TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 18,
@@ -142,7 +143,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               ),
               const SizedBox(height: 12),
               const Text(
-                'You will start an anonymous conversation about this fantasy. The owner will see it in their conversations.',
+                'Write your first message to start the conversation about this fantasy',
                 style: TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
@@ -151,12 +152,42 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 ),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 20),
+              // Message input field
+              TextField(
+                controller: messageController,
+                maxLines: 4,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Type your message here...',
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    color: Color(0xFF9E9E9E),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF8A2BE2), width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  color: Color(0xFF3E2723),
+                ),
+              ),
               const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
+                      onPressed: () => Navigator.pop(dialogContext, null),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -178,21 +209,26 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
+                      onPressed: () {
+                        final msg = messageController.text.trim();
+                        if (msg.isNotEmpty) {
+                          Navigator.pop(dialogContext, msg);
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD700),
+                        backgroundColor: const Color(0xFF8A2BE2),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                       child: const Text(
-                        'Start',
+                        'Send',
                         style: TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF3E2723),
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -205,38 +241,52 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    // If user cancelled or didn't type a message, return
+    if (message == null || message.isEmpty || !mounted) return;
 
-    // Create conversation
+    // Create conversation WITH the message
     try {
+      debugPrint('🚀 Attempting to create fantasy conversation...');
+      debugPrint('  Fantasy ID: ${fantasy['id']}');
+      debugPrint('  Requester ID: ${user.id}');
+      debugPrint('  Owner ID: ${fantasy['user_id']}');
+      debugPrint('  Message: $message');
+      
       final convId = await _db.startAnonymousFantasyConversation(
         fantasyId: fantasy['id'] as String,
         requesterId: user.id,
         ownerId: fantasy['user_id'] as String,
+        initialMessage: message, // Pass the message
       );
+
+      debugPrint('📬 Conversation creation result: $convId');
 
       if (mounted) {
         if (convId != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Conversation started! Check your messages.'),
+              content: Text('Message sent! They will see it in their conversations.'),
               backgroundColor: Color(0xFF4CAF50),
             ),
           );
-          // Navigate to conversations or stay here
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to start conversation'),
+              content: Text('Failed to send message - conversation creation failed'),
               backgroundColor: Color(0xFFF44336),
             ),
           );
         }
       }
     } catch (e) {
+      debugPrint('❌ ERROR sending fantasy message: $e');
+      debugPrint('   Stack trace: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Color(0xFFF44336),
+          ),
         );
       }
     }
