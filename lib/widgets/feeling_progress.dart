@@ -85,9 +85,7 @@ class FeelingProgress extends StatelessWidget {
                               child: Icon(
                                 Icons.format_quote,
                                 size: iconSize,
-                                color: value >= 25
-                                    ? const Color(0xFF151515)
-                                    : const Color(0xFFBDBDBD),
+                                color: const Color(0xFF9B7FED), // Always purple
                               ),
                             ),
                           ),
@@ -101,9 +99,7 @@ class FeelingProgress extends StatelessWidget {
                               child: Icon(
                                 Icons.music_note,
                                 size: iconSize,
-                                color: value >= 50
-                                    ? const Color(0xFF151515)
-                                    : const Color(0xFFBDBDBD),
+                                color: const Color(0xFFFF6B9D), // Always pink
                               ),
                             ),
                           ),
@@ -117,9 +113,7 @@ class FeelingProgress extends StatelessWidget {
                               child: Icon(
                                 Icons.card_giftcard,
                                 size: iconSize,
-                                color: value >= 75
-                                    ? const Color(0xFF151515)
-                                    : const Color(0xFFBDBDBD),
+                                color: const Color(0xFFFF9800), // Always orange
                               ),
                             ),
                           ),
@@ -133,9 +127,7 @@ class FeelingProgress extends StatelessWidget {
                               child: Icon(
                                 Icons.favorite,
                                 size: iconSize,
-                                color: value >= 100
-                                    ? const Color(0xFF151515)
-                                    : const Color(0xFFBDBDBD),
+                                color: const Color(0xFFFF1744), // Always red
                               ),
                             ),
                           ),

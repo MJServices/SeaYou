@@ -4,6 +4,8 @@ class Conversation {
   final String userAId;
   final String userBId;
   final String? title;
+  final String? maskA;
+  final String? maskB;
   final int feelingPercent;
   final int unlockState;  // Changed from Map to int to match DB schema
   final DateTime createdAt;
@@ -17,8 +19,10 @@ class Conversation {
     required this.userAId,
     required this.userBId,
     this.title,
+    this.maskA,
+    this.maskB,
     this.feelingPercent = 0,
-    this.unlockState = 0,  // Changed default value
+    this.unlockState = 0,
     required this.createdAt,
     required this.updatedAt,
     this.lastMessage,
@@ -32,8 +36,10 @@ class Conversation {
       userAId: json['user_a_id'] as String,
       userBId: json['user_b_id'] as String,
       title: json['title'] as String?,
+      maskA: json['mask_a'] as String?,
+      maskB: json['mask_b'] as String?,
       feelingPercent: json['feeling_percent'] as int? ?? 0,
-      unlockState: json['unlock_state'] as int? ?? 0,  // Fixed: changed from Map to int
+      unlockState: json['unlock_state'] as int? ?? 0,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       lastMessage: json['last_message'] as String?,
@@ -50,6 +56,8 @@ class Conversation {
       'user_a_id': userAId,
       'user_b_id': userBId,
       'title': title,
+      'mask_a': maskA,
+      'mask_b': maskB,
       'feeling_percent': feelingPercent,
       'unlock_state': unlockState,
       'created_at': createdAt.toIso8601String(),
@@ -62,5 +70,12 @@ class Conversation {
   
   String getOtherUserId(String myUserId) {
     return myUserId == userAId ? userBId : userAId;
+  }
+
+  String? getPartnerMask(String myUserId) {
+    // If I am A, I see B's mask (maskB)
+    // If I am B, I see A's mask (maskA)
+    if (myUserId == userAId) return maskB;
+    return maskA;
   }
 }

@@ -15,8 +15,10 @@ import '../services/upload_service.dart';
 import '../models/bottle.dart';
 import '../widgets/preview_modal.dart';
 import '../widgets/sent_confirmation_modal.dart';
+import '../widgets/sent_bottle_video_modal.dart'; // Import video modal
 import '../widgets/animated_waveform.dart';
 import '../screens/chat/chat_conversation_screen.dart';
+import '../widgets/warm_gradient_background.dart';
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
 /// Supports Text, Picture, and Voice Chat bottle creation
 class SendBottleScreen extends StatefulWidget {
@@ -36,8 +38,8 @@ class SendBottleScreen extends StatefulWidget {
 class _SendBottleScreenState extends State<SendBottleScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _captionController = TextEditingController();
-  String _selectedType = 'Text';
-  String _selectedMood = 'Dreamy';
+  // Type is always 'text' - removed type selector
+  String _selectedMood = 'Romantique';
   bool _canPreview = false;
   bool _isRecording = false;
   int _recordingSeconds = 0;
@@ -54,12 +56,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   bool _isSending = false;
 
   final List<Map<String, dynamic>> _moods = [
-    {'name': 'Dreamy', 'color': const Color(0xFF9B98E6)},
-    {'name': 'Curious', 'color': const Color(0xFFD89736)},
-    {'name': 'Calm', 'color': const Color(0xFF65ADA9)},
-    {'name': 'Playful', 'color': const Color(0xFFFF6D68)},
+    {'name': 'Curieux', 'color': const Color(0xFFD89736), 'icon': 'curious.jpeg'},
+    {'name': 'Taquin', 'color': const Color(0xFFFF6D68), 'icon': 'playful.jpeg'},
+    {'name': 'Romantique', 'color': const Color(0xFF9B98E6), 'icon': 'dream.jpeg'},
+    {'name': 'Joyeux', 'color': const Color(0xFF65ADA9), 'icon': 'calm.jpeg'},
   ];
-  final List<String> _types = ['Text', 'Picture', 'Voice Chat'];
 
   @override
   void initState() {
@@ -87,13 +88,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
   void _updatePreviewState() {
     setState(() {
-      if (_selectedType == 'Text') {
-        _canPreview = _messageController.text.trim().isNotEmpty;
-      } else if (_selectedType == 'Picture') {
-        _canPreview = _selectedImagePath != null;
-      } else if (_selectedType == 'Voice Chat') {
-        _canPreview = _recordingSeconds > 0;
-      }
+      // Text-only mode - check if message has content
+      _canPreview = _messageController.text.trim().isNotEmpty;
     });
   }
 
@@ -197,69 +193,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     return '${hours.toString().padLeft(2, '0')} : ${minutes.toString().padLeft(2, '0')} : ${seconds.toString().padLeft(2, '0')}';
   }
 
-  void _showTypeSelector() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            // Drag handle
-            Container(
-              width: 80,
-              height: 3,
-              decoration: BoxDecoration(
-                color: const Color(0xFF737373),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            ..._types.map((type) {
-              final isSelected = type == _selectedType;
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    _selectedType = type;
-                    _canPreview = false;
-                  });
-                  Navigator.pop(context);
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFE3E3E3) : Colors.white,
-                  ),
-                  child: Text(
-                    type,
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? const Color(0xFF0AC5C5)
-                          : const Color(0xFF737373),
-                    ),
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
+    // Type selector removed - text-only mode
 
   Future<void> _pickImage() async {
     try {
@@ -289,119 +223,125 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     }
   }
 
+  List<Color> _getGradientForMood(String mood) {
+    switch (mood) {
+      case 'Romantique':
+        return const [
+          Color(0xFFC7CEEA),
+          Color(0xFF9B98E6),
+        ];
+      case 'Curieux':
+        return const [
+          Color(0xFFFFC700),
+          Color(0xFFD89736),
+        ];
+      case 'Joyeux':
+        return const [
+          Color(0xFF9ECFD4),
+          Color(0xFF65ADA9),
+        ];
+      case 'Taquin':
+        return const [
+          Color(0xFFFF9F9B),
+          Color(0xFFFF6D68),
+        ];
+      default:
+        // Default warm gradient
+        return const [
+          Color(0xFFD4C5D8),
+          Color(0xFFFAF1D0),
+        ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Stack(children: [
-          Column(
-            children: [
-              const SizedBox(height: 18),
-
-              // Header with type selector and actions
-              _buildHeader(),
-
-              const SizedBox(height: 24),
-
-              // Mood selector
-              _buildMoodSelector(),
-
-              const Spacer(),
-
-              // Content area based on type
-              _buildContentArea(),
-
-              const SizedBox(height: 16),
-
-              // Preview button
-              _buildPreviewButton(),
-
-              const SizedBox(height: 32),
-            ],
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: _getGradientForMood(_selectedMood),
           ),
-          if (_uploadProgress > 0 && _uploadProgress < 1.0)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: LinearProgressIndicator(value: _uploadProgress),
+        ),
+        child: SafeArea(
+          child: Stack(children: [
+            Column(
+              children: [
+                const SizedBox(height: 18),
+
+                // Header with type selector and actions
+                _buildHeader(),
+
+                const SizedBox(height: 24),
+
+                // Mood selector
+                _buildMoodSelector(),
+
+                const Spacer(),
+
+                // Content area based on type
+                _buildContentArea(),
+
+                const SizedBox(height: 16),
+
+                // Preview button
+                _buildPreviewButton(),
+
+                const SizedBox(height: 32),
+              ],
             ),
-        ]),
+            if (_uploadProgress > 0 && _uploadProgress < 1.0)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: LinearProgressIndicator(value: _uploadProgress),
+              ),
+          ]),
+        ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Type dropdown
-          GestureDetector(
-            onTap: _showTypeSelector,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF0AC5C5), width: 0.8),
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    _selectedType,
-                    style: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0AC5C5),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SvgPicture.asset(
-                    'assets/icons/nav_arrow_down.svg',
-                    width: 16,
-                    height: 16,
-                    colorFilter: const ColorFilter.mode(
-                      Color(0xFF0AC5C5),
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ],
-              ),
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Row(
+      children: [
+        const Spacer(),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF363636),
             ),
           ),
-          const Spacer(),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF363636),
-              ),
+        ),
+        TextButton(
+          onPressed: () {
+            // Show drafts
+          },
+          child: const Text(
+            'Drafts',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF0AC5C5),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              // Show drafts
-            },
-            child: const Text(
-              'Drafts',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF0AC5C5),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildMoodSelector() {
     return Padding(
@@ -410,21 +350,21 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Customize your mood:',
+            'Customise your Mood',
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF737373),
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF151515),
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 8),
           Row(
             children: _moods.map((mood) {
               final isSelected = mood['name'] == _selectedMood;
               return Padding(
-                padding: const EdgeInsets.only(right: 10),
+                padding: const EdgeInsets.only(right: 12),
                 child: GestureDetector(
                   onTap: () {
                     setState(() {
@@ -432,14 +372,32 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                     });
                   },
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    width: 48,
+                    height: 48,
+                    padding: const EdgeInsets.all(2), // Add padding so color shows as border/ring
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: mood['color'],
                       border: isSelected
-                          ? Border.all(color: const Color(0xFF363636), width: 2)
+                          ? Border.all(color: Colors.white, width: 2.5) // White border for selection
                           : null,
+                      boxShadow: isSelected ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ] : null,
+                    ),
+                    child: ClipOval(
+                      child: Container(
+                         color: mood['color'], // Ensure background inside clip
+                         padding: const EdgeInsets.all(8.0), // Padding inside to show color
+                         child: Image.asset(
+                          'assets/icons/${mood['icon']}',
+                          fit: BoxFit.contain, // Contain so it doesn't cover everything
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -452,13 +410,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   }
 
   Widget _buildContentArea() {
-    if (_selectedType == 'Text') {
-      return _buildTextInput();
-    } else if (_selectedType == 'Picture') {
-      return _buildPictureInput();
-    } else {
-      return _buildVoiceInput();
-    }
+    // Always show text input - removed type selector
+    return _buildTextInput();
   }
 
   Widget _buildTextInput() {
@@ -481,7 +434,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                 height: 1.5,
               ),
               border: InputBorder.none,
-              counterText: '',
             ),
             style: const TextStyle(
               fontFamily: 'Montserrat',
@@ -493,16 +445,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           ),
           Container(height: 1, color: const Color(0xFF0AC5C5)),
           const SizedBox(height: 8),
-          const Text(
-            'Max character length: 400',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF737373),
-              height: 1.5,
-            ),
-          ),
         ],
       ),
     );
@@ -684,40 +626,33 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   }
 
   void _showPreview() {
-    String content = '';
-    if (_selectedType == 'Text') {
-      content = _messageController.text;
-    } else if (_selectedType == 'Picture') {
-      content = _captionController.text;
-    } else if (_selectedType == 'Voice Chat') {
-      content = _formatRecordingTime();
-    }
+    // Text-only mode
+    String content = _messageController.text;
 
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing while sending
       barrierColor: const Color(0x33000000),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => PreviewModal(
-          content: content,
-          mood: _selectedMood,
-          type: _selectedType,
-          imagePath: _selectedImagePath,
-          audioPath: _selectedType == 'Voice Chat' ? _voicePath : null,
-          isLoading: _isSending,
-          onSend: () {
-            _sendBottle();
-          },
-          onSaveDraft: () {
-            Navigator.pop(context); // Close preview
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Saved as draft'),
-                backgroundColor: Color(0xFF0AC5C5),
-              ),
-            );
-          },
-        ),
+      // No StatefulBuilder needed, PreviewModal handles state now
+      builder: (context) => PreviewModal(
+        content: content,
+        mood: _selectedMood,
+        type: 'Text', // Always text type
+        imagePath: null,
+        audioPath: null,
+        // _isSending is controlled internally by PreviewModal for UI, 
+        // but we pass _sendBottle which does the work.
+        isLoading: false, // Initial state
+        onSend: _sendBottle, // Pass the function directly
+        onSaveDraft: () {
+          Navigator.pop(context); // Close preview
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved as draft'),
+              backgroundColor: Color(0xFF0AC5C5),
+            ),
+          );
+        },
       ),
     );
   }
@@ -764,15 +699,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         return;
       }
 
-      // Determine content type
-      String contentType;
-      if (_selectedType == 'Text') {
-        contentType = 'text';
-      } else if (_selectedType == 'Picture') {
-        contentType = 'photo';
-      } else {
-        contentType = 'voice';
-      }
+      // Text-only mode - always 'text' type
+      String contentType = 'text';
 
       String? uploadedPhotoUrl;
       String? uploadedAudioUrl;
@@ -853,18 +781,17 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           
           if (originalBottle != null) {
             // Check if conversation is empty (newly created)
-            final messages = await _databaseService.getMessages(conversationId);
-            if (messages.isEmpty) {
-                debugPrint('✅ Inserting original bottle content as first message');
-                // Insert original bottle as the first message from the SENDER (not current user)
-                await _databaseService.sendMessage(
+            final existingMessages = await _databaseService.getMessages(conversationId);
+            
+            if (existingMessages.isEmpty) {
+              // Insert original bottle as first message (text-only)
+              await _databaseService.sendMessage(
                 conversationId: conversationId,
-                senderId: originalBottle.senderId ?? widget.replyToUserId!, // The other person
-                type: originalBottle.contentType,
-                text: originalBottle.message ?? (originalBottle.contentType == 'text' ? '' : null),
-                mediaUrl: originalBottle.photoUrl ?? originalBottle.audioUrl,
-                // Note: datetime will be now, ideally we'd backdate it but sendMessage uses server time
-                );
+                senderId: originalBottle.senderId ?? widget.replyToUserId!,
+                type: 'text',
+                text: originalBottle.message,
+                mood: originalBottle.mood,
+              );
             }
           }
         }
@@ -1008,7 +935,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         _selectedImageFile = null;
         _voicePath = null;
         _selectedMood = 'Dreamy';
-        _selectedType = 'Text';
+        // Type is always 'Text' now - removed _selectedType
         _canPreview = false;
 
         if (isReply && conversationId != null) {
@@ -1029,21 +956,25 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           // Close preview modal first
           Navigator.pop(context);
           
-          // Show confirmation modal for normal bottles
-          showDialog(
-            context: context,
-            barrierColor: const Color(0x33000000),
-            builder: (context) => SentConfirmationModal(
-              onClose: () {
-                Navigator.pop(context); // Close modal
-                Navigator.pop(context); // Return to home
-              },
-              onSendNew: () {
-                Navigator.pop(context); // Close modal
-                // Fields already cleared above
-              },
+          // Play Sent Bottle Video Animation
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (context) => SentBottleVideoModal(
+                onComplete: () {
+                   if (Navigator.canPop(context)) {
+                     Navigator.pop(context); // Close video modal
+                   }
+                },
+              ),
             ),
           );
+
+          // Return to home after animation
+          if (mounted) {
+            Navigator.pop(context);
+          }
         }
       }
     } catch (e) {

@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../i18n/app_localizations.dart';
+import 'chat/chat_conversation_screen.dart';
 
 class SecretSoulsScreen extends StatefulWidget {
   const SecretSoulsScreen({super.key});
@@ -158,8 +159,25 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     final content = _content[_currentIndex];
     final user = AuthService().currentUser;
     if (user == null) return;
+
+    // 1. Check for existing conversation
+    // If we already have a chat, open it directly
+    final existingConvId = await _db.getConversationId(user.id, content['user_id'] as String);
+    if (existingConvId != null) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatConversationScreen(
+            conversationId: existingConvId,
+            contactName: 'Secret Soul',
+          ),
+        ),
+      );
+      return;
+    }
     
-    // Check limits (Max 3 per week)
+    // 2. Check limits (Max 3 per week)
     final canSend = await _db.canSendMessageThisWeek(user.id);
     if (!canSend) {
       if (!mounted) return;
@@ -179,7 +197,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       return;
     }
 
-    // Show message input dialog
+    // 3. Show message input dialog
     final messageController = TextEditingController();
     final message = await showDialog<String>(
       context: context,
@@ -189,120 +207,122 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.message_outlined,
-                size: 48,
-                color: Color(0xFFFFD700),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Start Anonymous Conversation',
-                style: TextStyle(
-                  fontFamily: 'PlayfairDisplay',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF3E2723),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.message_outlined,
+                  size: 48,
+                  color: Color(0xFFFFD700),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Write your first message to start the conversation',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF5D4037),
+                const SizedBox(height: 16),
+                const Text(
+                  'Start Anonymous Conversation',
+                  style: TextStyle(
+                    fontFamily: 'PlayfairDisplay',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF3E2723),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              // Message input field
-              TextField(
-                controller: messageController,
-                maxLines: 4,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Type your message here...',
-                  hintStyle: const TextStyle(
+                const SizedBox(height: 12),
+                const Text(
+                  'Write your first message to start the conversation',
+                  style: TextStyle(
                     fontFamily: 'Montserrat',
-                    color: Color(0xFF9E9E9E),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF5D4037),
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.all(16),
+                  textAlign: TextAlign.center,
                 ),
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  color: Color(0xFF3E2723),
+                const SizedBox(height: 20),
+                // Message input field
+                TextField(
+                  controller: messageController,
+                  maxLines: 4,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Type your message here...',
+                    hintStyle: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      color: Color(0xFF9E9E9E),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    color: Color(0xFF3E2723),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(dialogContext, null),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: Color(0xFFE0E0E0)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, null),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Color(0xFFE0E0E0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF5D4037),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF5D4037),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final msg = messageController.text.trim();
-                        if (msg.isNotEmpty) {
-                          Navigator.pop(dialogContext, msg);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD700),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final msg = messageController.text.trim();
+                          if (msg.isNotEmpty) {
+                            Navigator.pop(dialogContext, msg);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD700),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Send',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF3E2723),
+                        child: const Text(
+                          'Send',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF3E2723),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -311,38 +331,50 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     // If user cancelled or didn't type a message, return
     if (message == null || message.isEmpty || !mounted) return;
 
-    // Create conversation WITH the message
+    // 4. Send Bottle (NOT Conversation)
     try {
-      final convId = await _db.startSecretSoulsConversation(
-        contentId: content['id'] as String,
-        requesterId: user.id,
-        ownerId: content['user_id'] as String,
-        initialMessage: message, // Pass the message
+      debugPrint('🚀 SECRET SOULS: Sending bottle...');
+      debugPrint('  Content ID: ${content['id']}');
+      debugPrint('  Requester ID: ${user.id}');
+      debugPrint('  Owner ID: ${content['user_id']}');
+      debugPrint('  Message: $message');
+      
+      final bottleId = await _db.sendDirectBottle(
+        senderId: user.id,
+        receiverId: content['user_id'] as String,
+        contentType: 'text', // Bottle content is text (the reply)
+        message: message,
       );
       
-      if (convId != null) {
+      debugPrint('📬 SECRET SOULS: Bottle ID returned: $bottleId');
+      
+      if (bottleId != null) {
+        debugPrint('✅ SECRET SOULS: Bottle sent successfully, incrementing usage...');
         // Increment usage
         await _db.incrementWeeklyMessages(user.id);
-      }
-
-      if (mounted) {
-        if (convId != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+        
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Message sent! They will see it in their conversations.'),
+              content: Text('Bottle sent! Wait for their reply to chat.'),
               backgroundColor: Color(0xFF4CAF50),
+              duration: Duration(seconds: 4),
             ),
           );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+        }
+      } else {
+        debugPrint('❌ SECRET SOULS: Bottle ID is NULL - send failed');
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to send message'),
-              backgroundColor: Color(0xFFF44336),
+              content: Text('Failed to send bottle. Please try again.'),
+              backgroundColor: Colors.red,
             ),
           );
         }
       }
     } catch (e) {
+      debugPrint('❌ SECRET SOULS: Exception caught: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -589,46 +621,72 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         ],
       ),
       padding: const EdgeInsets.all(8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: photoUrl != null
-            ? Image.network(
-                photoUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: photoUrl != null
+                ? Image.network(
+                    photoUrl,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: const Color(0xFFEFEFEF),
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Color(0xFFD4B483)),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('Error loading secret soul image: $error');
+                      return Container(
+                        color: const Color(0xFFEFEFEF),
+                        child: const Center(
+                          child: Icon(Icons.broken_image, color: Colors.grey),
+                        ),
+                      );
+                    },
+                  )
+                : Container(
                     color: const Color(0xFFEFEFEF),
-                    child: const Center(
-                      child: CircularProgressIndicator(color: Color(0xFFD4B483)),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  debugPrint('Error loading secret soul image: $error');
-                  return Container(
-                    color: const Color(0xFFEFEFEF),
-                    child: const Center(
-                      child: Icon(Icons.broken_image, color: Colors.grey),
-                    ),
-                  );
-                },
-              )
-            : Container(
-                color: const Color(0xFFEFEFEF),
-                child: const Center(child: Text('No Image found', style: TextStyle(color: Colors.red))),
-              ),
+                    child: const Center(child: Text('No Image found', style: TextStyle(color: Colors.red))),
+                  ),
+          ),
+          if (content['city'] != null && (content['city'] as String).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Color(0xFF737373)),
+                const SizedBox(width: 4),
+                Text(
+                  content['city'] as String,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
 
   Widget _buildAudioCard(Map<String, dynamic> content) {
     final audioUrl = content['audio_url'] as String?;
-    return SecretSoulAudioCard(audioUrl: audioUrl);
+    final city = content['city'] as String?;
+    return SecretSoulAudioCard(audioUrl: audioUrl, city: city);
   }
 
   Widget _buildQuoteCard(Map<String, dynamic> content) {
     final quoteText = content['quote_text'] as String? ?? '';
+    final city = content['city'] as String?;
     
     return Container(
       width: double.infinity,
@@ -665,6 +723,30 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
             ),
             textAlign: TextAlign.center,
           ),
+          // City display
+          if (city != null && city.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.location_on,
+                  size: 14,
+                  color: Color(0xFF737373),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  city,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -673,7 +755,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
 class SecretSoulAudioCard extends StatefulWidget {
   final String? audioUrl;
-  const SecretSoulAudioCard({super.key, this.audioUrl});
+  final String? city;
+  const SecretSoulAudioCard({super.key, this.audioUrl, this.city});
 
   @override
   State<SecretSoulAudioCard> createState() => _SecretSoulAudioCardState();
@@ -878,7 +961,27 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
               fontStyle: FontStyle.italic,
               color: primaryColor,
             ),
-          ),
+            ),
+
+          if (widget.city != null && widget.city!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_on, size: 14, color: primaryColor.withValues(alpha: 0.7)),
+                const SizedBox(width: 4),
+                Text(
+                  widget.city!,
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: primaryColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

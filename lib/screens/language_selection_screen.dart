@@ -36,7 +36,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
               ),
               const SizedBox(height: 32),
               _buildLanguageOption(
-                  'English (device\'s language)', true, const Locale('en')),
+                  'English', true, const Locale('en')),
               _buildLanguageOption('French', false, const Locale('fr')),
               _buildLanguageOption('German', false, const Locale('de')),
               _buildLanguageOption('Spanish', false, const Locale('es')),
@@ -51,7 +51,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                       final ctx = context;
                       // Persist selected locale
                       final map = {
-                        'English (device\'s language)': const Locale('en'),
+                        'English': const Locale('en'),
                         'French': const Locale('fr'),
                         'German': const Locale('de'),
                         'Spanish': const Locale('es'),

@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../screens/home_screen.dart';
 import '../screens/chat/chat_list_screen.dart';
 import '../screens/profile_screen.dart';
+import '../services/database_service.dart';
 
 class BottomNavBar extends StatelessWidget {
   final String activeScreen; // 'home', 'chat', or 'profile'
@@ -16,13 +17,21 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get safe area bottom padding for device compatibility
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 10,
+      bottom: 0,
       child: Container(
-        height: 70,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+        // Add minimal bottom padding - just enough for safe area
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 8,
+          bottom: bottomPadding > 0 ? bottomPadding + 4 : 6, // Minimal padding
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.95),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -34,54 +43,66 @@ class BottomNavBar extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              context: context,
-              iconPath: 'assets/icons/home_simple.svg',
-              label: 'Home',
-              isActive: activeScreen == 'home',
-              onTap: () {
-                if (activeScreen != 'home') {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+        child: SizedBox(
+          height: 60, // Reduced from 70 for better spacing
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                context: context,
+                iconPath: 'assets/icons/home_simple.svg',
+                label: 'Home',
+                isActive: activeScreen == 'home',
+                onTap: () {
+                  if (activeScreen != 'home') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    );
+                  }
+                },
+              ),
+              StreamBuilder<int>(
+                stream: DatabaseService().unreadCountStream,
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
+                  final hasNotification = unreadCount > 0;
+                  
+                  return _buildNavItem(
+                    context: context,
+                    iconPath: 'assets/icons/chat_lines.svg',
+                    label: 'Chat',
+                    isActive: activeScreen == 'chat',
+                    hasNotification: hasNotification,
+                    onTap: () {
+                      if (activeScreen != 'chat') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ChatListScreen()),
+                        );
+                      }
+                    },
                   );
                 }
-              },
-            ),
-            _buildNavItem(
-              context: context,
-              iconPath: 'assets/icons/chat_lines.svg',
-              label: 'Chat',
-              isActive: activeScreen == 'chat',
-              onTap: () {
-                if (activeScreen != 'chat') {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ChatListScreen()),
-                  );
-                }
-              },
-            ),
-            _buildNavItem(
-              context: context,
-              iconPath: null,
-              label: 'Profile',
-              isActive: activeScreen == 'profile',
-              hasAvatar: true,
-              avatarUrl: userProfile?['avatar_url'],
-              onTap: () {
-                if (activeScreen != 'profile') {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                  );
-                }
-              },
-            ),
-          ],
+              ),
+              _buildNavItem(
+                context: context,
+                iconPath: null,
+                label: 'Profile',
+                isActive: activeScreen == 'profile',
+                hasAvatar: true,
+                avatarUrl: userProfile?['avatar_url'],
+                onTap: () {
+                  if (activeScreen != 'profile') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -95,7 +116,21 @@ class BottomNavBar extends StatelessWidget {
     required VoidCallback onTap,
     bool hasAvatar = false,
     String? avatarUrl,
+    bool hasNotification = false,
   }) {
+    // Determine color:
+    // Notification -> Red (0xFFFB3748) (Always takes precedence)
+    // Active -> Purple (0xFF9B7FED)
+    // Inactive -> Grey (0xFF737373)
+    final Color itemColor;
+    if (hasNotification) {
+      itemColor = const Color(0xFFFF9800);
+    } else if (isActive) {
+      itemColor = const Color(0xFF9B7FED);
+    } else {
+      itemColor = const Color(0xFF737373);
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -120,14 +155,40 @@ class BottomNavBar extends StatelessWidget {
               ),
             )
           else if (iconPath != null)
-            SvgPicture.asset(
-              iconPath,
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                isActive ? const Color(0xFF9B7FED) : const Color(0xFF737373),
-                BlendMode.srcIn,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                SvgPicture.asset(
+                  iconPath,
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(
+                    itemColor,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                if (hasNotification)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFB3748), // Explicit Red
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           const SizedBox(height: 4),
           Text(
@@ -136,7 +197,7 @@ class BottomNavBar extends StatelessWidget {
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w400,
-              color: isActive ? const Color(0xFF9B7FED) : const Color(0xFF737373),
+              color: itemColor,
               letterSpacing: 0.24,
             ),
           ),
@@ -145,3 +206,4 @@ class BottomNavBar extends StatelessWidget {
     );
   }
 }
+

@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../i18n/app_localizations.dart';
 import '../utils/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'chat/chat_conversation_screen.dart';
 
 class DoorOfDesiresScreen extends StatefulWidget {
   const DoorOfDesiresScreen({super.key});
@@ -32,6 +33,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     _swipeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
+      lowerBound: -1.0, // Allow left swipe (negative values)
+      upperBound: 1.0,  // Allow right swipe (positive values)
+      value: 0.0,       // Start centered
     );
     _init();
   }
@@ -85,13 +89,24 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
   void _onSwipeEnd(DragEndDetails details) {
     if (_swipeController.value > 0.5 || _swipeController.value < -0.5) {
-      // Complete the swipe
-      _swipeController.forward().then((_) {
+      // Store the direction before animation
+      // Positive value = swipe RIGHT = next (forward)
+      // Negative value = swipe LEFT = previous (backward)
+      final bool isRightSwipe = _swipeController.value > 0;
+      
+      // Animate to the appropriate end position
+      final targetValue = isRightSwipe ? 1.0 : -1.0;
+      _swipeController.animateTo(targetValue).then((_) {
         setState(() {
-          if (_currentIndex < _fantasies.length - 1) {
+          // Right swipe - move forward to NEXT
+          if (isRightSwipe && _currentIndex < _fantasies.length - 1) {
             _currentIndex++;
+          } 
+          // Left swipe - move backward to PREVIOUS
+          else if (!isRightSwipe && _currentIndex > 0) {
+            _currentIndex--;
           }
-          _swipeController.reset();
+          _swipeController.value = 0; // Reset to center
 
           // Load more when near end
           if (_currentIndex >= _fantasies.length - 2 && !_loading) {
@@ -112,7 +127,24 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     final user = AuthService().currentUser;
     if (user == null) return;
 
-    // Show message input dialog (like Secret Souls)
+    // 1. Check for existing conversation
+    // If conversation exists, go directly to chat
+    final existingConvId = await _db.getConversationId(user.id, fantasy['user_id'] as String);
+    if (existingConvId != null) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatConversationScreen(
+            conversationId: existingConvId,
+            contactName: 'Door of Desires',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 2. Show message input dialog (like Secret Souls)
     final messageController = TextEditingController();
     final message = await showDialog<String>(
       context: context,
@@ -122,120 +154,148 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.message_outlined,
-                size: 48,
-                color: Color(0xFF8A2BE2),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Start Anonymous Conversation',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF3E2723),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.message_outlined,
+                  size: 48,
+                  color: Color(0xFF8A2BE2),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Write your first message to start the conversation about this fantasy',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF5D4037),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              // Message input field
-              TextField(
-                controller: messageController,
-                maxLines: 4,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Type your message here...',
-                  hintStyle: const TextStyle(
+                const SizedBox(height: 16),
+                const Text(
+                  'Start Anonymous Conversation',
+                  style: TextStyle(
                     fontFamily: 'Montserrat',
-                    color: Color(0xFF9E9E9E),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3E2723),
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8A2BE2), width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.all(16),
+                  textAlign: TextAlign.center,
                 ),
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  color: Color(0xFF3E2723),
+                const SizedBox(height: 12),
+                const Text(
+                  'Write your first message to start the conversation about this fantasy',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF5D4037),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(dialogContext, null),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: Color(0xFFE0E0E0)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 20),
+                // Message input field with character counter
+                StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        TextField(
+                          controller: messageController,
+                          maxLines: 4,
+                          maxLength: 200, // Character limit
+                          autofocus: true,
+                          onChanged: (value) {
+                            setDialogState(() {}); // Update counter
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Type your message here...',
+                            hintStyle: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              color: Color(0xFF9E9E9E),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF8A2BE2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.all(16),
+                            counterText: '', // Hide default counter
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 14,
+                            color: Color(0xFF3E2723),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF5D4037),
+                        const SizedBox(height: 4),
+                        // Custom character counter
+                        Text(
+                          '${messageController.text.length}/200',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 12,
+                            color: messageController.text.length > 180 
+                                ? Colors.red 
+                                : const Color(0xFF9E9E9E),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, null),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Color(0xFFE0E0E0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF5D4037),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final msg = messageController.text.trim();
-                        if (msg.isNotEmpty) {
-                          Navigator.pop(dialogContext, msg);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8A2BE2),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final msg = messageController.text.trim();
+                          if (msg.isNotEmpty) {
+                            Navigator.pop(dialogContext, msg);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8A2BE2),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Send',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                        child: const Text(
+                          'Send',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -244,48 +304,65 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     // If user cancelled or didn't type a message, return
     if (message == null || message.isEmpty || !mounted) return;
 
-    // Create conversation WITH the message
+    // 3. Send Bottle (NOT Conversation)
     try {
-      debugPrint('🚀 Attempting to create fantasy conversation...');
+      debugPrint('🚀 Sending fantasy bottle...');
       debugPrint('  Fantasy ID: ${fantasy['id']}');
       debugPrint('  Requester ID: ${user.id}');
       debugPrint('  Owner ID: ${fantasy['user_id']}');
       debugPrint('  Message: $message');
       
-      final convId = await _db.startAnonymousFantasyConversation(
-        fantasyId: fantasy['id'] as String,
-        requesterId: user.id,
-        ownerId: fantasy['user_id'] as String,
-        initialMessage: message, // Pass the message
+      final bottleId = await _db.sendDirectBottle(
+        senderId: user.id,
+        receiverId: fantasy['user_id'] as String,
+        contentType: 'text', // Bottle content
+        message: message,
       );
 
-      debugPrint('📬 Conversation creation result: $convId');
+      debugPrint('📬 Bottle creation result: $bottleId');
 
       if (mounted) {
-        if (convId != null) {
+        if (bottleId != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Message sent! They will see it in their conversations.'),
+              content: Text('Bottle sent! Wait for their reply to chat.'),
               backgroundColor: Color(0xFF4CAF50),
+              duration: Duration(seconds: 4),
             ),
           );
+          
+          // Remove the fantasy from the list so they can't reply again
+          setState(() {
+             if (_currentIndex < _fantasies.length) {
+               _fantasies.removeAt(_currentIndex);
+               // If list becomes empty or near empty, load more
+               if (_fantasies.length < 3) {
+                 _loadFantasies();
+               }
+               // Adjust index if needed
+               if (_currentIndex >= _fantasies.length) {
+                 _currentIndex = 0; // Or handle empty state
+               }
+               // Reset swipe controller just in case
+               _swipeController.value = 0; 
+             }
+          });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to send message - conversation creation failed'),
+              content: Text('Failed to send bottle. Please try again.'),
               backgroundColor: Color(0xFFF44336),
             ),
           );
         }
       }
     } catch (e) {
-      debugPrint('❌ ERROR sending fantasy message: $e');
-      debugPrint('   Stack trace: ${StackTrace.current}');
+      debugPrint('❌ ERROR sending fantasy bottle: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
-            backgroundColor: Color(0xFFF44336),
+            backgroundColor: const Color(0xFFF44336),
           ),
         );
       }
@@ -636,23 +713,53 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             child: Padding(
                               padding: const EdgeInsets.all(24.0),
                               child: SingleChildScrollView(
-                                child: Text(
-                                  _fantasies[_currentIndex]['text'] as String? ?? '',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontFamily: 'PlayfairDisplay',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                    height: 1.4,
-                                    shadows: [
-                                      Shadow(
-                                        offset: Offset(0, 1),
-                                        blurRadius: 4,
-                                        color: Colors.black45,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _fantasies[_currentIndex]['text'] as String? ?? '',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontFamily: 'PlayfairDisplay',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        height: 1.4,
+                                        shadows: [
+                                          Shadow(
+                                            offset: Offset(0, 1),
+                                            blurRadius: 4,
+                                            color: Colors.black45,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // City display
+                                    if (_fantasies[_currentIndex]['profiles'] != null &&
+                                        _fantasies[_currentIndex]['profiles']['city'] != null) ...[
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.location_on,
+                                            size: 14,
+                                            color: Colors.white70,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _fantasies[_currentIndex]['profiles']['city'] as String,
+                                            style: const TextStyle(
+                                              fontFamily: 'Montserrat',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w400,
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),

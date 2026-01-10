@@ -1,27 +1,257 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/status_bar.dart';
-import '../widgets/bottle_card.dart';
+import '../services/database_service.dart';
+import '../models/bottle.dart';
+import 'premium_screen.dart';
+import 'send_bottle_screen.dart';
+import '../widgets/voice_chat_modal.dart';
+import '../widgets/photo_stamp_modal.dart';
+import '../widgets/warm_gradient_background.dart';
 
-class ReceivedBottlesScreen extends StatelessWidget {
+class ReceivedBottlesScreen extends StatefulWidget {
   const ReceivedBottlesScreen({super.key});
 
   @override
+  State<ReceivedBottlesScreen> createState() => _ReceivedBottlesScreenState();
+}
+
+class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
+  final DatabaseService _db = DatabaseService();
+  final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
+  
+  List<ReceivedBottle> _bottles = [];
+  bool _isLoading = true;
+  String? _gender;
+  bool _isPremium = false;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (_currentUserId == null) return;
+    
+    try {
+      final profile = await _db.getProfile(_currentUserId!);
+      if (profile != null) {
+        _gender = profile['gender'];
+        _isPremium = profile['is_premium'] ?? false;
+      }
+
+      final allBottles = await _db.getAllReceivedBottles(_currentUserId!);
+      final unreplied = allBottles.where((b) => !b.isReplied).toList();
+
+      if (mounted) {
+        setState(() {
+          _bottles = unreplied;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading bottles: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleReply(ReceivedBottle bottle) async {
+    // Premium Gate check
+    final isMale = _gender == 'Man' || _gender == 'Male';
+    if (isMale && !_isPremium) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PremiumScreen()),
+      );
+      return;
+    }
+
+    // Handle Reply for different types
+    if (bottle.contentType == 'text') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SendBottleScreen(
+            replyToBottleId: bottle.id,
+            replyToUserId: bottle.senderId,
+          ),
+        ),
+      );
+      _loadData();
+    } else if (bottle.contentType == 'voice') {
+      showDialog(
+        context: context,
+        builder: (context) => VoiceChatModal(
+          isReceived: true,
+          audioUrl: bottle.audioUrl,
+          onReply: () async {
+            Navigator.pop(context);
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SendBottleScreen(
+                  replyToBottleId: bottle.id,
+                  replyToUserId: bottle.senderId,
+                ),
+              ),
+            );
+            _loadData();
+          },
+        ),
+      );
+    } else if (bottle.contentType == 'photo') {
+      showDialog(
+        context: context,
+        builder: (context) => PhotoStampModal(
+          imageUrl: bottle.photoUrl ?? '',
+          caption: bottle.caption ?? '',
+          isReceived: true,
+          onReply: () async {
+            Navigator.pop(context);
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SendBottleScreen(
+                  replyToBottleId: bottle.id,
+                  replyToUserId: bottle.senderId,
+                ),
+              ),
+            );
+            _loadData();
+          },
+        ),
+      );
+    }
+  }
+
+  void _nextBottle() {
+    if (_currentIndex < _bottles.length - 1) {
+      setState(() => _currentIndex++);
+    }
+  }
+
+  void _prevBottle() {
+    if (_currentIndex > 0) {
+      setState(() => _currentIndex--);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Color(0xFFFF9800))),
+      );
+    }
+
+    if (_bottles.isEmpty) {
+       return Scaffold(
+        body: WarmGradientBackground(
+          child: Column(
+            children: [
+              const CustomStatusBar(),
+              _buildHeader(context),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'No new bottles found.',
+                    style: TextStyle(fontFamily: 'Montserrat', fontSize: 16, color: Color(0xFF737373)),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
+       );
+    }
+
+    final bottle = _bottles[_currentIndex];
+    final isMale = _gender == 'Man' || _gender == 'Male';
+    final isLocked = isMale && !_isPremium;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
+      body: WarmGradientBackground(
         child: Column(
           children: [
-            const CustomStatusBar(),
-            const SizedBox(height: 18),
+            // Removed CustomStatusBar() as requested
+            const SizedBox(height: 10), // Minimal top padding
             _buildHeader(context),
-            const SizedBox(height: 16),
-            _buildTitle(),
-            const SizedBox(height: 8),
-            _buildNote(),
-            const SizedBox(height: 16),
+            // Main Content Area - Fixed Layout (No Scroll)
             Expanded(
-              child: _buildBottlesList(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent, // Ensure swipes are caught even on empty space
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity! > 0) {
+                    _prevBottle();
+                  } else if (details.primaryVelocity! < 0) {
+                    _nextBottle();
+                  }
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(flex: 2),
+                    // Bottle Image - Rotated Right & Smaller
+                    Transform.rotate(
+                      angle: 0.15, // Rotate right (positive)
+                      child: Image.asset(
+                        'assets/images/bottle_illustration.png',
+                        width: 160, // Reduced from 240
+                        height: 160,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Counter
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4A4A4A),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        '${_currentIndex + 1} / ${_bottles.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Spacer(flex: 1),
+                    // Message Card
+                    _buildMessageCard(bottle, isLocked),
+                    const Spacer(flex: 2),
+                    // Action Button
+                    GestureDetector(
+                      onTap: () => _handleReply(bottle),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+                        decoration: BoxDecoration(
+                          // White border, transparent or semi-transparent fill
+                          border: Border.all(color: Colors.white, width: 2), 
+                          borderRadius: BorderRadius.circular(4), // Slightly rounded corners
+                          color: Colors.white.withOpacity(0.2), // Semi-transparent for "glass" feel
+                        ),
+                        child: Text(
+                          isLocked ? 'Upgrade to Read' : 'Répondre',
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 18, // Slightly larger
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF9E3E85), // Purple text
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40), // Bottom padding
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -36,87 +266,78 @@ class ReceivedBottlesScreen extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(
-              Icons.arrow_back,
-              color: Color(0xFF151515),
-            ),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF151515)),
           ),
+          const Spacer(),
         ],
       ),
     );
   }
 
-  Widget _buildTitle() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          'Received Bottles',
-          style: TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 20,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF151515),
-          ),
-        ),
+  Widget _buildMessageCard(ReceivedBottle bottle, bool isLocked) {
+    return Container(
+      width: 320, // Wider
+      height: 280, // Fixed height
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        // Transparent as requested
+        color: Colors.transparent, 
+        borderRadius: BorderRadius.circular(0), // Sharp or slight radius? Image looks sharp/minimal
+        border: Border.all(color: Colors.white, width: 3), // Prominent white border
       ),
-    );
-  }
-
-  Widget _buildNote() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        'Note: Bottles disappears into the sea 30 days after connection has not been established.',
-        style: TextStyle(
-          fontFamily: 'Montserrat',
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          height: 1.5,
-          color: Color(0xFF737373),
-        ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Center(
+              child: isLocked 
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.lock, color: Colors.orange, size: 40),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "This message is locked.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF151515),
+                        ),
+                      ),
+                    ],
+                  )
+                : SingleChildScrollView( // Scroll *inside* card if text is long
+                    child: Text(
+                      bottle.contentType == 'text' 
+                          ? (bottle.message ?? '')
+                          : (bottle.contentType == 'voice' ? '🎤 Voice Message' : '📷 Photo Message'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 20, // Bold large text
+                        fontWeight: FontWeight.w700, 
+                        color: Color(0xFF151515),
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Sender Name
+          Text(
+            bottle.senderNickname ?? 'Unknown',
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF151515),
+            ),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildBottlesList() {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: [
-        _buildBottleRow(),
-        const SizedBox(height: 20),
-        _buildBottleRow(),
-        const SizedBox(height: 20),
-        _buildBottleRow(),
-        const SizedBox(height: 20),
-        _buildBottleRow(),
-      ],
-    );
-  }
-
-  Widget _buildBottleRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: BottleCard(
-            icon: Icons.mic,
-            title: 'Voice Chat',
-            hasAudio: true,
-            onTap: () {},
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: BottleCard(
-            icon: Icons.chat,
-            title: 'Text',
-            subtitle: 'Hi. Prior to our previous conversation...',
-            backgroundColor: const Color(0xFFFCF8FF),
-            onTap: () {},
-          ),
-        ),
-      ],
     );
   }
 }

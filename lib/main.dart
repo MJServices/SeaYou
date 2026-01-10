@@ -7,8 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'screens/create_password_screen.dart';
-import 'widgets/tap_to_mute_wrapper.dart';
-// import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
+// import 'widgets/tap_to_mute_wrapper.dart'; // Removed as only used locally in splash
+import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
 
 final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
@@ -40,11 +40,20 @@ void main() async {
       );
     }
   });
-  runApp(const SeaYouApp());
+  // Check for active session
+  final session = Supabase.instance.client.auth.currentSession;
+  final Widget initialScreen = session != null ? const HomeScreen() : const SplashScreen();
+
+  runApp(SeaYouApp(home: initialScreen));
 }
 
 class SeaYouApp extends StatelessWidget {
-  const SeaYouApp({super.key});
+  final Widget home;
+  
+  const SeaYouApp({
+    super.key,
+    required this.home,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,10 +86,8 @@ class SeaYouApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        builder: (context, child) => TapToMuteWrapper(
-          child: child ?? const SizedBox(),
-        ),
-        home: const SplashScreen(),
+        builder: (context, child) => child ?? const SizedBox(),
+        home: home,
       ),
     );
   }

@@ -379,38 +379,19 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   }
 
   Widget _buildActions() {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: () {
-            // Archive chat functionality
-          },
-          child: const Text(
-            'Archive Chat',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF363636),
-            ),
-          ),
+    return GestureDetector(
+      onTap: () {
+        _showBlockModal();
+      },
+      child: Text(
+        'Block ${widget.contactName}',
+        style: const TextStyle(
+          fontFamily: 'Montserrat',
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Color(0xFFFB3748),
         ),
-        const SizedBox(height: 16),
-        GestureDetector(
-          onTap: () {
-            _showBlockModal();
-          },
-          child: Text(
-            'Block ${widget.contactName}',
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFFFB3748),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -525,9 +506,44 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          // Block functionality
+                        onTap: () async {
+                          final currentUserId = AuthService().currentUser?.id;
+                          if (currentUserId == null) return;
+
+                          try {
+                            // Block the user
+                            await _db.blockUser(
+                              blockerId: currentUserId,
+                              blockedId: widget.partnerId,
+                            );
+                            
+                            // TODO: If _reportToSeaYou is true, send report to admin
+                            
+                            if (!mounted) return;
+                            
+                            // Close modal
+                            Navigator.pop(dialogContext);
+                            // Go back to chat list
+                            Navigator.pop(context);
+                            
+                            // Show success message
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${widget.contactName} has been blocked'),
+                                backgroundColor: const Color(0xFF0AC5C5),
+                              ),
+                            );
+                          } catch (e) {
+                            debugPrint('Error blocking user: $e');
+                            if (!mounted) return;
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Failed to block user. Please try again.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),

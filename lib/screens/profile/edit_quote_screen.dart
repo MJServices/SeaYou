@@ -170,7 +170,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Title
                                 Text(
-                                  'Secret Desire',
+                                  'My Quote',
                                   style: AppTextStyles.displayText.copyWith(
                                     fontSize: 20,
                                     color: AppColors.black,
@@ -198,12 +198,12 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                   child: TextField(
                                     controller: _quoteController,
                                     maxLines: 8,
-                                    maxLength: 2000,
+                                    maxLength: 400,
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.black,
                                     ),
                                     decoration: InputDecoration(
-                                      hintText: 'Share your secret desire...',
+                                      hintText: 'Share your favorite quote...',
                                       hintStyle: AppTextStyles.bodyText.copyWith(
                                         color: AppColors.grey,
                                       ),
@@ -219,23 +219,6 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                       ),
                                     ),
                                   ),
-                                ),
-
-                                const SizedBox(height: 8),
-
-                                // Character count indicator
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '${_quoteController.text.length}/2000',
-                                      style: const TextStyle(
-                                        fontFamily: 'Montserrat',
-                                        fontSize: 12,
-                                        color: Color(0xFF737373),
-                                      ),
-                                    ),
-                                  ],
                                 ),
 
                                 if (_errorMessage != null) ...[

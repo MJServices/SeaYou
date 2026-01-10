@@ -54,12 +54,12 @@ class PremiumScreen extends StatelessWidget {
                         
                         // Title
                         Text(
-                          tr.tr('premium.upgrade.title'),
+                          'Passez à SeaYou\nPREMIUM',
                           style: const TextStyle(
                             fontFamily: 'PlayfairDisplay',
                             fontSize: 26,
                             fontWeight: FontWeight.w700,
-                            color: Colors.black,
+                            color: Color(0xFF7B68EE),
                             shadows: [
                               Shadow(
                                 color: Colors.black26,
@@ -90,7 +90,7 @@ class PremiumScreen extends StatelessWidget {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        'SeaYou Classique',
+                                        'Classique',
                                         style: const TextStyle(
                                           fontFamily: 'Montserrat',
                                           fontSize: 14,
@@ -160,28 +160,17 @@ class PremiumScreen extends StatelessWidget {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.25),
-                                          borderRadius: BorderRadius.circular(12),
+                                      Text(
+                                        'SeaYou PREMIUM',
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          height: 1.1,
+                                          letterSpacing: 0.5,
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.workspace_premium, color: Colors.yellow.shade200, size: 12),
-                                            const SizedBox(width: 3),
-                                            const Text(
-                                              'SeaYou PREMIUM',
-                                              style: TextStyle(
-                                                fontFamily: 'Montserrat',
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
                                       const SizedBox(height: 12),
                                       _buildFeature(

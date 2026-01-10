@@ -189,7 +189,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Select at least two',
+                        'Select 2-10 interests',
                         style: AppTextStyles.labelText,
                       ),
                       if (!widget.isEditMode)
@@ -284,7 +284,19 @@ class _InterestsScreenState extends State<InterestsScreen> {
           if (isSelected) {
             _selectedInterests.remove(interest);
           } else {
-            _selectedInterests.add(interest);
+            // Limit to maximum 10 interests
+            if (_selectedInterests.length < 10) {
+              _selectedInterests.add(interest);
+            } else {
+              // Show message that limit is reached
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('You can select up to 10 interests maximum'),
+                  duration: Duration(seconds: 2),
+                  backgroundColor: Color(0xFFFF6B6B),
+                ),
+              );
+            }
           }
         });
       },

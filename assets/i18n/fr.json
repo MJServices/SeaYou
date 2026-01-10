@@ -1,7 +1,7 @@
 {
   "home": {
     "ongoing_conversations": "Conversations en cours",
-    "secret_souls": "Secret Souls",
+    "secret_souls": "Chambre des Secrets",
     "door_of_desires": "Porte des Désirs",
     "discover": "Découvrir",
     "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
@@ -12,7 +12,8 @@
     "conversation_list_header": "Vous avez {count} conversations"
   },
   "auth": {
-    "sign_up": "S'inscrire gratuitement",
+    "sign_up": "S'inscrire",
+    "signing_up": "Inscription...",
     "log_in": "Se connecter",
     "email": "Email",
     "password": "Mot de passe",
@@ -24,8 +25,11 @@
     "sign_in_title": "Se connecter",
     "sign_in_description": "Entrez votre email pour recevoir un code de vérification",
     "create_password_title": "Créez votre mot de passe",
+    "create_account": "Créer un compte",
     "create_account_title": "Créer un compte",
     "create_account_description": "Un code de vérification sera envoyé immédiatement pour valider votre adresse email",
+    "verification_message": "Un code de vérification sera envoyé immédiatement pour valider votre adresse email",
+    "terms_message": "En cliquant sur continuer, vous acceptez les conditions d'utilisation et la politique de confidentialité",
     "terms_notice": "En cliquant sur Continuer, vous acceptez les conditions d'utilisation et la politique de confidentialité",
     "sign_in_password_description": "Entrez votre email et mot de passe",
     "recover_title": "Réinitialiser le mot de passe",
@@ -154,18 +158,18 @@
     },
     "classique": {
       "bottles_limit": "Limité à 3 envois de bouteilles/jour",
-      "bottles_locked": "Nouvelles bouteilles reçues inaccessibles jusqu'à ce que vous répondiez à votre propre envoi",
+      "bottles_locked": "Nouvelles bouteilles reçues inaccessibles, sauf s'il s'agit d'une réponse à votre propre message",
       "distance_limit": "Envoyer des bouteilles uniquement dans un rayon de 150km",
-      "souls_locked": "Secret Souls verrouillé",
+      "souls_locked": "Chambre des Secrets verrouillée",
       "desires_locked": "Porte des Désirs verrouillée"
     },
     "premium": {
       "bottles_unlimited": "Envois de bouteilles illimités",
       "bottles_open_unlimited": "Ouverture de bouteilles illimitée",
       "distance_flexible": "Envoyer des bouteilles dans un rayon de 5 à 150km",
-      "souls_access": "Accès gratuit à Secret Souls",
+      "souls_access": "Accès gratuit à la Chambre des Secrets",
       "desires_access": "Accès gratuit à la Porte des Désirs",
-      "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans Secret Souls et Porte des Désirs"
+      "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans la Chambre des Secrets et la Porte des Désirs"
     }
   },
   "limits": {

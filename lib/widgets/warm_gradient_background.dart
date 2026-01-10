@@ -29,37 +29,21 @@ class WarmGradientBackground extends StatelessWidget {
       );
     }
 
-    // Soft ellipse gradient with purple tones
-    // Color: Light lavender fading to cream/beige background
-    return GestureDetector(
-      // Global tap-to-mute functionality
-      onTap: () {
-        // Import is implicit - GlobalAudioController is from audio_service
-        try {
-          GlobalAudioController.instance.toggleMute();
-        } catch (e) {
-          // Fail silently if audio service not available
-          debugPrint('Audio toggle failed: $e');
-        }
-      },
-      child: Container(
-        constraints: const BoxConstraints.expand(),
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0.0, -0.8), // Positioned near top center
-            radius: 1.2,
-            colors: [
-              Color(0xFFE8D0F5), // Light lavender center
-              Color(0x80D4B5E8), // 50% opacity purple
-              Color(0x40C8A8E8), // 25% opacity purple
-              Color(0x20B899E0), // 12% opacity purple
-              Color(0xFFFFF8F0), // Cream/beige background
-            ],
-            stops: [0.0, 0.15, 0.35, 0.55, 0.8],
-          ),
+    // Soft linear gradient from lavender to cream
+    // Color: #D4C5D8 (lavender) fading to #FAF1D0 (cream)
+    return Container(
+      constraints: const BoxConstraints.expand(),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFD4C5D8), // Lavender top
+            Color(0xFFFAF1D0), // Cream bottom
+          ],
         ),
-        child: child,
       ),
+      child: child,
     );
   }
 }

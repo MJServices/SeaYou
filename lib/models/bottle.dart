@@ -57,6 +57,7 @@ class ReceivedBottle extends Bottle {
   final bool isReplied;
   final int matchScore; // Compatibility score from matching algorithm
   final DateTime? matchedAt; // When the match was made
+  final String? senderNickname;
 
   ReceivedBottle({
     required super.id,
@@ -74,6 +75,7 @@ class ReceivedBottle extends Bottle {
     required this.isReplied,
     this.matchScore = 0,
     this.matchedAt,
+    this.senderNickname,
   });
 
   factory ReceivedBottle.fromJson(Map<String, dynamic> json) {
@@ -95,9 +97,11 @@ class ReceivedBottle extends Bottle {
       matchedAt: json['matched_at'] != null
           ? DateTime.parse(json['matched_at'] as String)
           : null,
+      senderNickname: json['sender_nickname'] as String?,
     );
   }
 
+  @override
   ReceivedBottle copyWith({
     String? id,
     String? contentType,
@@ -114,6 +118,7 @@ class ReceivedBottle extends Bottle {
     bool? isReplied,
     int? matchScore,
     DateTime? matchedAt,
+    String? senderNickname,
   }) {
     return ReceivedBottle(
       id: id ?? this.id,
@@ -131,6 +136,7 @@ class ReceivedBottle extends Bottle {
       isReplied: isReplied ?? this.isReplied,
       matchScore: matchScore ?? this.matchScore,
       matchedAt: matchedAt ?? this.matchedAt,
+      senderNickname: senderNickname ?? this.senderNickname,
     );
   }
 
@@ -144,6 +150,7 @@ class ReceivedBottle extends Bottle {
       'is_replied': isReplied,
       'match_score': matchScore,
       'matched_at': matchedAt?.toIso8601String(),
+      'sender_nickname': senderNickname,
     });
     return json;
   }

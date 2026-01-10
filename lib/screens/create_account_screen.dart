@@ -7,6 +7,7 @@ import '../widgets/warm_gradient_background.dart';
 import 'verification_screen.dart';
 import 'sign_in_email_password_screen.dart';
 import '../services/auth_service.dart';
+import '../i18n/app_localizations.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   final String selectedLanguage;
@@ -120,13 +121,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   alignment: Alignment.centerLeft,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Create an account',
+                Text(
+                  AppLocalizations.of(context).tr('auth.create_account'),
                   style: AppTextStyles.displayText,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'A verification code will be sent right away to validate your email address',
+                Text(
+                  AppLocalizations.of(context).tr('auth.verification_message'),
                   style: AppTextStyles.bodyText,
                 ),
                 const SizedBox(height: 32),
@@ -141,7 +142,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   children: [
                     Expanded(
                       child: CustomButton(
-                        text: _isLoading ? 'Signing up...' : 'Sign up for free',
+                        text: _isLoading ? AppLocalizations.of(context).tr('auth.signing_up') : AppLocalizations.of(context).tr('auth.sign_up'),
                         isActive: !_isLoading,
                         onPressed: _handleSignUp,
                       ),
@@ -149,7 +150,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: CustomButton(
-                        text: 'Log in',
+                        text: AppLocalizations.of(context).tr('auth.log_in'),
                         isOutline: true,
                         isActive: !_isLoading,
                         onPressed: () {
@@ -165,8 +166,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                 const Text(
-                  'By clicking continue, you accept the terms of service and privacy policy',
+                 Text(
+                  AppLocalizations.of(context).tr('auth.terms_message'),
                   style: AppTextStyles.labelText,
                   textAlign: TextAlign.center,
                 ),

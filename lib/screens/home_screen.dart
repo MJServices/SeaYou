@@ -14,10 +14,12 @@ import 'chat/chat_screen.dart';
 import 'chat/chat_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
+import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
 import '../widgets/received_bottles_viewer.dart';
+import 'received_bottles_screen.dart';
 import '../widgets/empty_bottles_state.dart';
 import '../widgets/feeling_progress.dart';
 import '../services/database_service.dart';
@@ -72,6 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
     GlobalAudioController.instance.playAmbient();
     _subscribeNewMessages();
     _subscribeNewBottles();
+    _subscribeNewConversations();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
@@ -271,6 +274,73 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _subscribeNewConversations() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      debugPrint('🔌 Subscribing to NEW conversations for user: $userId');
+      
+      _supabase
+          .channel('public:conversations')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'conversations',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.inFilter,
+              column: 'user_b_id',
+              value: [userId], 
+            ),
+            callback: (payload) async {
+              debugPrint('🆕 New conversation detected!');
+              final newConv = payload.newRecord;
+              if (newConv['user_a_id'] == userId || newConv['user_b_id'] == userId) {
+                if (mounted) {
+                  // Show notification
+                  NotificationService().show(
+                    context: context,
+                    title: 'New Connection!',
+                    message: 'Someone replied to your secret message!',
+                    icon: const Icon(Icons.favorite, color: Colors.white),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChatListScreen(),
+                        ),
+                      );
+                    },
+                  );
+                  
+                  // Reload everything (counts, conversation list)
+                  await _loadData();
+                  // Re-subscribe to messages effectively (by calling _subscribeNewMessages which clears and re-adds)
+                  // Actually _subscribeNewMessages appends, so we should be careful. 
+                  // For now, simpler to just reload the message subs entirely or let _loadData handle UI
+                  // Ideally we add the *new* specific sub.
+                  
+                  // For simplicity/robustness: clear old subs and re-sub to all (safe but slightly heavy)
+                  for (final s in _messageSubs) await s.cancel();
+                  _messageSubs.clear();
+                  _subscribeNewMessages();
+                }
+              }
+            },
+          )
+          .subscribe();
+          
+      // Also need to listen for user_a_id? usually I am the creator if I am A. 
+      // But if someone else creates it (starts conversation), I am B.
+      // So listening for user_b_id == me is usually enough for "incoming" conversations.
+      // But let's be safe and listen to valid changes if Supabase allows OR filter in channels (it doesn't easily).
+      // We will rely on user_b_id for incoming.
+      
+    } catch (e) {
+      debugPrint('Error subscribing to new conversations: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -281,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Scrollable content
             Positioned.fill(
-              bottom: 90, // Updated: 70 (height) + 10 (bottom) + 10 (buffer) = 90
+              bottom: 70, // Updated: 60 (content height) + safe area padding (~6-10px)
               child: SingleChildScrollView(
                 child: Center(
                   child: ConstrainedBox(
@@ -336,21 +406,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         // Circular Bottle with message count
                         GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const ReceivedBottlesViewer(),
-                              ),
-                            );
+                            if (_receivedCount > 0) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ReceivedBottlesScreen(),
+                                ),
+                              ).then((_) => _loadData());
+                            } else {
+                               // No action if 0 messages, or maybe toast?
+                               // User said "page with palm tree already sent is displayed"
+                               // Assuming current visual is fine, just non-clickable or no-op
+                               // For feedback, let's just do nothing or reload
+                               _loadData();
+                            }
                           },
                           child: Column(
                             children: [
                               SizedBox(
-                                width: 210,
-                                height: 210,
-                                child: Transform.rotate(
-                                  angle: 0.4, // Rotated a bit to the right
+                                width: 140, // Reduced from 210
+                                height: 140,
+                                child: ClipOval(
                                   child: Image.asset(
                                     'assets/images/homepage_bottle.png',
                                     fit: BoxFit.cover,
@@ -432,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: _buildNavigationCard(
                                       imagePath: 'assets/images/secretsouls.jpeg',
-                                      label: 'Secret Souls',
+                                      label: AppLocalizations.of(context).tr('home.secret_souls'),
                                       onTap: () {
                                         Navigator.push(
                                           context,
@@ -447,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: _buildNavigationCard(
                                       imagePath: 'assets/images/desirecard.jpeg',
-                                      label: 'Door of Desires',
+                                      label: AppLocalizations.of(context).tr('home.door_of_desires'),
                                       onTap: () {
                                         Navigator.push(
                                           context,
@@ -494,10 +570,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Text(
-                                  'DISCOVER SEAYOU PREMIUM',
-                                  style: TextStyle(
+                                  AppLocalizations.of(context).tr('home.premium_cta'),
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -573,68 +649,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // Fixed Navigation Bar
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 10, // Increased from 0 to prevent cutoff
-              child: Container(
-                height: 70, // Increased from 66 to fix overflow
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6), // Reduced vertical padding
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildNavItem(
-                      iconPath: 'assets/icons/home_simple.svg',
-                      label: 'Home',
-                      isActive: true,
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChatListScreen(),
-                          ),
-                        );
-                      },
-                      child: _buildNavItem(
-                        iconPath: 'assets/icons/chat_lines.svg',
-                        label: 'Chat',
-                        isActive: false,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ProfileScreen(),
-                          ),
-                        );
-                      },
-                      child: _buildNavItem(
-                        iconPath: null,
-                        label: 'Profile',
-                        isActive: false,
-                        hasAvatar: true,
-                        avatarUrl: _userProfile?['avatar_url'],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            BottomNavBar(
+              activeScreen: 'home',
+              userProfile: _userProfile,
             ),
+
             Builder(builder: (context) {
               Widget? bubble;
               if (_showSignupCoachmark) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,6 +22,7 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../models/feeling_milestone.dart';
 import '../../widgets/milestone_unlock_modal.dart';
+import '../premium_screen.dart';
 import '../naughty_questions_screen.dart';
 import '../../services/notification_service.dart';
 
@@ -51,6 +53,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final DatabaseService _db = DatabaseService();
 
   bool _isTyping = false;
+  bool _isSaving = false; // Track if message is being sent
   bool _isRecording = false;
   String? _recordingPath;
   Timer? _recordingTimer;
@@ -72,7 +75,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   int _previousFeelingPercent = 0;
 
   List<ChatMessage> _messages = [];
-  StreamSubscription<Map<String, dynamic>>? _msgSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _msgSub;
   late final UploadController _uploadController;
   double _uploadProgress = 0.0;
   String _currentMood = 'Curious';
@@ -100,40 +103,53 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       _feelingController.subscribe(widget.conversationId!);
       _loadInitialMessages();
       _loadConversation(); // Load conversation data for feeling bar
-      _msgSub = _db.subscribeMessages(widget.conversationId!).listen((row) {
-        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-        final msg = ChatMessage.fromJson(row, currentUserId: currentUserId);
-        
-        debugPrint('📨 Message received via subscription: ${msg.createdAt} - ${msg.senderId} - ${msg.text}');
-        
-        setState(() {
-          // Check if message already exists to avoid duplicates
-          final exists = _messages.any((m) => m.id == msg.id);
-          if (!exists) {
-            debugPrint('  ➕ Adding message to list (total will be ${_messages.length + 1})');
-            // Add message
-            _messages.add(msg);
-            // CRITICAL: Sort by createdAt to maintain chronological order
-            _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-            debugPrint('  ✅ Messages sorted by timestamp');
+      
+      // Get current user ID for message alignment
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        _db.markMessagesAsRead(widget.conversationId!, currentUserId);
+      }
+      
+      // Subscribe to new messages in realtime
+      _db.subscribeMessages(widget.conversationId!).listen((messageData) {
+        if (mounted) {
+          debugPrint('📨 Received new message via realtime: ${messageData['text']}');
+          debugPrint('   Message ID: ${messageData['id']}');
+          debugPrint('   Created at: ${messageData['created_at']}');
+          
+          final newMessage = ChatMessage.fromJson(messageData, currentUserId: currentUserId);
+          
+          setState(() {
+            // Check if message already exists by ID
+            final existingIndex = _messages.indexWhere((m) => m.id == newMessage.id);
             
-            // Debug: Print last 3 messages to verify order
-            final lastThree = _messages.length >= 3 
-                ? _messages.sublist(_messages.length - 3)
-                : _messages;
-            for (var m in lastThree) {
-              debugPrint('    📝 ${m.createdAt} - ${m.text?.substring(0, m.text!.length > 20 ? 20 : m.text!.length)}');
+            if (existingIndex == -1) {
+              // Message doesn't exist, add it
+              _messages.add(newMessage);
+              
+              // Sort by timestamp to maintain chronological order
+              _messages.sort((a, b) => a.createdAt.millisecondsSinceEpoch
+                  .compareTo(b.createdAt.millisecondsSinceEpoch));
+              
+              debugPrint('✅ Added new message. Total messages: ${_messages.length}');
+            } else {
+              debugPrint('⚠️ Message already exists at index $existingIndex, skipping');
             }
-          } else {
-            debugPrint('  ⚠️ Message already exists, skipping');
-          }
-        });
-        _scrollToBottom();
+          });
+          _scrollToBottom();
+        }
       });
       
       // Subscribe to conversation changes to update feeling bar
       _db.subscribeConversation(widget.conversationId!).listen((row) {
         if (mounted) {
+          debugPrint('📊 Received conversation update via realtime: feeling=${row['feeling_percent']}');
+          // Also check/mark read status if new messages came
+          final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+          if (currentUserId != null) {
+            _db.markMessagesAsRead(widget.conversationId!, currentUserId);
+          }
+          
           setState(() {
             _conversation = Conversation.fromJson(row);
             _feelingPercent = _conversation!.feelingPercent;
@@ -187,13 +203,66 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               : response['user2_naughty_answer'];
           
           if (userAnswer == null) {
-            // User hasn't answered yet, show naughty questions screen
+            // User hasn't answered yet
             debugPrint('⚠️ User at 75%+ but hasn\'t answered naughty question');
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) {
-                _showNaughtyQuestionsScreen();
+            
+            // Check gender and premium status
+            try {
+              if (currentUserId != null) {
+                final userProfile = await Supabase.instance.client
+                    .from('profiles')
+                    .select('gender, is_premium') // Assuming 'gender' column exists
+                    .eq('id', currentUserId)
+                    .single();
+                
+                final gender = userProfile['gender'] as String?;
+                final isPremium = userProfile['is_premium'] as bool? ?? false;
+                
+                debugPrint('👤 User Gender: $gender, Premium: $isPremium');
+
+                // Logic: Men (Free) -> content locked. Women or Premium Men -> Unlocked.
+                // Assuming gender values are 'Man'/'Male' vs 'Woman'/'Female'
+                final isMale = gender == 'Man' || gender == 'Male';
+                
+                if (isMale && !isPremium) {
+                   // MALE + FREE = LOCKED
+                   // Show Premium Screen instead of Question Screen
+                   Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                       debugPrint('🔒 Premium Gate: Redirecting male user to Premium Screen');
+                       Navigator.push(
+                        context, 
+                        MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                       );
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(
+                           content: Text('Upgrade to Premium to unlock the Naughty Question!'),
+                           backgroundColor: Color(0xFF9B7FED),
+                           duration: Duration(seconds: 4),
+                         ),
+                       );
+                    }
+                   });
+                } else {
+                  // FEMALE or PREMIUM MALE = UNLOCKED
+                   Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      _showNaughtyQuestionsScreen();
+                    }
+                  });
+                }
               }
-            });
+            } catch (e) {
+              debugPrint('Error checking gender/premium for gate: $e');
+              // Fallback to showing it if check fails (safest UX) or block? 
+              // Safest is to block if error implies security, but for UX let's show default or retry.
+              // Let's stick to existing behavior (show) if error, to avoid softlock.
+               Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  _showNaughtyQuestionsScreen();
+                }
+              });
+            }
           }
         }
       } catch (e) {
@@ -228,22 +297,39 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  Future<void> _loadInitialMessages() async {
-    if (widget.conversationId == null) return;
-    debugPrint('🔄 Loading initial messages for conversation: ${widget.conversationId}');
-    final msgs = await _db.getMessages(widget.conversationId!);
-    debugPrint('📥 Loaded ${msgs.length} messages');
-    for (var i = 0; i < msgs.length && i < 5; i++) {
-      final preview = msgs[i].text != null && msgs[i].text!.length > 20 
-          ? msgs[i].text!.substring(0, 20)
-          : (msgs[i].text ?? 'no text');
-      debugPrint('  Message $i: ${msgs[i].createdAt} - ${msgs[i].senderId} - $preview');
-    }
-    setState(() {
-      _messages = msgs;
-    });
-    _scrollToBottom();
+Future<void> _loadInitialMessages() async {
+  if (widget.conversationId == null) return;
+  debugPrint('🔄 Loading initial messages for conversation: ${widget.conversationId}');
+  
+  final msgs = await _db.getMessages(widget.conversationId!);
+  debugPrint('📥 Loaded ${msgs.length} messages');
+  
+  // Debug: Print raw timestamps before sorting
+  debugPrint('🔍 Raw timestamps BEFORE sorting:');
+  for (var i = 0; i < msgs.length && i < 5; i++) {
+    debugPrint('  [$i] ${msgs[i].createdAt} | UTC: ${msgs[i].createdAt.toUtc()} | Millis: ${msgs[i].createdAt.millisecondsSinceEpoch} | Text: ${msgs[i].text?.substring(0, (msgs[i].text?.length ?? 0) > 10 ? 10 : (msgs[i].text?.length ?? 0))}');
   }
+  
+  // CRITICAL: Sort by millisecondsSinceEpoch for timezone-independent comparison
+  // This is the STANDARD way to compare timestamps across timezones
+  msgs.sort((a, b) {
+    return a.createdAt.millisecondsSinceEpoch.compareTo(b.createdAt.millisecondsSinceEpoch);
+  });
+  
+  debugPrint('✅ Messages sorted by millisecondsSinceEpoch (timezone-independent)');
+  debugPrint('📝 Last 3 messages AFTER sorting:');
+  if (msgs.length >= 3) {
+    final last3 = msgs.sublist(msgs.length - 3);
+    for (var msg in last3) {
+      debugPrint('  ${msg.createdAt} | Millis: ${msg.createdAt.millisecondsSinceEpoch} | ${msg.text?.substring(0, (msg.text?.length ?? 0) > 15 ? 15 : (msg.text?.length ?? 0))}');
+    }
+  }
+  
+  setState(() {
+    _messages = msgs;
+  });
+  _scrollToBottom();
+}
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
@@ -260,16 +346,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   String _formatTime(dynamic createdAt) {
-    try {
-      final dt = DateTime.parse(createdAt as String);
-      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final m = dt.minute.toString().padLeft(2, '0');
-      final ampm = dt.hour >= 12 ? 'pm' : 'am';
-      return '$h:$m $ampm';
-    } catch (_) {
-      return _getCurrentTime();
-    }
+  try {
+    final dt = DateTime.parse(createdAt as String);
+    // Convert UTC to local time
+    final localTime = dt.toLocal();
+    final h = localTime.hour.toString().padLeft(2, '0');
+    final m = localTime.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  } catch (_) {
+    return _getCurrentTime();
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -304,98 +391,117 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                     size: 24, color: Color(0xFF151515)),
               ),
               const SizedBox(width: 12),
+              // Mood Picker Icon
               GestureDetector(
                 onTap: _showMoodSelector,
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: _getMoodGradient(_currentMood),
-                    border:
-                        Border.all(color: const Color(0xFF363636), width: 1),
+                    color: const Color(0xFFFFFBF0), // White/cream background
+                    border: Border.all(color: const Color(0xFFE8E8E8), width: 1.5),
                   ),
-                  child:
-                      const Icon(Icons.palette, size: 18, color: Colors.white),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/icons/moodpciker.jpeg',
+                      width: 22,
+                      height: 22,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Profile Icon  
+              GestureDetector(
+                onTap: () {
+                  if (widget.conversationId != null && _conversation != null) {
+                    final currentUserId = AuthService().currentUser?.id;
+                    final partnerId = _conversation!.userAId == currentUserId
+                        ? _conversation!.userBId
+                        : _conversation!.userAId;
+                    
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatProfileScreen(
+                          conversationId: widget.conversationId!,
+                          partnerId: partnerId,
+                          feelingPercent: _feelingPercent,
+                          contactName: widget.contactName,
+                          mood: widget.mood,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFFFFBF0), // White/cream background
+                    border: Border.all(color: const Color(0xFFE8E8E8), width: 1.5),
+                  ),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/icons/profile.jpeg',
+                      width: 22,
+                      height: 22,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (widget.conversationId != null && _conversation != null) {
-                      final currentUserId = AuthService().currentUser?.id;
-                      final partnerId = _conversation!.userAId == currentUserId
-                          ? _conversation!.userBId
-                          : _conversation!.userAId;
-                      
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatProfileScreen(
-                            conversationId: widget.conversationId!,
-                            partnerId: partnerId,
-                            feelingPercent: _feelingPercent,
-                            contactName: widget.contactName,
-                            mood: widget.mood,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.isUnlocked 
+                                ? widget.contactName 
+                                : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? 'Anonymous'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF151515),
+                            ),
                           ),
-                        ),
-                      );
-                    }
-                  },
-                  child: Row(
-                    children: [
-                      _buildAvatar(),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.isUnlocked
-                                  ? (_threadTitle ?? widget.contactName)
-                                  : 'Anonymous',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                              style: const TextStyle(
+                          if (!widget.isUnlocked)
+                            const Text(
+                              'Online',
+                              style: TextStyle(
                                 fontFamily: 'Montserrat',
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF151515),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFF0AC5C5),
                               ),
                             ),
-                            if (!widget.isUnlocked)
-                              const Text(
-                                'Online',
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF0AC5C5),
-                                ),
-                              ),
-                          ],
-                        ),
+                        ],
                       ),
+                    ),
+                    // Removed rename button as per request
+                    if (_feelingPercent >= 100)
                       IconButton(
-                        onPressed: _promptRenameThread,
-                        icon: const Icon(Icons.edit,
-                            size: 20, color: Color(0xFF363636)),
+                        onPressed: _showPhotoReveal,
+                        icon: const Icon(Icons.photo_camera_back,
+                            size: 20, color: Color(0xFF151515)),
                       ),
-                      if (_feelingPercent >= 100)
-                        IconButton(
-                          onPressed: _showPhotoReveal,
-                          icon: const Icon(Icons.photo_camera_back,
-                              size: 20, color: Color(0xFF151515)),
-                        ),
-                      IconButton(
-                        onPressed: _showConnectionLevel,
-                        icon: const Icon(Icons.insights,
-                            size: 20, color: Color(0xFF363636)),
-                      ),
-                    ],
-                  ),
+                    IconButton(
+                      onPressed: _showConnectionLevel,
+                      icon: const Icon(Icons.insights,
+                          size: 20, color: Color(0xFF363636)),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -495,91 +601,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  Future<void> _promptRenameThread() async {
-    final controller =
-        TextEditingController(text: _threadTitle ?? widget.contactName);
-    final result = await showDialog<String>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Rename thread',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF151515),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter a name',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () =>
-                          Navigator.pop(context, controller.text.trim()),
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result != null && result.isNotEmpty && widget.conversationId != null) {
-    try {
-      // Update database
-      await Supabase.instance.client
-          .from('conversations')
-          .update({'title': result})
-          .eq('id', widget.conversationId!);
-      
-      // Update local state
-      setState(() {
-        _threadTitle = result;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username updated')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error updating username: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating username: $e')),
-        );
-      }
-    }
-  }
-  }
-
   Widget _buildConnectionItem(String label, bool isUnlocked) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -632,25 +653,25 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   LinearGradient _getMoodGradient(String? mood) {
     switch (mood) {
-      case 'Curious':
+      case 'Curieux':
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFFFFC700), Color(0xFFD89736)],
         );
-      case 'Playful':
+      case 'Taquin':
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFFFF9F9B), Color(0xFFFF6D68)],
         );
-      case 'Dreamy':
+      case 'Romantique':
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFF9B98E6), Color(0xFFC7CEEA)],
         );
-      case 'Calm':
+      case 'Joyeux':
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -663,16 +684,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  Widget _buildMessagesList() {
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        return _buildMessageBubble(_messages[index]);
-      },
-    );
-  }
+Widget _buildMessagesList() {
+  return ListView.builder(
+    controller: _scrollController,
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+    itemCount: _messages.length,
+    itemBuilder: (context, index) {
+      return _buildMessageBubble(_messages[index]);
+    },
+  );
+}
 
   Widget _buildMessageBubble(ChatMessage message) {
     bool isMe = message.isMe;
@@ -1062,22 +1083,36 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              GestureDetector(
-                onTap: (_isTyping && !_surpriseRequired) ? _sendMessage : null,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: (_isTyping && !_surpriseRequired)
-                        ? const LinearGradient(
-                            colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
-                        : LinearGradient(colors: [
-                            const Color(0xFF0AC5C5).withValues(alpha: 0.5),
-                            const Color(0xFF08A3A3).withValues(alpha: 0.5)
-                          ]),
-                    shape: BoxShape.circle,
+              // Larger hit area for send button
+              InkWell(
+                onTap: (_isTyping && !_surpriseRequired && !_isSaving) ? _sendMessage : null,
+                borderRadius: BorderRadius.circular(24),
+                child: Padding(
+                  padding: const EdgeInsets.all(4), // Increases hit area
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: (_isTyping && !_surpriseRequired)
+                          ? const LinearGradient(
+                              colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
+                          : LinearGradient(colors: [
+                              const Color(0xFF0AC5C5).withValues(alpha: 0.5),
+                              const Color(0xFF08A3A3).withValues(alpha: 0.5)
+                            ]),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.send, color: Colors.white, size: 24),
                   ),
-                  child: const Icon(Icons.send, color: Colors.white, size: 24),
                 ),
               ),
             ],
@@ -1618,12 +1653,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) return;
+    if (_messageController.text.trim().isEmpty || _isSaving) return;
 
     final text = _messageController.text.trim();
     _messageController.clear();
     setState(() {
       _isTyping = false;
+      _isSaving = true; // Show loading indicator
     });
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -1661,12 +1697,30 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         // Increment feeling ONLY if this was an exchange
         if (isExchange) {
           debugPrint('✅ Exchange detected! Incrementing feeling by 5%');
+          debugPrint('   Current feeling: $_feelingPercent');
           await _feelingController.increment(widget.conversationId!, amount: 5);
+          
+          // Immediately update local state for instant UI feedback
+          final oldPercent = _feelingPercent;
+          setState(() {
+            _feelingPercent = (_feelingPercent + 5).clamp(0, 100);
+          });
+          debugPrint('   Updated feeling: $oldPercent → $_feelingPercent');
+          
+          // Check milestones after increment
+          _checkMilestones();
         } else {
           debugPrint('🚫 Consecutive message - no increment');
         }
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
+      } finally {
+        // Always reset sending state
+        if (mounted) {
+          setState(() {
+            _isSaving = false;
+          });
+        }
       }
     }
   }
@@ -1706,10 +1760,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    _buildMoodOption('Curious', 'Curious & Adventurous'),
-                    _buildMoodOption('Playful', 'Playful & Fun'),
-                    _buildMoodOption('Dreamy', 'Dreamy & Thoughtful'),
-                    _buildMoodOption('Calm', 'Calm & Peaceful'),
+                    _buildMoodOption('Curieux', 'curious.jpeg'),
+                    _buildMoodOption('Taquin', 'playful.jpeg'),
+                    _buildMoodOption('Romantique', 'dream.jpeg'),
+                    _buildMoodOption('Joyeux', 'calm.jpeg'),
                   ],
                 ),
               ),
@@ -1721,7 +1775,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  Widget _buildMoodOption(String mood, String description) {
+  Widget _buildMoodOption(String mood, String iconImage) {
     final isSelected = _currentMood == mood;
     return GestureDetector(
       onTap: () {
@@ -1751,41 +1805,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.3),
               ),
-              child: Icon(
-                isSelected ? Icons.check_circle : Icons.circle_outlined,
-                color: Colors.white,
-                size: 24,
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/icons/$iconImage',
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    mood,
-                    style: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
+              child: Text(
+                mood,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
@@ -2355,44 +2399,41 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   /// Only increment feeling if this is a message exchange (last message was from other user)
-  Future<void> _incrementFeelingIfExchange(
-    String currentUserId, 
-    String messageType, 
-    {String? text, int? duration}
-  ) async {
-    if (widget.conversationId == null) return;
-    
-    try {
-      // Check if there are any messages in this conversation
-      if (_messages.length <= 1) {
-        // First message in conversation - don't increment yet
-        debugPrint('🚫 First message - no increment');
-        return;
-      }
-      
-      // Find the last message before current one (skip the optimistic message we just added)
-      final previousMessages = _messages.where((msg) => msg.id != _messages.last.id).toList();
-      if (previousMessages.isEmpty) {
-        debugPrint('🚫 No previous messages - no increment');
-        return;
-      }
-      
-      final lastMessage = previousMessages.last;
-      
-      // Check if last message was from the OTHER user
-      if (lastMessage.senderId != currentUserId) {
-        // This is an exchange! Increment feeling by 5%
-        const int exchangePoints = 5;
-        debugPrint('✅ Exchange detected! Incrementing feeling by $exchangePoints%');
-        await _feelingController.increment(widget.conversationId!, amount: exchangePoints);
-      } else {
-        // User sent consecutive messages - don't increment
-        debugPrint('🚫 Consecutive message from same user - no increment');
-      }
-    } catch (e) {
-      debugPrint('❌ Error checking message exchange: $e');
+Future<void> _incrementFeelingIfExchange(
+  String currentUserId, 
+  String messageType, 
+  {String? text, int? duration}
+) async {
+  if (widget.conversationId == null) return;
+  
+  try {
+    // Check if there are any messages in this conversation
+    if (_messages.isEmpty) {
+      // First message in conversation - don't increment yet
+      debugPrint('🚫 First message - no increment');
+      return;
     }
+    
+    // Since messages are now reversed (oldest first), the last message is at the end
+    // Get the most recent message before the one we're about to send
+    final lastMessage = _messages.last;
+    
+    // Check if last message was from the OTHER user
+    if (lastMessage.senderId != currentUserId) {
+      // This is an exchange! Increment feeling by 5%
+      const int exchangePoints = 5;
+      debugPrint('✅ Exchange detected! Last sender: ${lastMessage.senderId}, Current: $currentUserId');
+      debugPrint('   Incrementing feeling by $exchangePoints%');
+      await _feelingController.increment(widget.conversationId!, amount: exchangePoints);
+    } else {
+      // User sent consecutive messages - don't increment
+      debugPrint('🚫 Consecutive message from same user - no increment');
+      debugPrint('   Last sender: ${lastMessage.senderId}, Current: $currentUserId');
+    }
+  } catch (e) {
+    debugPrint('❌ Error checking message exchange: $e');
   }
+}
 }
 
 // Animated voice wave bar for waveform visualization

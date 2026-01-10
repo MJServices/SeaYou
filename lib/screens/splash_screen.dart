@@ -23,7 +23,8 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
 
     // Check if user is already logged in
-    _checkAuthAndNavigate();
+    // Check if user is already logged in
+    // _checkAuthAndNavigate(); // Handled in main.dart now
 
     _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
       ..setLooping(true)
@@ -46,23 +47,6 @@ class _SplashScreenState extends State<SplashScreen> {
     GlobalAudioController.instance.muted.addListener(_muteListener!);
   }
 
-  Future<void> _checkAuthAndNavigate() async {
-    // Small delay to show splash briefly even for logged-in users
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    if (!mounted) return;
-    
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      // User is logged in - navigate directly to HomeScreen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
-    }
-  }
 
   @override
   void dispose() {
@@ -316,8 +300,8 @@ class _SplashScreenState extends State<SplashScreen> {
                       // Sign up button
                       GestureDetector(
                         onTap: () {
-                          // Mute the video before navigating
-                          _controller.setVolume(0.0);
+                          // Pause the video before navigating to stop audio
+                          _controller.pause();
                           
                           final session = Supabase.instance.client.auth.currentSession;
                           if (session != null) {
@@ -334,7 +318,12 @@ class _SplashScreenState extends State<SplashScreen> {
                                 builder: (context) =>
                                     const LanguageSelectionScreen(),
                               ),
-                            );
+                            ).then((_) {
+                              // Resume video if user comes back
+                              if (mounted) {
+                                _controller.play();
+                              }
+                            });
                           }
                         },
                         child: Container(

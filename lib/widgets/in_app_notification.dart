@@ -82,7 +82,7 @@ class _InAppNotificationState extends State<InAppNotification>
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFFFB3748), Color(0xFFFF6B7A)],
+              colors: [Color(0xFFFF6B9D), Color(0xFFFFC1E3)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

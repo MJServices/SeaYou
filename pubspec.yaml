@@ -65,6 +65,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/videos/
+    - assets/videos/sent_bottle.mp4
     - assets/i18n/
 
   fonts:

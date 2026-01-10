@@ -54,23 +54,43 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _loadConversations() async {
-    if (_currentUserId == null) {
-      debugPrint('❌ Cannot load conversations: user not logged in');
-      return;
-    }
-    debugPrint('🔄 Loading conversations for user: $_currentUserId');
-    final convs = await _db.getUserConversations(_currentUserId!);
-    debugPrint('✅ Loaded ${convs.length} conversations');
-    for (var conv in convs) {
-      debugPrint('  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
-    }
-    if (mounted) {
-      setState(() {
-        _conversations = convs;
-      });
-      _loadArchivedCount(); // Refresh archived count when conversations change
-    }
+  if (_currentUserId == null) {
+    debugPrint('❌ Cannot load conversations: user not logged in');
+    return;
   }
+  debugPrint('🔄 Loading conversations for user: $_currentUserId');
+  
+  // Get all conversations
+  final convs = await _db.getUserConversations(_currentUserId!);
+  debugPrint('✅ Loaded ${convs.length} conversations');
+  
+  // Get blocked user IDs
+  final blockedUserIds = await _db.getBlockedUserIds(_currentUserId!);
+  debugPrint('🚫 Blocked users: ${blockedUserIds.length}');
+  
+  // Filter out conversations with blocked users
+  final filteredConvs = convs.where((conv) {
+    final partnerId = conv.userAId == _currentUserId ? conv.userBId : conv.userAId;
+    final isBlocked = blockedUserIds.contains(partnerId);
+    if (isBlocked) {
+      debugPrint('  - Filtering out conversation with blocked user: $partnerId');
+    }
+    return !isBlocked;
+  }).toList();
+  
+  debugPrint('✅ Showing ${filteredConvs.length} conversations (${convs.length - filteredConvs.length} blocked)');
+  
+  for (var conv in filteredConvs) {
+    debugPrint('  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
+  }
+  
+  if (mounted) {
+    setState(() {
+      _conversations = filteredConvs;
+    });
+    _loadArchivedCount(); // Refresh archived count when conversations change
+  }
+}
 
   Future<void> _loadArchivedCount() async {
     if (_currentUserId == null) return;
@@ -121,11 +141,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 child: Column(
                   children: [
                     _buildHeader(context),
-                    _buildFilterTabs(),
+                    // _buildFilterTabs(), // Removed as per request
                     Expanded(
                       child: _buildConversationsList(),
                     ),
-                    _buildArchiveButton(),
                   ],
                 ),
               ),
@@ -364,38 +383,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (_currentUserId == null) return const SizedBox.shrink();
     
     final otherUserId = conversation.getOtherUserId(_currentUserId!);
-    debugPrint('  👤 Building conversation item, fetching profile for: $otherUserId');
     
     return FutureBuilder<Map<String, dynamic>?>(
       future: _db.getProfile(otherUserId),
       builder: (context, snapshot) {
-        debugPrint('  📊 Profile FutureBuilder state: ${snapshot.connectionState}, hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}');
-        if (snapshot.hasError) {
-          debugPrint('  ❌ Profile fetch error: ${snapshot.error}');
-        }
-        // Show skeleton only while actively loading
+        // ... (Omitting debug prints for brevity if preferred, or keeping them)
         if (snapshot.connectionState != ConnectionState.done) {
-          // Loading skeleton or simple placeholder
           return Container(
-            margin: const EdgeInsets.only(bottom: 28),
+            margin: const EdgeInsets.only(bottom: 24), // Reduced margin
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 40, // Reduced size
+                  height: 40,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: Color(0xFFE3E3E3),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(width: 100, height: 16, color: const Color(0xFFE3E3E3)),
-                      const SizedBox(height: 6),
-                      Container(width: 200, height: 12, color: const Color(0xFFE3E3E3)),
                     ],
                   ),
                 ),
@@ -404,16 +415,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
           );
         }
 
-        // Profile loaded (or null if doesn't exist) - display conversation anyway
         final profile = snapshot.data ?? {};
         final name = conversation.feelingPercent >= 100 
             ? (profile['full_name'] ?? 'Unknown') 
-            : (conversation.title ?? 'Anonymous');
-        // Use profile mood if available, otherwise default
-        final mood = 'Curious'; // TODO: Store mood in profile or conversation
+            : (conversation.getPartnerMask(_currentUserId!) ?? 'Anonymous');
+
+        final mood = 'Curious'; 
         final isUnlocked = conversation.feelingPercent >= 100;
         final lastMessage = conversation.lastMessage ?? 'Start chatting...';
         final time = _formatTime(conversation.lastMessageTime);
+        final hasUnread = conversation.unreadCount > 0;
 
         return GestureDetector(
           onTap: () {
@@ -427,15 +438,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   conversationId: conversation.id,
                 ),
               ),
-            ).then((_) => _loadConversations()); // Refresh on return
+            ).then((_) => _loadConversations());
           },
           child: Container(
-            margin: const EdgeInsets.only(bottom: 28),
+            margin: const EdgeInsets.only(bottom: 24), // Reduced spacing
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center, // Center align
               children: [
-                _buildAvatar(isUnlocked, mood, profile['avatar_url']),
-                const SizedBox(width: 10),
+                _buildAvatar(isUnlocked, mood, profile['avatar_url'], hasUnread),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,11 +456,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         children: [
                           Text(
                             name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF151515),
+                              fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                              color: const Color(0xFF151515),
                             ),
                           ),
                           Text(
@@ -463,28 +474,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       FeelingProgress(
                         percent: conversation.feelingPercent,
                         compact: true,
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              lastMessage,
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFF363636),
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        lastMessage,
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 12,
+                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                          color: hasUnread ? const Color(0xFF151515) : const Color(0xFF363636),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -514,32 +519,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  Widget _buildAvatar(bool isUnlocked, String mood, String? avatarUrl) {
-    if (isUnlocked) {
-      return Container(
-        width: 46,
-        height: 46,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFFE3E3E3),
-        ),
-        child: avatarUrl != null 
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(23),
-                child: Image.network(avatarUrl, fit: BoxFit.cover),
-              )
-            : const Icon(Icons.person, color: Color(0xFF737373)),
-      );
-    } else {
-      return Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: _getMoodGradient(mood),
-        ),
-      );
-    }
+  Widget _buildAvatar(bool isUnlocked, String mood, String? avatarUrl, bool hasUnread) {
+    // Request: Reduce size drastically, Solid Orange (Unread) vs Solid White (Read).
+    // Effectively a status dot, removing the image.
+    return Container(
+      width: 16, // Much smaller size
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: hasUnread ? const Color(0xFFFF9800) : Colors.white,
+        boxShadow: [
+          if (!hasUnread) // Add subtle shadow to white dot to ensure visibility against light background
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+        ],
+      ),
+    );
   }
 
   LinearGradient _getMoodGradient(String? mood) {
@@ -576,162 +574,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildArchiveButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Color(0xFFE3E3E3), width: 0.5),
-        ),
-      ),
-      child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ArchivedChatsScreen(),
-            ),
-          );
-        },
-        child: Center(
-          child: Text(
-            _archivedCount > 0 
-                ? 'View Archived ($_archivedCount)'
-                : 'View Archived',
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF0AC5C5),
-            ),
-          ),
-        ),
-      ),
-    );
+     return const SizedBox.shrink(); // Hide archive for now or simplify
   }
-
-  Widget _buildNavigationBar(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8F8F8),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.pop(context);
-            },
-            child: _buildNavItem(
-              iconPath: 'assets/icons/home_simple.svg',
-              label: 'Home',
-              isActive: false,
-            ),
-          ),
-          _buildNavItem(
-            iconPath: 'assets/icons/chat_lines.svg',
-            label: 'Chat',
-            isActive: true,
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DoorOfDesiresScreen(),
-                ),
-              );
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.door_front_door_outlined,
-                  size: 24,
-                  color: Color(0xFF737373),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Desires',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF737373),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
-              );
-            },
-            child: _buildNavItem(
-              iconPath: null,
-              label: 'Profile',
-              isActive: false,
-              hasAvatar: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    String? iconPath,
-    required String label,
-    required bool isActive,
-    bool hasAvatar = false,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (hasAvatar)
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFE0E0E0),
-              image: _avatarUrl != null && _avatarUrl!.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(_avatarUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: _avatarUrl == null || _avatarUrl!.isEmpty
-                ? const Icon(Icons.person, size: 16, color: Color(0xFF737373))
-                : null,
-          )
-        else if (iconPath != null)
-          SvgPicture.asset(
-            iconPath,
-            width: 24,
-            height: 24,
-            colorFilter: ColorFilter.mode(
-              isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-              BlendMode.srcIn,
-            ),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-          ),
-        ),
-      ],
-    );
-  }
+   
+  // Removed _buildNavigationBar as it is inline replaced by BottomNavBar in build()
 }
+

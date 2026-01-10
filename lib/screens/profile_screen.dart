@@ -10,7 +10,7 @@ import 'profile/edit_quote_screen.dart';
 import 'profile/edit_voice_message_screen.dart';
 import 'profile/help_center_screen.dart';
 import 'profile/change_password_screen.dart';
-import 'profile/premium_screen.dart';
+import 'premium_screen.dart';
 import 'sexual_orientation_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/rate_seayou_modal.dart';
@@ -741,53 +741,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  Widget _buildNavItem({
-    String? iconPath,
-    required String label,
-    required bool isActive,
-    bool hasAvatar = false,
-  }) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (hasAvatar)
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: _avatarUrl != null
-                    ? NetworkImage(_avatarUrl!)
-                    : const AssetImage('assets/images/profile_avatar.png')
-                        as ImageProvider,
-                fit: BoxFit.cover,
-              ),
-            ),
-          )
-        else if (iconPath != null)
-          SvgPicture.asset(
-            iconPath,
-            width: 24,
-            height: 24,
-            colorFilter: ColorFilter.mode(
-              isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-              BlendMode.srcIn,
-            ),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-            letterSpacing: 0.24,
-          ),
-        ),
-      ],
-    );
-  }
 }
+
+
