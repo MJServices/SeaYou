@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/voice_player.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Chat Profile Screen - Dynamic profile viewer with conditional content
 class ChatProfileScreen extends StatefulWidget {
@@ -490,8 +491,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                                 color: const Color(0xFF0AC5C5), width: 0.8),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
-                            'Cancel',
+                          child: Text(
+                            AppLocalizations.of(context).tr('dialogs.cancel'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'Montserrat',
@@ -538,8 +539,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                             if (!mounted) return;
                             
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Failed to block user. Please try again.'),
+                              SnackBar(
+                                content: Text(AppLocalizations.of(context).tr('errors.block_user_failed')),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -552,7 +553,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
-                            'Block',
+                            'Confirm Block',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'Montserrat',

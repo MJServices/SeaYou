@@ -98,7 +98,7 @@ class SignOutModal extends StatelessWidget {
                 const SizedBox(width: 12),
                   Expanded(
                     child: CustomButton(
-                      text: 'Sign Out',
+                      text: 'Confirm Sign Out',
                       isActive: true,
                       onPressed: () async {
                         // Clear all tutorial flags so they show again for new accounts

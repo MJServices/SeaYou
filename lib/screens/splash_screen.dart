@@ -23,8 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
 
     // Check if user is already logged in
-    // Check if user is already logged in
-    // _checkAuthAndNavigate(); // Handled in main.dart now
+    _checkAuthAndNavigate();
 
     _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
       ..setLooping(true)
@@ -47,6 +46,31 @@ class _SplashScreenState extends State<SplashScreen> {
     GlobalAudioController.instance.muted.addListener(_muteListener!);
   }
 
+
+  Future<void> _checkAuthAndNavigate() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      try {
+        // Check if profile exists
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select()
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+        if (profile != null && mounted) {
+          // If profile exists, go directly to Home and clear stack
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        debugPrint('Error checking profile in Splash: $e');
+      }
+    }
+  }
 
   @override
   void dispose() {

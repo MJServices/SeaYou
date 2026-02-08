@@ -25,6 +25,11 @@ class AuthService {
         email: email,
         password: finalPassword,
       );
+      
+      // CUSTOM OTP FLOW: Send OTP immediately after signup
+      await sendCustomOtp(email);
+      
+      await _log('✅ Signup confirmed - Custom OTP sent to: $email');
       await _log('✅ Signup confirmed - Verification email sent to: $email');
       return finalPassword;
     } catch (e) {
@@ -33,21 +38,27 @@ class AuthService {
     }
   }
 
-  // Check if email exists in profiles table
+  // Check if email exists (Secure Edge Function)
+  // Replaces direct query to avoid RLS issues for unauthenticated users
   Future<bool> checkEmailExists(String email) async {
     try {
-      await _log('🔍 Checking email existence: $email');
-      final response = await _supabase
-          .from('profiles')
-          .select('email')
-          .eq('email', email)
-          .maybeSingle();
+      await _log('🔍 Checking email existence via Edge Function: $email');
+      final response = await _supabase.functions.invoke(
+        'check-email',
+        body: {'email': email},
+      );
       
-      final exists = response != null;
+      if (response.status != 200) {
+        throw Exception('Failed to check email: ${response.data}');
+      }
+      
+      final exists = response.data['exists'] as bool;
       await _log('Search result for $email: ${exists ? "FOUND" : "NOT FOUND"}');
       return exists;
     } catch (e) {
       await _log('⚠️ Error checking email existence: $e');
+      // Fail safely: If we can't check, assume it exists to prevent overwrites? 
+      // Or false to allow flow? Let's return false but log it.
       return false;
     }
   }
@@ -106,7 +117,68 @@ class AuthService {
     );
   }
 
-  // Resend verification code
+  // --- Custom OTP Methods ---
+
+  // Send Custom OTP via Edge Function
+  Future<void> sendCustomOtp(String email) async {
+    try {
+      await _log('🚀 Sending Custom OTP to: $email');
+      final response = await _supabase.functions.invoke(
+        'send-otp',
+        body: {'email': email},
+      );
+      
+      if (response.status != 200) {
+        throw Exception('Failed to send OTP: ${response.data}');
+      }
+      await _log('✅ Custom OTP Sent Successfully');
+    } catch (e) {
+      await _log('❌ Error sending Custom OTP: $e');
+      rethrow;
+    }
+  }
+
+  // Verify Custom OTP via Edge Function
+  // Handles both verification and establishing a session if the Edge Function returns a session token
+  Future<void> verifyCustomOtp(String email, String code) async {
+    try {
+      await _log('🔐 Verifying Custom OTP for: $email');
+      final response = await _supabase.functions.invoke(
+        'verify-otp',
+        body: {'email': email, 'code': code},
+      );
+      
+      if (response.status != 200) {
+        throw Exception('Invalid or expired code');
+      }
+      
+      await _log('✅ Custom OTP Verified Successfully');
+      
+      // Check if function returned a session_token (magic link token) to log us in
+      final data = response.data;
+      if (data != null && data['session_token'] != null) {
+          final sessionToken = data['session_token'];
+          await _log('🎟️ Session Token received. Authenticating client...');
+          
+          // Verify the Magic Link token to establish session
+          await _supabase.auth.verifyOTP(
+            email: email,
+            token: sessionToken,
+            type: OtpType.magiclink,
+          );
+          
+          await _log('✅ Client Authenticated via Magic Link Token!');
+      } else {
+          await _log('⚠️ Verified but no session token returned. User might not be logged in.');
+      }
+      
+    } catch (e) {
+      await _log('❌ Error verifying Custom OTP: $e');
+      rethrow;
+    }
+  }
+
+  // Resend verification code (Standard + Custom)
   Future<void> resendVerificationCode(String email, OtpType type) async {
     try {
       print('🔄 Resending verification code ($type) to: $email');

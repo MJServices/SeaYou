@@ -3,11 +3,13 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
-import '../models/user_profile.dart';
-import 'account_setup_done_screen.dart';
-import '../services/auth_service.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../i18n/app_localizations.dart';
+import '../models/user_profile.dart';
+
 
 class FantasyRegistrationScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -21,6 +23,26 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkRedirect();
+  }
+
+  Future<void> _checkRedirect() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
   Future<void> _next() async {
     setState(() => _saving = true);
     try {
@@ -29,11 +51,36 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
         await DatabaseService().createFantasy(user.id, _controller.text.trim());
       }
       if (!mounted) return;
-      Navigator.push(
+
+      debugPrint('✅ Saving full profile to database...');
+      final userId = AuthService().currentUser?.id;
+      if (userId != null) {
+        await DatabaseService().createProfile(
+          userId: userId,
+          email: widget.userProfile.email ?? '',
+          fullName: widget.userProfile.fullName ?? '',
+          age: widget.userProfile.age ?? 0,
+          city: widget.userProfile.city ?? '',
+          about: widget.userProfile.about ?? '',
+          sexualOrientation: widget.userProfile.sexualOrientation ?? [],
+          showOrientation: widget.userProfile.showOrientation,
+          expectation: widget.userProfile.expectation ?? '',
+          interestedIn: widget.userProfile.interestedIn ?? '',
+          interests: widget.userProfile.interests ?? [],
+          avatarUrl: widget.userProfile.avatarUrl,
+          language: widget.userProfile.language,
+          secretDesire: widget.userProfile.secretDesire,
+          secretQuote: widget.userProfile.secretQuote,
+          secretAudioUrl: widget.userProfile.secretAudioUrl,
+          gender: widget.userProfile.gender,
+          department: widget.userProfile.department,
+        );
+      }
+
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (context) => AccountSetupDoneScreen(userProfile: widget.userProfile),
-        ),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
@@ -114,5 +161,11 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }

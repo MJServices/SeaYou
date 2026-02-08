@@ -35,61 +35,6 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
       final avg = st.map((s) => s.progress).fold(0.0, (a, b) => a + b) / st.length;
       setState(() => _progress = avg);
     });
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final user = AuthService().currentUser;
-    if (user != null) {
-      // 1. Get Main Photo URL
-      final profile = await _db.getProfile(user.id);
-      _mainPhotoUrl = profile?['avatar_url'];
-
-      // 2. Get Gallery Photos
-      _galleryPhotos = await _db.listUserPhotos(user.id);
-    }
-    setState(() => _loading = false);
-  }
-
-  int get _totalPhotos {
-    // We count unique URLs. 
-    // If main photo is in gallery photos, we shouldn't double count.
-    // However, our logic separates them: 'profiles.avatar_url' vs 'profile_photos' table.
-    // Ideally, the main photo matches one entry in 'profile_photos'.
-    // If it doesn't (legacy), we count it as +1.
-    
-    // Let's create a visual list where Main Photo is explicitly identified from the gallery list
-    // OR added if missing.
-    return _buildDisplayList().length;
-  }
-
-  List<Map<String, dynamic>> _buildDisplayList() {
-     // Start with gallery photos
-     final list = List<Map<String, dynamic>>.from(_galleryPhotos);
-     
-     // Find which one is main
-     int mainIndex = -1;
-     if (_mainPhotoUrl != null) {
-       mainIndex = list.indexWhere((p) => p['url'] == _mainPhotoUrl);
-     }
-
-     // If main exists but not in list (legacy data), add it
-     if (mainIndex == -1 && _mainPhotoUrl != null) {
-       list.insert(0, {
-         'id': 'main_legacy',
-         'url': _mainPhotoUrl,
-         'is_main': true,
-         'show_in_secret_souls': true, 
-       });
-     } else if (mainIndex != -1) {
-       // Move main to top
-       final mainItem = list.removeAt(mainIndex);
-       mainItem['is_main'] = true;
-       list.insert(0, mainItem);
-     }
-
-     return list;
   }
 
   Future<void> _handleSetMain(Map<String, dynamic> photo) async {
@@ -114,9 +59,15 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
              child: Text(tr.tr('secret_souls.main_photo_warning.cancel')),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0AC5C5),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: Text(tr.tr('secret_souls.main_photo_warning.set_main')),
+            child: Text(
+              tr.tr('secret_souls.main_photo_warning.set_main'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -136,11 +87,12 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
           photoUrl: photo['url'],
         );
       }
-      await _load();
+      // No manual _load needed, StreamBuilder handles it
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() => _loading = false);
   }
 
   Future<void> _handleDelete(Map<String, dynamic> photo) async {
@@ -152,7 +104,7 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
     // Let's block deleting if is_main is true.
     if (photo['is_main'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You cannot delete your Main Photo. Please set another photo as Main first.')),
+        SnackBar(content: Text(AppLocalizations.of(context).tr('errors.cannot_delete_main_photo'))),
       );
       return;
     }
@@ -190,17 +142,17 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
           photoUrl: photo['url'],
         );
       }
-      await _load();
+      // No manual _load needed, StreamBuilder handles it
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+       if (mounted) setState(() => _loading = false);
     }
-    setState(() => _loading = false);
   }
 
-  Future<void> _uploadPhoto() async {
+  Future<void> _uploadPhoto(List<Map<String, dynamic>> currentPhotos) async {
     final tr = AppLocalizations.of(context);
-    final displayList = _buildDisplayList();
-    if (displayList.length >= _maxPhotos) {
+    if (currentPhotos.length >= _maxPhotos) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(tr.tr('secret_souls.photo_limit_reached'))),
       );
@@ -222,8 +174,7 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
       try {
        final url = await _db.uploadGalleryPhoto(user.id, f);
         if (url != null && mounted) {
-          // Reload photos from database
-          await _load();
+          // No manual _load needed, StreamBuilder handles it
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -254,7 +205,11 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
   @override
   Widget build(BuildContext context) {
     final tr = AppLocalizations.of(context);
-    final photos = _buildDisplayList();
+    final user = AuthService().currentUser;
+
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text('User not found')));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -263,128 +218,178 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                if (_progress > 0 && _progress < 1.0)
-                  LinearProgressIndicator(value: _progress, color: const Color(0xFF0AC5C5)),
-                
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.8,
-                    ),
-                    itemCount: photos.length + 1, // +1 for Add button
-                    itemBuilder: (context, index) {
-                      if (index == photos.length) {
-                        // Add Button
-                        return GestureDetector(
-                          onTap: _uploadPhoto,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF5F5F5),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE0E0E0)),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.add_a_photo, color: Color(0xFF737373), size: 32),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${photos.length}/$_maxPhotos',
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 12,
-                                    color: Color(0xFF737373),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
+      body: StreamBuilder<Map<String, dynamic>?>(
+        stream: _db.profileStream(user.id),
+        builder: (context, profileSnapshot) {
+          final profile = profileSnapshot.data;
+          final mainPhotoUrl = profile?['avatar_url'];
 
-                      final photo = photos[index];
-                      final isMain = photo['is_main'] == true;
-                      
-                      return GestureDetector(
-                        onTap: () {
-                          // Show Actions Bottom Sheet
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (ctx) => SafeArea(
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _db.userPhotosStream(user.id),
+            builder: (context, photosSnapshot) {
+              if (photosSnapshot.connectionState == ConnectionState.waiting && !photosSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final galleryPhotos = photosSnapshot.data ?? [];
+              
+              // Build display list
+              final displayList = List<Map<String, dynamic>>.from(galleryPhotos);
+              
+              int mainIndex = -1;
+              if (mainPhotoUrl != null) {
+                mainIndex = displayList.indexWhere((p) => p['url'] == mainPhotoUrl);
+              }
+
+              if (mainIndex == -1 && mainPhotoUrl != null) {
+                displayList.insert(0, {
+                  'id': 'main_legacy',
+                  'url': mainPhotoUrl,
+                  'is_main': true,
+                  'show_in_secret_souls': true,
+                });
+              } else if (mainIndex != -1) {
+                final mainItem = Map<String, dynamic>.from(displayList.removeAt(mainIndex));
+                mainItem['is_main'] = true;
+                displayList.insert(0, mainItem);
+              }
+
+              return Column(
+                children: [
+                  if (_progress > 0 && _progress < 1.0)
+                    LinearProgressIndicator(value: _progress, color: const Color(0xFF0AC5C5)),
+                  
+                  if (_loading && _progress == 0)
+                    const LinearProgressIndicator(color: Color(0xFF0AC5C5)),
+
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.8,
+                      ),
+                      itemCount: displayList.length + 1, // +1 for Add button
+                      itemBuilder: (context, index) {
+                        if (index == displayList.length) {
+                          // Add Button
+                          return GestureDetector(
+                            onTap: () => _uploadPhoto(displayList),
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF5F5F5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE0E0E0)),
+                              ),
                               child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  if (!isMain)
-                                    ListTile(
-                                      leading: const Icon(Icons.star_outline),
-                                      title: Text(tr.tr('secret_souls.set_as_main_photo')),
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        _handleSetMain(photo);
-                                      },
+                                  const Icon(Icons.add_a_photo, color: Color(0xFF737373), size: 32),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${displayList.length}/$_maxPhotos',
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 12,
+                                      color: Color(0xFF737373),
                                     ),
-                                  ListTile(
-                                    leading: const Icon(Icons.delete_outline, color: Colors.red),
-                                    title: Text(tr.tr('secret_souls.delete_photo'), style: const TextStyle(color: Colors.red)),
-                                    onTap: () {
-                                       Navigator.pop(ctx);
-                                       _handleDelete(photo);
-                                    },
                                   ),
                                 ],
                               ),
                             ),
                           );
-                        },
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                photo['url'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (_,__,___) => Container(color: Colors.grey[200]),
-                              ),
-                            ),
-                            if (isMain)
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0AC5C5),
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
-                                  ),
-                                  child: const Text(
-                                    'MAIN',
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                        }
+
+                        final photo = displayList[index];
+                        final isMain = photo['is_main'] == true;
+                        
+                        return GestureDetector(
+                          onTap: () {
+                            // Show Actions Bottom Sheet
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (ctx) => SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isMain)
+                                      ListTile(
+                                        leading: const Icon(Icons.star_outline),
+                                        title: Text(tr.tr('secret_souls.set_as_main_photo')),
+                                        onTap: () {
+                                          Navigator.pop(ctx);
+                                          _handleSetMain(photo);
+                                        },
+                                      ),
+                                    ListTile(
+                                      leading: const Icon(Icons.delete_outline, color: Colors.red),
+                                      title: Text(tr.tr('secret_souls.delete_photo'), style: const TextStyle(color: Colors.red)),
+                                      onTap: () {
+                                         Navigator.pop(ctx);
+                                         _handleDelete(photo);
+                                      },
                                     ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  photo['url'],
+                                  key: ValueKey(photo['url']), // Important for cache busting if URL changes but not key
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_,__,___) => Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[200],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.error_outline, color: Colors.grey),
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
-                      );
-                    },
+                              if (isMain)
+                                Positioned(
+                                  top: 8,
+                                  left: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0AC5C5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                                    ),
+                                    child: const Text(
+                                      'MAIN',
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

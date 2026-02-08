@@ -80,7 +80,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Please enter your current password to change your email address.',
+                AppLocalizations.of(context).tr('errors.enter_password_to_change_email'),
                 style: TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
@@ -111,7 +111,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
             ),
             ElevatedButton(
               onPressed: () {
@@ -198,6 +198,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
         MaterialPageRoute(
           builder: (context) => VerificationScreen(
             email: newEmail,
+            selectedLanguage: null,
             isEmailChange: true,
           ),
         ),
@@ -219,9 +220,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
       if (mounted) {
         setState(() => _isSaving = false);
         
-        String errorMessage = 'Failed to change email';
+        String errorMessage = AppLocalizations.of(context).tr('errors.change_email_failed');
         if (e.toString().contains('Invalid login credentials')) {
-          errorMessage = 'Incorrect password. Please try again.';
+          errorMessage = AppLocalizations.of(context).tr('errors.incorrect_password');
         } else if (e.toString().contains('already registered')) {
           errorMessage = 'This email is already in use.';
         }
@@ -252,24 +253,6 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
         ),
         child: Stack(
           children: [
-            // Decorative ellipse background
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF0AC5C5).withValues(alpha: 0.2),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 300, sigmaY: 300),
-                  child: Container(),
-                ),
-              ),
-            ),
-
             // Content
             SafeArea(
               child: Column(

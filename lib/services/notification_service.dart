@@ -19,6 +19,7 @@ class NotificationService {
     Widget? icon,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 4),
+    List<Color>? gradientColors,
   }) {
     final data = _NotificationData(
       title: title,
@@ -26,6 +27,7 @@ class NotificationService {
       icon: icon,
       onTap: onTap,
       duration: duration,
+      gradientColors: gradientColors,
     );
 
     _queue.add(data);
@@ -51,6 +53,7 @@ class NotificationService {
             icon: data.icon,
             onTap: data.onTap,
             duration: data.duration,
+            gradientColors: data.gradientColors,
             onDismiss: () {
               _dismiss();
               // Process next notification after a short delay
@@ -87,6 +90,7 @@ class _NotificationData {
   final Widget? icon;
   final VoidCallback? onTap;
   final Duration duration;
+  final List<Color>? gradientColors;
 
   _NotificationData({
     required this.title,
@@ -94,5 +98,6 @@ class _NotificationData {
     this.icon,
     this.onTap,
     required this.duration,
+    this.gradientColors,
   });
 }

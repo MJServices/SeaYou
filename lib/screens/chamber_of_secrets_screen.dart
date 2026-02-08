@@ -169,7 +169,7 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                                 title: Text(AppLocalizations.of(context).tr('chamber.elite_dm')),
                                 content: const Text('Start anonymous elite conversation?'),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                                  TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppLocalizations.of(context).tr('dialogs.cancel'))),
                                   TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Start')),
                                 ],
                               ),
@@ -182,7 +182,7 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                             );
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(convId != null ? 'Conversation started' : 'Failed to start conversation')),
+                                SnackBar(content: Text(convId != null ? AppLocalizations.of(context).tr('messages.conversation_started') : AppLocalizations.of(context).tr('messages.conversation_failed'))),
                               );
                             }
                           },

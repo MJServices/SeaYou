@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui';
 import '../../services/auth_service.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Change Password Screen
 /// Allows users to update their password
@@ -105,7 +106,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       if (mounted) {
         setState(() => _isSaving = false);
         
-        String errorMessage = 'Failed to change password';
+        String errorMessage = AppLocalizations.of(context).tr('errors.change_password_failed');
         if (e.toString().contains('Current password is incorrect')) {
           errorMessage = 'Current password is incorrect';
         }
@@ -136,24 +137,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         child: Stack(
           children: [
-            // Decorative ellipse background
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF0AC5C5).withValues(alpha: 0.2),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 300, sigmaY: 300),
-                  child: Container(),
-                ),
-              ),
-            ),
-
             // Content
             SafeArea(
               child: SingleChildScrollView(

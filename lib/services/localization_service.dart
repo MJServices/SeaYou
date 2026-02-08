@@ -5,7 +5,7 @@ class LocalizationService {
   LocalizationService._();
   static final LocalizationService instance = LocalizationService._();
 
-  final ValueNotifier<Locale> locale = ValueNotifier<Locale>(const Locale('en'));
+  final ValueNotifier<Locale> locale = ValueNotifier<Locale>(const Locale('fr'));
 
   static const _prefKey = 'preferred_locale';
 

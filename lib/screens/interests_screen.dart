@@ -3,10 +3,13 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'quote_registration_screen.dart';
-import '../models/user_profile.dart';
-import '../services/auth_service.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
+import '../services/auth_service.dart';
+import '../models/user_profile.dart';
+import '../i18n/app_localizations.dart';
+import 'upload_picture_screen.dart';
 
 class InterestsScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -24,6 +27,7 @@ class InterestsScreen extends StatefulWidget {
 
 class _InterestsScreenState extends State<InterestsScreen> {
   final List<String> _selectedInterests = [];
+  bool _isSaving = false;
 
   final Map<String, List<String>> categories = {
     'Movies & Series': [
@@ -131,6 +135,22 @@ class _InterestsScreenState extends State<InterestsScreen> {
         temp.addAll(categories);
         categories.clear();
         categories.addAll(temp);
+        categories.addAll(temp); // Duplicate to match replacement logic if needed, but categories.clear handles it
+      }
+    }
+  }
+
+  Future<void> _checkRedirect() async {
+    if (widget.isEditMode) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
       }
     }
   }
@@ -141,24 +161,6 @@ class _InterestsScreenState extends State<InterestsScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
-              ),
-            ),
-          ),
           SafeArea(
             child: Column(
               children: [
@@ -172,8 +174,8 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         onPressed: () => Navigator.pop(context),
                         padding: EdgeInsets.zero,
                       ),
-                      const Text(
-                        'Interests',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.interests.title'),
                         style: AppTextStyles.displayText,
                       ),
                       if (!widget.isEditMode)
@@ -188,13 +190,13 @@ class _InterestsScreenState extends State<InterestsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Select 2-10 interests',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.interests.subtitle'),
                         style: AppTextStyles.labelText,
                       ),
                       if (!widget.isEditMode)
                         const Text(
-                          '4/5',
+                          '4/6',
                           style: AppTextStyles.bodyText,
                         ),
                     ],
@@ -208,7 +210,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            entry.key,
+                            AppLocalizations.of(context).tr('onboarding.interests.categories.${entry.key.toLowerCase().replaceAll(' & ', '_').replaceAll(' ', '_')}'),
                             style: AppTextStyles.bodyText.copyWith(
                               color: AppColors.black,
                             ),
@@ -230,12 +232,16 @@ class _InterestsScreenState extends State<InterestsScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: CustomButton(
-                    text: widget.isEditMode ? 'Save' : 'Next',
+                    text: widget.isEditMode 
+                        ? (_isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm')) 
+                        : AppLocalizations.of(context).tr('common.next'),
                     isActive: _selectedInterests.length >= 2,
                     onPressed: () async {
+                      if (_isSaving) return;
                       widget.userProfile.interests = _selectedInterests;
                       
                       if (widget.isEditMode) {
+                        setState(() => _isSaving = true);
                         // Update DB
                         try {
                           final user = AuthService().currentUser;
@@ -250,15 +256,19 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error updating profile: $e')),
+                              SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
                             );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() => _isSaving = false);
                           }
                         }
                       } else {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => QuoteRegistrationScreen(
+                            builder: (context) => UploadPictureScreen(
                               userProfile: widget.userProfile,
                             ),
                           ),
@@ -290,10 +300,10 @@ class _InterestsScreenState extends State<InterestsScreen> {
             } else {
               // Show message that limit is reached
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('You can select up to 10 interests maximum'),
-                  duration: Duration(seconds: 2),
-                  backgroundColor: Color(0xFFFF6B6B),
+                SnackBar(
+                  content: Text(AppLocalizations.of(context).tr('onboarding.interests.limit_reached')),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: const Color(0xFFFF6B6B),
                 ),
               );
             }
@@ -307,7 +317,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
           borderRadius: BorderRadius.circular(40),
         ),
         child: Text(
-          interest,
+          AppLocalizations.of(context).tr('onboarding.interests.options.${interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')}'),
           style: AppTextStyles.labelText.copyWith(
             color: isSelected ? AppColors.white : AppColors.darkGrey,
           ),

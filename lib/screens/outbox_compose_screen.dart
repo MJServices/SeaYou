@@ -3,6 +3,7 @@ import '../utils/app_text_styles.dart';
 import '../utils/app_colors.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/custom_button.dart';
+import '../i18n/app_localizations.dart';
 import '../widgets/custom_text_field.dart';
 import 'home_screen.dart';
 import '../services/database_service.dart';
@@ -44,7 +45,7 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
     if (userId == null) return;
     if (!_validate()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fix the form errors')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).tr('errors.fix_form_errors'))));
       return;
     }
     setState(() => _loading = true);
@@ -62,7 +63,7 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(id != null ? 'Message queued · $assigned recipients assigned' : 'Failed to queue message'),
+          content: Text(id != null ? AppLocalizations.of(context).tr('messages.message_queued').replaceAll('{{count}}', assigned.toString()) : AppLocalizations.of(context).tr('messages.queue_failed')),
           action: id != null
               ? SnackBarAction(
                   label: 'Inbox',

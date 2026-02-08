@@ -155,7 +155,7 @@ class _RateSeaYouModalState extends State<RateSeaYouModal> {
 
             // Rate Button
             CustomButton(
-              text: 'Rate',
+              text: 'Confirm & Send',
               isActive: isFormValid,
               onPressed: isFormValid
                   ? () {

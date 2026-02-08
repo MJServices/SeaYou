@@ -5,6 +5,7 @@ import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
 import '../../widgets/custom_button.dart';
+import '../../i18n/app_localizations.dart';
 import '../../services/database_service.dart';
 
 /// Edit Quote Screen - Allows user to edit their secret quote/desire
@@ -51,7 +52,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to load quote';
+          _errorMessage = AppLocalizations.of(context).tr('errors.load_quote_failed');
         });
       }
     }
@@ -116,19 +117,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-            // Decorative ellipse
-            Positioned(
-              top: -100,
-              right: -50,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.1),
-                ),
-              ),
-            ),
+            // Decorative ellipses removed as per user request
             // Main content
             SafeArea(
               child: Column(
@@ -245,7 +234,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: 'Save',
+                                  text: 'Confirm',
                                   onPressed: _saveQuote,
                                   isActive: isFormValid && !_isSaving,
                                 ),

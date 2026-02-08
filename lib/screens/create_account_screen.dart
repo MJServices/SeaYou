@@ -7,6 +7,8 @@ import '../widgets/warm_gradient_background.dart';
 import 'verification_screen.dart';
 import 'sign_in_email_password_screen.dart';
 import '../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'home_screen.dart';
 import '../i18n/app_localizations.dart';
 
 class CreateAccountScreen extends StatefulWidget {
@@ -26,11 +28,40 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _isLoading = false;
   final _authService = AuthService();
 
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select()
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+        if (profile != null && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        debugPrint('Error checking profile in CreateAccount: $e');
+      }
+    }
+  }
+
   Future<void> _handleSignUp() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email')),
+        SnackBar(content: Text(AppLocalizations.of(context).tr('errors.invalid_email'))),
       );
       return;
     }
@@ -41,6 +72,23 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final localTempPassword = "temp-${DateTime.now().millisecondsSinceEpoch}";
 
     try {
+      // Pre-check: Does email exist?
+      final exists = await _authService.checkEmailExists(email);
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).tr('errors.account_exists')),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          // Optional: Navigate to Login automatically?
+          // For now, just stop specific loading state
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
       // Use standard signUp logic (Password Flow) with our pre-generated password
       await _authService.signUpWithEmail(email, password: localTempPassword);
 
@@ -64,14 +112,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         // we assume the account MIGHT have been created or we want to let them Try Recovery.
         // So we proceed to the Verification Screen anyway to let them hit "Resend" or "Help".
         
-        String errorMessage = 'Failed to send verification code. Please try again.';
+        String errorMessage = AppLocalizations.of(context).tr('errors.verification_failed');
         bool shouldProceedAnyway = false;
 
         if (e.toString().contains('500') || e.toString().toLowerCase().contains('sending')) {
              errorMessage = 'Email service is busy, but we\'re proceeding. Try "Resend" or "Help" on the next screen.';
              shouldProceedAnyway = true;
         } else if (e.toString().contains('User already registered') || e.toString().contains('already registered')) {
-            errorMessage = 'An account with this email already exists. Please log in.';
+            errorMessage = AppLocalizations.of(context).tr('errors.account_exists_login');
         }
 
         ScaffoldMessenger.of(context).showSnackBar(

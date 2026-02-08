@@ -16,9 +16,11 @@ import '../models/bottle.dart';
 import '../widgets/preview_modal.dart';
 import '../widgets/sent_confirmation_modal.dart';
 import '../widgets/sent_bottle_video_modal.dart'; // Import video modal
+import '../widgets/targeting_options_modal.dart'; // Import targeting modal
 import '../widgets/animated_waveform.dart';
 import '../screens/chat/chat_conversation_screen.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../i18n/app_localizations.dart';
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
 /// Supports Text, Picture, and Voice Chat bottle creation
 class SendBottleScreen extends StatefulWidget {
@@ -54,6 +56,12 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   final AudioRecorder _voiceRecorder = AudioRecorder();
   String? _voicePath;
   bool _isSending = false;
+  
+  // Targeting State
+  RangeValues _ageRange = const RangeValues(18, 99);
+  List<String> _targetGenders = [];
+  double _targetDistance = 150;
+  List<String> _targetDepartments = [];
 
   final List<Map<String, dynamic>> _moods = [
     {'name': 'Curieux', 'color': const Color(0xFFD89736), 'icon': 'curious.jpeg'},
@@ -148,8 +156,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       debugPrint('❌ No microphone permission');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission denied. Please enable it in settings.'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('errors.microphone_permission')),
             backgroundColor: Colors.red,
           ),
         );
@@ -285,6 +293,12 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                 // Content area based on type
                 _buildContentArea(),
 
+                if (widget.replyToBottleId == null) ...[
+                  const SizedBox(height: 16),
+                  // Targeting Options Button
+                  _buildTargetingButton(),
+                ],
+
                 const SizedBox(height: 16),
 
                 // Preview button
@@ -314,27 +328,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         const Spacer(),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancel',
+          child: Text(
+            AppLocalizations.of(context).tr('dialogs.cancel'),
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
               fontWeight: FontWeight.w500,
               color: Color(0xFF363636),
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            // Show drafts
-          },
-          child: const Text(
-            'Drafts',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF0AC5C5),
             ),
           ),
         ),
@@ -344,13 +344,16 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 }
 
   Widget _buildMoodSelector() {
+    final selectedMoodInfo = _moods.firstWhere((m) => m['name'] == _selectedMood);
+    final selectedColor = selectedMoodInfo['color'] as Color;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Customise your Mood',
+            'Choose your mood',
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
@@ -374,12 +377,12 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                   child: Container(
                     width: 48,
                     height: 48,
-                    padding: const EdgeInsets.all(2), // Add padding so color shows as border/ring
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: mood['color'],
                       border: isSelected
-                          ? Border.all(color: Colors.white, width: 2.5) // White border for selection
+                          ? Border.all(color: Colors.white, width: 2.5)
                           : null,
                       boxShadow: isSelected ? [
                         BoxShadow(
@@ -391,11 +394,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                     ),
                     child: ClipOval(
                       child: Container(
-                         color: mood['color'], // Ensure background inside clip
-                         padding: const EdgeInsets.all(8.0), // Padding inside to show color
+                         color: mood['color'],
+                         padding: const EdgeInsets.all(8.0),
                          child: Image.asset(
                           'assets/icons/${mood['icon']}',
-                          fit: BoxFit.contain, // Contain so it doesn't cover everything
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -403,6 +406,16 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                 ),
               );
             }).toList(),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _selectedMood,
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: selectedColor,
+            ),
           ),
         ],
       ),
@@ -595,6 +608,88 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     );
   }
 
+  Widget _buildTargetingButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => TargetingOptionsModal(
+              currentAgeRange: _ageRange,
+              currentGenders: _targetGenders,
+              currentDistance: _targetDistance,
+              currentDepartments: _targetDepartments,
+              onApply: (ageRange, genders, distance, departments) {
+                setState(() {
+                  _ageRange = ageRange;
+                  _targetGenders = genders;
+                  _targetDistance = distance;
+                  _targetDepartments = departments;
+                });
+              },
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Targeting Criteria',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF151515),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getTargetingSummary(),
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 12,
+                      color: Color(0xFF363636),
+                    ),
+                  ),
+                ],
+              ),
+              const Icon(Icons.settings_input_component, size: 20, color: Color(0xFF151515)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getTargetingSummary() {
+    List<String> parts = [];
+    parts.add('${_ageRange.start.round()}-${_ageRange.end.round()}yo');
+    if (_targetGenders.isEmpty) {
+      parts.add('All');
+    } else {
+      parts.add(_targetGenders.join(', '));
+    }
+    if (_targetDepartments.isEmpty) {
+      parts.add('France');
+    } else {
+      parts.add('${_targetDepartments.length} depts');
+    }
+    return parts.join(' • ');
+  }
+
   Widget _buildPreviewButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -644,15 +739,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         // but we pass _sendBottle which does the work.
         isLoading: false, // Initial state
         onSend: _sendBottle, // Pass the function directly
-        onSaveDraft: () {
-          Navigator.pop(context); // Close preview
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Saved as draft'),
-              backgroundColor: Color(0xFF0AC5C5),
-            ),
-          );
-        },
       ),
     );
   }
@@ -684,7 +770,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             title: const Text('Daily Limit Reached', style: TextStyle(fontFamily: 'PlayfairDisplay', fontWeight: FontWeight.bold)),
             content: const Text('You have reached your limit of 3 bottles per day.\n\nUpgrade to Premium for unlimited bottles and more!', style: TextStyle(fontFamily: 'Montserrat')),
             actions: [
-              TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+              TextButton(child: Text(AppLocalizations.of(context).tr('dialogs.cancel')), onPressed: () => Navigator.pop(context)),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
                 child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
@@ -748,6 +834,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         mood: _selectedMood,
         audioUrl: contentType == 'voice' ? uploadedAudioUrl : null,
         photoUrl: uploadedPhotoUrl,
+        targetMinAge: _ageRange.start.round(),
+        targetMaxAge: _ageRange.end.round(),
+        targetGender: _targetGenders,
+        targetDistanceKm: _targetDistance.round(),
+        targetDepartments: _targetDepartments,
       );
 
       if (bottleId == null) {
@@ -837,7 +928,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         // 5. Navigate to Chat Screen
         if (mounted) {
            debugPrint('🔍 Navigating to conversation: $conversationId');
-           Navigator.pop(context); // Close send bottle screen
+           
+           // Clear intermediate screens (BottleDetail, etc.) and go to Home
+           Navigator.popUntil(context, (route) => route.isFirst);
            
            if (conversationId != null) {
                Navigator.push(
@@ -853,9 +946,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                
                ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Reply sent!'),
+                  content: Text('Reply sent! Check your Connections tab to see the conversation.'),
                   backgroundColor: Color(0xFF0AC5C5),
-                  duration: Duration(seconds: 2),
+                  duration: Duration(seconds: 4),
                 ),
                );
            }
@@ -883,6 +976,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
               duration: Duration(seconds: 4),
             ),
           );
+          
+          // Close preview modal if open
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
         }
         return;
       }
@@ -991,7 +1089,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send bottle: $e'),
+            content: Text('${AppLocalizations.of(context).tr('errors.send_bottle_failed')}: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),

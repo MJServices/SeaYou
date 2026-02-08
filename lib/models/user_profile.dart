@@ -12,7 +12,10 @@ class UserProfile {
   String? avatarUrl;
   String? language;
   String? secretDesire;
+  String? secretQuote;
   String? secretAudioUrl;
+  String? gender; // Gender identity: Man, Woman, Non-binary
+  String? department; // e.g. "75 - Paris"
   bool isPremium;
   
   // Usage tracking
@@ -28,14 +31,17 @@ class UserProfile {
     this.city,
     this.about,
     this.sexualOrientation,
-    this.showOrientation = false,
+    this.showOrientation = true,
     this.expectation,
     this.interestedIn,
     this.interests,
     this.avatarUrl,
     this.language,
     this.secretDesire,
+    this.secretQuote,
     this.secretAudioUrl,
+    this.gender,
+    this.department,
     this.isPremium = false,
     this.bottlesSentToday = 0,
     this.lastBottleSentDate,
@@ -58,7 +64,10 @@ class UserProfile {
       'avatar_url': avatarUrl,
       'language': language,
       'secret_desire': secretDesire,
+      'secret_quote': secretQuote,
       'secret_audio_url': secretAudioUrl,
+      'gender': gender,
+      'department': department,
       'is_premium': isPremium,
       'bottles_sent_today': bottlesSentToday,
       'last_bottle_sent_date': lastBottleSentDate?.toIso8601String(),

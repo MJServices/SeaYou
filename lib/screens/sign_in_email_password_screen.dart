@@ -47,7 +47,7 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
       } else if (!email.contains('.')) {
         emailError = 'Email must contain a domain';
       } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-        emailError = 'Please enter a valid email';
+        emailError = AppLocalizations.of(context).tr('errors.invalid_email');
       } else {
         emailError = null;
       }
@@ -104,16 +104,16 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
       print('Error type: ${e.runtimeType}');
 
       // Handle specific error messages
-      String errorMessage = 'An error occurred. Please try again.';
+      String errorMessage = AppLocalizations.of(context).tr('errors.generic');
 
       final errorString = e.toString().toLowerCase();
 
       if (errorString.contains('user not found') ||
           errorString.contains('no user found')) {
         errorMessage =
-            'No account found with this email. Please sign up first.';
+            AppLocalizations.of(context).tr('errors.no_account');
       } else if (errorString.contains('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.';
+        errorMessage = AppLocalizations.of(context).tr('errors.too_many_attempts');
       } else {
         // Show the actual error for debugging
         errorMessage = 'Error: $e';
@@ -133,7 +133,7 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign In Failed'),
+        title: Text(AppLocalizations.of(context).tr('messages.sign_in_failed_title')),
         content: Text(message),
         actions: [
           TextButton(

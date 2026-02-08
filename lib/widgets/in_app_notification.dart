@@ -8,6 +8,7 @@ class InAppNotification extends StatefulWidget {
   final VoidCallback? onTap;
   final Duration duration;
   final VoidCallback? onDismiss;
+  final List<Color>? gradientColors;
 
   const InAppNotification({
     super.key,
@@ -17,6 +18,7 @@ class InAppNotification extends StatefulWidget {
     this.onTap,
     this.duration = const Duration(seconds: 4),
     this.onDismiss,
+    this.gradientColors,
   });
 
   @override
@@ -27,6 +29,7 @@ class _InAppNotificationState extends State<InAppNotification>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
+  bool _isDismissed = false;
 
   @override
   void initState() {
@@ -49,13 +52,16 @@ class _InAppNotificationState extends State<InAppNotification>
 
     // Auto-dismiss after duration
     Future.delayed(widget.duration, () {
-      if (mounted) {
+      if (mounted && !_isDismissed) {
         _dismiss();
       }
     });
   }
 
   void _dismiss() async {
+    if (_isDismissed) return;
+    _isDismissed = true;
+    
     await _controller.reverse();
     if (mounted) {
       widget.onDismiss?.call();
@@ -81,8 +87,8 @@ class _InAppNotificationState extends State<InAppNotification>
           margin: const EdgeInsets.fromLTRB(16, 48, 16, 0),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B9D), Color(0xFFFFC1E3)],
+            gradient: LinearGradient(
+              colors: widget.gradientColors ?? [const Color(0xFFFF6B9D), const Color(0xFFFFC1E3)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

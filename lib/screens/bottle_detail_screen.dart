@@ -145,10 +145,10 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 21),
                     child: Image.asset(
-                      'assets/images/hero_image.png',
+                      'assets/images/homepage_bottle.png',
                       width: 360,
                       height: 460,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                     ),
                   ),
 

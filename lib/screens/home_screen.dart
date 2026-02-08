@@ -4,7 +4,10 @@ import '../models/user_profile.dart';
 import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../models/feeling_milestone.dart';
+import '../widgets/milestone_unlock_modal.dart';
 import '../models/bottle.dart';
 import '../models/conversation.dart';
 import 'bottle_detail_screen.dart';
@@ -12,6 +15,7 @@ import 'all_bottles_screen.dart';
 import 'send_bottle_screen.dart';
 import 'chat/chat_screen.dart';
 import 'chat/chat_screen.dart';
+import 'home_default_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -27,6 +31,7 @@ import '../services/entitlements_service.dart';
 import '../models/bottle.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
+import 'new_bottles_list_screen.dart';
 import '../services/tutorial_service.dart';
 import '../services/auth_service.dart';
 import 'secret_souls_screen.dart';
@@ -40,6 +45,7 @@ import '../widgets/profile_avatar.dart';
 
 import '../widgets/tutorial_modal.dart';
 import '../services/notification_service.dart';
+import '../services/location_service.dart';
 
 /// Home Screen - Dynamic with database integration
 class HomeScreen extends StatefulWidget {
@@ -63,30 +69,35 @@ class _HomeScreenState extends State<HomeScreen> {
   int _newMessagesCount = 0;
   final List<StreamSubscription> _messageSubs = [];
   List<Conversation> _userConversations = [];
+  StreamSubscription<Map<String, dynamic>?>? _profileSub;
   bool _showSignupCoachmark = false;
   bool _showPremiumCoachmark = false;
   bool _showFaceCoachmark = false;
+  String? _lastNotifiedBottleId;
 
   @override
   void initState() {
     super.initState();
     _loadData();
     GlobalAudioController.instance.playAmbient();
+    _subscribeProfile();
     _subscribeNewMessages();
     _subscribeNewBottles();
     _subscribeNewConversations();
+    _subscribeMilestones();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
       final seenSignup = await t.hasSeenSignupCoachmark();
       final uid = _supabase.auth.currentUser?.id;
-      if (uid != null) {
-        final tier = await EntitlementsService().getTier(uid);
-        final seenPremiumTip = await t.hasSeenPremiumGateTip();
-        if (tier == 'free' && !seenPremiumTip && mounted) {
-          setState(() => _showPremiumCoachmark = true);
-        }
-      }
+      // DISABLED: Premium coachmark popup removed per user request
+      // if (uid != null) {
+      //   final tier = await EntitlementsService().getTier(uid);
+      //   final seenPremiumTip = await t.hasSeenPremiumGateTip();
+      //   if (tier == 'free' && !seenPremiumTip && mounted) {
+      //     setState(() => _showPremiumCoachmark = true);
+      //   }
+      // }
       if (!seen && mounted) {
         await TutorialModal.show(context);
         await t.setSeenHomeTutorial();
@@ -159,6 +170,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _subscribeProfile() {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _profileSub?.cancel();
+    _profileSub = _databaseService.profileStream(userId).listen((profile) {
+      if (profile != null && mounted) {
+        setState(() {
+          _userProfile = profile;
+          _userName = profile['full_name'] ?? 'User';
+          _avatarUrl = profile['avatar_url'];
+          
+          final hasAvatar = _avatarUrl != null && _avatarUrl!.isNotEmpty;
+          _showFaceCoachmark = !hasAvatar;
+        });
+      }
+    });
+  }
+
+
   Future<void> _subscribeNewMessages() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -190,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
               NotificationService().show(
                 context: context,
                 title: '💬 $conversationTitle',
-                message: messageText ?? 'You have a new message',
+                message: messageText ?? AppLocalizations.of(context).tr('notification.you_have_new_message'),
                 icon: const Icon(
                   Icons.chat_bubble,
                   color: Colors.white,
@@ -233,32 +264,44 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // Subscribe to bottles table for new bottles sent to this user
+      // Subscribe to received_bottles table for new bottles sent to this user
       _supabase
-          .from('bottles')
+          .from('received_bottles')
           .stream(primaryKey: ['id'])
           .eq('receiver_id', userId)
           .listen((data) {
             if (data.isNotEmpty && mounted) {
               final latestBottle = data.last;
               final senderId = latestBottle['sender_id'] as String?;
+              final isRead = latestBottle['is_read'] as bool? ?? false;
+              final bottleId = latestBottle['id'] as String;
               
-              // Only show notification for bottles from others
-              if (senderId != null && senderId != userId) {
+              // Only show notification for:
+              // 1. Bottles from others
+              // 2. Unread bottles
+              // 3. Bottles completely new to this session (prevent multi-notify)
+              if (senderId != null && 
+                  senderId != userId && 
+                  !isRead && 
+                  bottleId != _lastNotifiedBottleId) {
+                  
+                _lastNotifiedBottleId = bottleId;
+                
                 NotificationService().show(
                   context: context,
-                  title: '🍾 New Bottle!',
-                  message: 'You received a new message in a bottle',
+                  title: '🍾 ${AppLocalizations.of(context).tr('notification.new_bottle')}',
+                  message: AppLocalizations.of(context).tr('notification.new_bottle_message'),
                   icon: const Icon(
                     Icons.mail,
                     color: Colors.white,
                     size: 32,
                   ),
+                  gradientColors: [Colors.orange, Colors.orangeAccent],
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AllBottlesScreen(),
+                        builder: (context) => const NewBottlesListScreen(),
                       ),
                     );
                   },
@@ -271,6 +314,81 @@ class _HomeScreenState extends State<HomeScreen> {
           });
     } catch (e) {
       debugPrint('Error subscribing to bottles: $e');
+    }
+  }
+
+  Future<void> _subscribeMilestones() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Subscribe to all conversations the user is part of
+      _supabase
+          .from('conversations')
+          .stream(primaryKey: ['id'])
+          .listen((data) async {
+            if (data.isEmpty || !mounted) return;
+            
+            final prefs = await SharedPreferences.getInstance();
+            
+            for (final row in data) {
+              final conversationId = row['id'] as String;
+              final feelingPercent = row['feeling_percent'] as int? ?? 0;
+              
+              // Check milestones
+              final milestones = [25, 50, 75, 100];
+              final seenKey = 'seen_milestones_$conversationId';
+              final seenList = prefs.getStringList(seenKey) ?? [];
+              final seenSet = seenList.map(int.parse).toSet();
+              
+              for (final threshold in milestones) {
+                if (feelingPercent >= threshold && !seenSet.contains(threshold)) {
+                  debugPrint('🎉 Milestone $threshold% reached for conv $conversationId detected on Home!');
+                  
+                  // Mark as seen
+                  seenSet.add(threshold);
+                  await prefs.setStringList(seenKey, seenSet.map((e) => e.toString()).toList());
+                  
+                  // Show Milestone Modal
+                  final milestone = FeelingMilestone.fromPercentage(threshold);
+                  if (milestone != null && mounted) {
+                    // Fetch partner data for modal
+                    final partnerId = row['user_a_id'] == userId ? row['user_b_id'] : row['user_a_id'];
+                    final partnerProfile = await _databaseService.getProfile(partnerId as String);
+                    
+                    if (mounted) {
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => MilestoneUnlockModal(
+                          milestone: milestone,
+                          partnerBio: partnerProfile?['about'],
+                          partnerSecretAudioUrl: partnerProfile?['secret_audio_url'],
+                          onContinue: () {
+                            Navigator.pop(context);
+                            if (threshold == 75) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatConversationScreen(
+                                    conversationId: conversationId,
+                                    contactName: row['title'] ?? 'Chat',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      );
+                    }
+                  }
+                  break; // Only one per conversation per update cycle
+                }
+              }
+            }
+          });
+    } catch (e) {
+      debugPrint('Error subscribing to milestones on Home: $e');
     }
   }
 
@@ -307,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ChatListScreen(),
+                          builder: (context) => const NewBottlesListScreen(),
                         ),
                       );
                     },
@@ -345,7 +463,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // Explicitly exit the app when back is pressed on Home
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
       body: WarmGradientBackground(
         child: Stack(
           children: [
@@ -369,6 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Row(
                             children: [
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () async {
                                   await Navigator.push(
                                       context,
@@ -388,7 +514,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 () {
                                   // Extract first name only (split on space, take first word, remove any digits)
                                   final String firstName = _userName.split(' ').first.replaceAll(RegExp(r'\d+'), '');
-                                  return 'Hey $firstName';
+                                  return '${AppLocalizations.of(context).tr('home.greeting')} $firstName';
                                 }(),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
@@ -405,38 +531,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         // Circular Bottle with message count
                         GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () {
                             if (_receivedCount > 0) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const ReceivedBottlesScreen(),
+                                  builder: (context) => const NewBottlesListScreen(),
                                 ),
                               ).then((_) => _loadData());
                             } else {
-                               // No action if 0 messages, or maybe toast?
-                               // User said "page with palm tree already sent is displayed"
-                               // Assuming current visual is fine, just non-clickable or no-op
-                               // For feedback, let's just do nothing or reload
-                               _loadData();
+                               // No bottles received -> Show the Palm Tree Page (HomeDefaultScreen)
+                               Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ReceivedBottlesViewer(),
+                                ),
+                              ).then((_) => _loadData());
                             }
                           },
                           child: Column(
                             children: [
-                              SizedBox(
-                                width: 140, // Reduced from 210
-                                height: 140,
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'assets/images/homepage_bottle.png',
-                                    fit: BoxFit.cover,
+                                SizedBox(
+                                  width: 140,
+                                  height: 140,
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/homepage_bottle.png',
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
-                              ),
                               const SizedBox(height: 16),
                               // Message count
                               Text(
-                                '$_receivedCount new messages',
+                                AppLocalizations.of(context).tr('home.new_messages_count').replaceAll('{count}', '$_receivedCount'),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 14,
@@ -446,9 +575,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(height: 4),
                               // Discover text
-                              const Text(
-                                'Discover',
-                                style: TextStyle(
+                              Text(
+                                AppLocalizations.of(context).tr('home.discover'),
+                                style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 12,
                                   fontWeight: FontWeight.w400,
@@ -472,7 +601,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: _buildNavigationCard(
                                       imagePath: 'assets/images/ongoing_conversation.jpeg',
-                                      label: 'Ongoing Conversations',
+                                      label: AppLocalizations.of(context).tr('home.ongoing_conversations'),
                                       onTap: () {
                                         Navigator.push(
                                           context,
@@ -487,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: _buildNavigationCard(
                                       imagePath: 'assets/images/write_message.jpeg',
-                                      label: 'Write a message',
+                                      label: AppLocalizations.of(context).tr('home.write_message'),
                                       onTap: () async {
                                         await Navigator.push(
                                           context,
@@ -543,9 +672,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 20),
 
                         // Premium Button
+                        if (!(_userProfile?['gender']?.toString().toLowerCase() == 'woman' || _userProfile?['gender']?.toString().toLowerCase() == 'female'))
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -590,19 +721,32 @@ class _HomeScreenState extends State<HomeScreen> {
                         // DEBUG: Temporary Premium Activation Button
                         const SizedBox(height: 12),
                         GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () async {
                             final userId = AuthService().currentUser?.id;
                             if (userId != null) {
                               try {
+                                // 1. Put in entitlements
                                 await Supabase.instance.client.from('entitlements').upsert({
                                   'user_id': userId,
                                   'tier': 'premium',
                                   'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
                                 }, onConflict: 'user_id');
+                                
+                                // 2. Put in profiles for legacy/simple checks
+                                await Supabase.instance.client.from('profiles').update({
+                                  'tier': 'premium',
+                                  'is_premium': true,
+                                }).eq('id', userId);
+
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('✅ Premium activated! Restart app.'), backgroundColor: Colors.green),
+                                    const SnackBar(content: Text('✅ Premium activated! Refreshing...'), backgroundColor: Colors.green),
                                   );
+                                  
+                                  // Refresh everything immediately
+                                  await _loadData();
+                                  _subscribeProfile();
                                 }
                               } catch (e) {
                                 if (mounted) {
@@ -619,14 +763,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(28),
                               border: Border.all(color: Colors.orange.shade700, width: 2),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.bug_report, color: Colors.white, size: 20),
-                                SizedBox(width: 8),
+                                const Icon(Icons.bug_report, color: Colors.white, size: 20),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'DEBUG: ACTIVATE PREMIUM',
-                                  style: TextStyle(
+                                  AppLocalizations.of(context).tr('home.debug_activate_premium'),
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -740,6 +884,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1608,6 +1753,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         height: 130,
         decoration: BoxDecoration(
@@ -1668,6 +1814,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _profileSub?.cancel();
     GlobalAudioController.instance.stopAmbient();
     for (final s in _messageSubs) {
       s.cancel();

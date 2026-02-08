@@ -9,21 +9,25 @@ import '../widgets/warm_gradient_background.dart';
 import 'create_password_screen.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../i18n/app_localizations.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
   final String? selectedLanguage;
   final bool isSignIn; // true for sign-in, false for sign-up
   final bool isRecovery; // true for password recovery OTP
+  final bool isEmailChange; 
   final String? tempPassword;
 
   const VerificationScreen({
     super.key,
     required this.email,
-    required this.selectedLanguage,
+    this.selectedLanguage,
     this.isSignIn = true,
     this.isRecovery = false,
+    this.isEmailChange = false,
     this.tempPassword,
   });
 
@@ -42,8 +46,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   void initState() {
     super.initState();
+    _checkRedirect();
     print('AUTH_DEBUG: VerificationScreen initialized. Email: ${widget.email}, isSignIn: ${widget.isSignIn}, isRecovery: ${widget.isRecovery}');
     _startCountdown();
+  }
+
+  Future<void> _checkRedirect() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   void _startCountdown() {
@@ -66,17 +85,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _resendOtp() async {
     try {
       print('AUTH_DEBUG: Resend OTP requested.');
-      // Use appropriate method based on flow
-      if (widget.isRecovery) {
-         print('AUTH_DEBUG: Resending for Recovery.');
-         await AuthService().resendVerificationCode(widget.email, OtpType.recovery);
-      } else if (widget.isSignIn) {
-        print('AUTH_DEBUG: Resending for SignIn.');
-        await AuthService().signInWithEmailOtp(widget.email);
-      } else {
-        print('AUTH_DEBUG: Resending for SignUp (using resendVerificationCode with OtpType.signup).');
-        await AuthService().resendVerificationCode(widget.email, OtpType.signup);
-      }
+      print('AUTH_DEBUG: Resend OTP requested.');
+      // ALWAYS use Custom OTP (Resend) as requested by user
+      print('AUTH_DEBUG: Resending Custom OTP via Resend for all flows.');
+      await AuthService().sendCustomOtp(widget.email);
       
       _startCountdown();
       if (mounted) {
@@ -107,7 +119,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           if (mounted) {
             String errorMessage = 'Failed to resend code: $e';
             if (e.toString().contains('500')) {
-                errorMessage = 'All delivery methods failed (Server Error). Please try again later.';
+                errorMessage = AppLocalizations.of(context).tr('errors.delivery_failed');
             }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -127,24 +139,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      blurRadius: 300,
-                    ),
-                  ],
-                ),
-              ),
-            ),
             SafeArea(
               child: Column(
                 children: [
@@ -227,7 +221,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: _isLoading ? 'Verifying...' : 'Verify',
+                      text: _isLoading ? 'Verifying...' : 'Confirm & Verify',
                       isActive: _isCodeComplete() && !_isLoading,
                       onPressed: () async {
                         print('AUTH_DEBUG: Verify button pressed.');
@@ -236,57 +230,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         print('AUTH_DEBUG: Code collected: $code');
                         
                         try {
-                          try {
-                            print('AUTH_DEBUG: Calling verifyOtp...');
-                            // STANDARD VERIFICATION ATTEMPT
-                            await AuthService().verifyOtp(
-                              widget.email,
-                              code,
-                              type: widget.isRecovery 
-                                  ? OtpType.recovery 
-                                  : (widget.isSignIn ? OtpType.email : OtpType.signup),
-                            );
-                            print('AUTH_DEBUG: verifyOtp returned success.');
-                          } catch (otpError) {
-                            print('AUTH_DEBUG: verifyOtp failed: $otpError');
-                            
-                            // BYPASS STRATEGY (Hidden):
-                            // If OTP failed AND we have a temp password (meaning we just signed up),
-                            // try to sign in directly with the password.
-                            if (widget.tempPassword != null && !widget.isSignIn && !widget.isRecovery) {
-                               print('AUTH_DEBUG: Attempting Fallback Login with Temp Password...');
-                               try {
-                                 await AuthService().signInWithPassword(widget.email, widget.tempPassword!);
-                                 print('AUTH_DEBUG: Fallback Login SUCCESS!');
-                                 // Proceed as if OTP succeeded
-                               } catch (loginError) {
-                                 print('AUTH_DEBUG: Fallback Login Failed: $loginError. Attempting Anonymous...');
-                                 try {
-                                    // Fallback to Anonymous if password fails (e.g. unverified email)
-                                    await AuthService().signInAnonymously();
-                                    print('AUTH_DEBUG: Anonymous Fallback Success!');
-                                    
-                                    if (context.mounted) {
-                                       Navigator.pushAndRemoveUntil(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const HomeScreen()),
-                                        (route) => false,
-                                      );
-                                      return; // Stop execution, we are in.
-                                    }
-                                 } catch (anonError) {
-                                    print('AUTH_DEBUG: All Fallbacks Failed: $anonError');
-                                    throw otpError; // Throw original error if every fallback fails
-                                 }
-                               }
-                            } else {
-                              if (widget.tempPassword == null) print('AUTH_DEBUG: No temp password available for bypass.');
-                              rethrow;
-                            }
-                          }
-                          
+                          print('AUTH_DEBUG: Calling verifyCustomOtp...');
+                          // Verify the OTP code - this MUST succeed for user to proceed
+                          await AuthService().verifyCustomOtp(widget.email, code);
+                          print('AUTH_DEBUG: verifyCustomOtp returned success.');                          
                           // SUCCESS NAVIGATION
                           if (context.mounted) {
+                            if (widget.isEmailChange) {
+                              Navigator.pop(context, true);
+                              return;
+                            }
+                            
                             if (widget.isSignIn) {
                               Navigator.pushAndRemoveUntil(
                                 context,
@@ -301,6 +255,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                     email: widget.email,
                                     selectedLanguage: widget.selectedLanguage,
                                     isRecovery: widget.isRecovery,
+                                    tempPassword: widget.tempPassword, // PASS TEMP PASSWORD
                                   ),
                                 ),
                               );
@@ -309,11 +264,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                         } catch (e) {
                           if (context.mounted) {
-                            String errorMessage = 'Invalid or expired code. Please try again.';
+                            String errorMessage = AppLocalizations.of(context).tr('errors.invalid_code');
                             if (e.toString().contains('expired')) {
-                              errorMessage = 'Code has expired. Please request a new one.';
+                              errorMessage = AppLocalizations.of(context).tr('errors.code_expired');
                             } else if (e.toString().contains('invalid')) {
-                              errorMessage = 'Invalid code. Please check and try again.';
+                              errorMessage = AppLocalizations.of(context).tr('errors.invalid_code_check');
                             }
                             
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -354,7 +309,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
           ),
           TextButton(
             onPressed: () {

@@ -1,15 +1,21 @@
 {
   "home": {
     "ongoing_conversations": "Conversations en cours",
+    "greeting": "Salut",
     "secret_souls": "Chambre des Secrets",
     "door_of_desires": "Porte des Désirs",
     "discover": "Découvrir",
+    "write_message": "Écrire un message",
     "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
     "discovery_card_title": "3 nouveaux messages",
     "new_messages_count": "{count} nouveaux messages",
     "discovery_card_subtitle": "Et si vous laissiez le hasard faire le reste...",
     "discovery_card_cta": "Découvrir",
-    "conversation_list_header": "Vous avez {count} conversations"
+    "conversation_list_header": "Vous avez {count} conversations",
+    "new_messages_zero": "0 nouveau message",
+    "new_messages_one": "{{count}} nouveau message",
+    "new_messages_other": "{{count}} nouveaux messages",
+    "debug_activate_premium": "DEBUG: ACTIVER PREMIUM"
   },
   "auth": {
     "sign_up": "S'inscrire",
@@ -40,6 +46,17 @@
     "invalid_email": "Veuillez entrer un email valide",
     "generic": "Erreur"
   },
+  "notification": {
+    "error": "Erreur",
+    "success": "Succès",
+    "upload_failed": "Échec de l'envoi des photos. Veuillez réessayer.",
+    "profile_updated": "Profil mis à jour avec succès !",
+    "message_sent": "Bouteille envoyée !",
+    "new_message": "Nouveau message reçu !",
+    "new_bottle": "Nouvelle bouteille !",
+    "new_bottle_message": "Vous avez reçu un nouveau message dans une bouteille",
+    "you_have_new_message": "Vous avez un nouveau message"
+  },
   "splash": {
     "subtitle": "Et si vous laissiez le hasard faire le reste ?"
   },
@@ -47,7 +64,10 @@
     "empty": {
       "new": "0 Nouvelles bouteilles",
       "replied": "0 Bouteilles répondues"
-    }
+    },
+    "list_title_new": "NOUVELLE BOUTEILLE RECUE !",
+    "new_message_from": "Nouveau message de {name}",
+    "go_premium": "PASSER A PREMIUM"
   },
   "voice": {
     "title": "Voix Secrète",
@@ -73,7 +93,80 @@
     "all": "Tout",
     "pictures": "Photos",
     "audio": "Audio",
-    "quote": "Citation"
+    "quote": "Citation",
+    "bio": "Bio",
+    "next": "Suivant",
+    "confirm": "Confirmer",
+    "saving": "Enregistrement...",
+    "continue": "Continuer",
+    "processing": "Traitement..."
+  },
+  "navigation": {
+    "home": "Accueil",
+    "chat": "Chat",
+    "profile": "Profil"
+  },
+  "profile": {
+    "title": "Profil",
+    "edit_photo": "Modifier la photo",
+    "general": "Général",
+    "edit_bio": "Modifier la bio",
+    "edit_quote": "Modifier ma citation",
+    "edit_voice_message": "Modifier mon message vocal",
+    "change_password": "Changer le mot de passe",
+    "sexual_orientation_section": "Orientation sexuelle",
+    "interests_section": "Centres d'intérêt",
+    "upgrade_to_pro": "Passer à Pro",
+    "upgrade_description": "Débloquez le premium réservé juste pour VOUS."
+  },
+  "dialogs": {
+    "cancel": "Annuler",
+    "ok": "OK",
+    "delete": "Supprimer",
+    "confirm": "Confirmer",
+    "yes": "Oui",
+    "no": "Non",
+    "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
+    "unblock_confirm": "Êtes-vous sûr de vouloir débloquer {{userName}} ?"
+  },
+  "errors": {
+    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "try_again": "Veuillez réessayer.",
+    "try_again_later": "Veuillez réessayer plus tard.",
+    "invalid_email": "Veuillez saisir une adresse e-mail valide",
+    "invalid_code": "Code invalide ou expiré. Veuillez réessayer.",
+    "code_expired": "Le code a expiré. Veuillez en demander un nouveau.",
+    "invalid_code_check": "Code invalide. Veuillez vérifier et réessayer.",
+    "resend_failed": "Échec de l'envoi du code",
+    "delivery_failed": "Toutes les méthodes de livraison ont échoué (Erreur serveur). Veuillez réessayer plus tard.",
+    "no_account": "Aucun compte trouvé avec cet e-mail. Veuillez vous inscrire d'abord.",
+    "too_many_attempts": "Trop de tentatives. Veuillez réessayer plus tard.",
+    "account_exists": "Un compte existe déjà. Veuillez vous connecter.",
+    "account_exists_login": "Un compte avec cet e-mail existe déjà. Veuillez vous connecter.",
+    "verification_failed": "Échec de l'envoi du code de vérification. Veuillez réessayer.",
+    "microphone_permission": "Permission du microphone refusée. Veuillez l'activer dans les paramètres.",
+    "send_bottle_failed": "Échec de l'envoi de la bouteille. Veuillez réessayer.",
+    "upload_failed": "Échec du téléchargement. Veuillez réessayer.",
+    "fix_form_errors": "Veuillez corriger les erreurs du formulaire",
+    "provide_answer": "Veuillez fournir une réponse",
+    "save_failed": "Échec de l'enregistrement du choix",
+    "incorrect_password": "Mot de passe incorrect. Veuillez réessayer.",
+    "change_email_failed": "Échec du changement d'e-mail",
+    "change_password_failed": "Échec du changement de mot de passe",
+    "load_bio_failed": "Échec du chargement de la bio",
+    "load_quote_failed": "Échec du chargement de la citation",
+    "load_voice_failed": "Échec du chargement du message vocal",
+    "block_user_failed": "Échec du blocage de l'utilisateur. Veuillez réessayer.",
+    "cannot_delete_main_photo": "Vous ne pouvez pas supprimer votre photo principale. Veuillez d'abord définir une autre photo comme principale.",
+    "enter_password_to_change_email": "Veuillez saisir votre mot de passe actuel pour changer votre adresse e-mail."
+  },
+  "messages": {
+    "sign_in_welcome": "Vous nous avez manqué ! Veuillez vous connecter pour continuer.",
+    "sign_in_failed_title": "Échec de la connexion",
+    "conversation_started": "Conversation démarrée",
+    "conversation_failed": "Échec du démarrage de la conversation",
+    "message_queued": "Message en file d'attente · {{count}} destinataires assignés",
+    "queue_failed": "Échec de la mise en file d'attente du message"
   },
   "surprise": {
     "modal_title": "Question coquine débloquée !",
@@ -115,25 +208,29 @@
     }
   },
   "tooltip": {
+    "bio": {
+      "title": "Bio",
+      "message": "Merci de faire une courte présentation de vous, tout en gardant une part de mystère …",
+      "ok": "Compris"
+    },
     "photo": {
-      "title": "Photo de profil",
-      "line1": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle.",
-      "line2": "Elle ne sera révélée que si vous obtenez 100% de Feeling mutuel avec votre interlocuteur, et n'apparaîtra que si autorisée dans la catégorie \"Secret Souls\", et aucune autre information sur votre identité ne sera divulguée.",
-      "line3": "Vous pourrez ensuite ajouter 5 photos supplémentaires de votre choix.",
+      "title": "Photo obligatoire",
+      "message": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle. Elle ne sera dévoilée seulement si vous obtenez 100% de Feeling respectif avec votre interlocuteur, et apparaîtra seulement ET si autorisé dans la catégorie « Les Âmes Secrètes » (SeaYou PREMIUM), mais aucune autre information ne sera divulguée sur votre identité. Vous pourrez ensuite ajouter jusqu’à 5 photos supplémentaires de votre choix.",
       "ok": "Compris"
     },
     "quote": {
       "title": "Citation secrète",
-      "line1": "Ce message est obligatoire, mais restera secret et anonyme.",
-      "line2": "Il ne sera révélé à votre interlocuteur que si le Feeling mutuel atteint 25%.",
-      "line3": "Soyez mystérieux, drôle, profond… ou tout à la fois.",
+      "message": "Ce message est obligatoire mais restera secret et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Feeling réciproque atteint les 25% \nÀ vous d’être mystérieux, drôle, profond… ou tout à la fois !",
       "ok": "Compris"
     },
     "audio": {
       "title": "Message vocal secret",
-      "line1": "Ce message vocal est obligatoire, mais restera secret et anonyme.",
-      "line2": "Il ne sera révélé à votre interlocuteur que si le Feeling mutuel atteint 50%.",
-      "line3": "C'est l'opportunité de laisser deviner votre voix, sans tout révéler trop vite.",
+      "message": "Ce message vocal est obligatoire mais restera secret et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Feeling réciproque atteint les 50% \nC’est l’occasion de laisser deviner votre voix… sans tout révéler trop vite !",
+      "ok": "Compris"
+    },
+    "fantasy": {
+      "title": "Fantasme",
+      "message": "Écrivez ici votre Fantasme le plus inavouable, il apparaîtra uniquement dans « La porte des Désirs » mais restera 100% anonyme.",
       "ok": "Compris"
     }
   },
@@ -159,16 +256,16 @@
     "classique": {
       "bottles_limit": "Limité à 3 envois de bouteilles/jour",
       "bottles_locked": "Nouvelles bouteilles reçues inaccessibles, sauf s'il s'agit d'une réponse à votre propre message",
-      "distance_limit": "Envoyer des bouteilles uniquement dans un rayon de 150km",
+      "distance_limit": "Envoi des bouteilles uniquement en France entière",
       "souls_locked": "Chambre des Secrets verrouillée",
       "desires_locked": "Porte des Désirs verrouillée"
     },
     "premium": {
       "bottles_unlimited": "Envois de bouteilles illimités",
-      "bottles_open_unlimited": "Ouverture de bouteilles illimitée",
-      "distance_flexible": "Envoyer des bouteilles dans un rayon de 5 à 150km",
-      "souls_access": "Accès gratuit à la Chambre des Secrets",
-      "desires_access": "Accès gratuit à la Porte des Désirs",
+      "bottles_open_unlimited": "Ouverture illimitée des messages reçus",
+      "distance_flexible": "Envoi des bouteilles dans les départements que vous souhaitez",
+      "souls_access": "Accès illimité à la chambre des secrets",
+      "desires_access": "Accès illimité à la porte des Désirs",
       "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans la Chambre des Secrets et la Porte des Désirs"
     }
   },
@@ -197,14 +294,25 @@
       "title": "Attention",
       "message": "Assurez-vous de mettre une photo de votre visage (vérifiée par IA).\nCelle-ci sera révélée lorsque vous atteindrez 100% de Feeling avec quelqu'un.",
       "cancel": "Annuler",
-      "set_main": "Définir comme principale"
+      "set_main": "Confirmer",
+      "no_face_title": "Aucun visage détecté",
+      "no_face_message": "Veuillez télécharger une photo claire de votre visage. Cela aide les autres à vous reconnaître et garantit une meilleure expérience pour tous."
     },
     "photo_limit_reached": "Maximum de 6 photos atteint",
     "delete_photo": "Supprimer la photo",
     "delete_confirmation": "Êtes-vous sûr de vouloir supprimer cette photo ?",
-    "delete": "Supprimer",
+    "delete": "Confirmer la suppression",
     "cancel": "Annuler",
-    "set_as_main_photo": "Définir comme photo principale"
+    "set_as_main_photo": "Définir comme photo principale",
+    "gate": {
+      "title": "Chambre des Secrets",
+      "description": "Entrez dans un espace confidentiel où vous trouverez des photos, citations et messages vocaux des membres SeaYou, toujours 100% anonymes.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM. Souscrivez à un plan payant pour voir plus de contenu et engager des conversations.",
+      "action": {
+        "access": "Accéder à la Chambre des Secrets",
+        "premium": "Passer à Premium",
+        "close": "Fermer"
+      }
+    }
   },
   "chamber": {
     "title": "Chambre des Secrets",
@@ -214,7 +322,8 @@
     "elite_dm": "Envoyer un message anonyme",
     "non_premium_bubble": "Les fantasmes sont réservés aux membres PREMIUM.",
     "upgrade_elite": "Passez à Elite pour envoyer des messages anonymes",
-    "send_message": "Envoyer un message"
+    "send_message": "Envoyer un message",
+    "swipe": "Swipez !"
   },
   "fantasy": {
     "title": "Vos Fantasmes",
@@ -229,7 +338,7 @@
   "door_of_desires": {
     "gate": {
       "title": "Porte des Désirs",
-      "description": "Ici vous trouverez tous les secrets et fantasmes inavoués des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secret ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
+      "description": "Ici vous trouverez tous les secrets et fantasmes inavouables des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secret ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
       "action": {
         "access": "Accéder à la Porte des Désirs",
         "premium": "Passer à Premium",
@@ -242,6 +351,139 @@
       "title": "Activer la localisation",
       "message": "N'oubliez pas d'activer la localisation et de choisir le rayon dans lequel vous souhaitez envoyer des messages.",
       "ok": "OK"
+    }
+  },
+  "onboarding": {
+    "gender": {
+      "title": "Quelle est votre identité de genre ?",
+      "subtitle": "Cela nous aide à personnaliser votre expérience et à vous mettre en relation avec des personnes compatibles.",
+      "options": {
+        "man": "Homme",
+        "woman": "Femme",
+        "non-binary": "Non-binaire"
+      }
+    },
+    "sexual_orientation": {
+      "title": "Quelle est votre orientation sexuelle ?",
+      "title_edit": "Modifier l'orientation sexuelle",
+      "subtitle": "Sélectionnez toutes les options qui décrivent votre identité.",
+      "not_listed": "L'orientation sexuelle n'est pas répertoriée ici ?",
+      "input_placeholder": "Entrer l'orientation sexuelle",
+      "options": {
+        "heterosexual": "Hétérosexuel",
+        "gay": "Gay",
+        "lesbian": "Lesbienne",
+        "bisexual": "Bisexuel",
+        "asexual": "Asexuel",
+        "pansexual": "Pansexuel",
+        "aromantic": "Aromantique"
+      }
+    },
+    "expectations": {
+      "title": "Que cherchez-vous ?",
+      "subtitle": "Dites-nous ce que vous attendez pour que nous puissions personnaliser votre expérience",
+      "who_to_meet": "Qui voulez-vous rencontrer ?",
+      "options": {
+        "a_serious_relationship": "Une relation sérieuse",
+        "a_casual_relationship": "Une relation sans engagement",
+        "to_make_friends": "Se faire des amis",
+        "i_do_not_really_know_yet": "Je ne sais pas encore vraiment"
+      },
+      "genders": {
+        "men": "Hommes",
+        "women": "Femmes",
+        "non-binary": "Non-binaire",
+        "everyone": "Tout le monde"
+      }
+    },
+    "interests": {
+      "title": "Centres d'intérêt",
+      "subtitle": "Sélectionnez 2 à 10 centres d'intérêt",
+      "limit_reached": "Vous pouvez sélectionner jusqu'à 10 centres d'intérêt maximum",
+      "categories": {
+        "movies_series": "Films et Séries",
+        "sports_games": "Sports et Jeux",
+        "pets": "Animaux",
+        "activities": "Activités",
+        "creative": "Créatif",
+        "restaurants": "Restaurants",
+        "meditation": "Méditation",
+        "your_interests": "Vos centres d'intérêt"
+      },
+      "options": {
+        "k_dramas": "K-dramas",
+        "bollywood": "Bollywood",
+        "series": "Séries",
+        "movies": "Films",
+        "anime": "Anime",
+        "comedy": "Comédie",
+        "documentries": "Documentaires",
+        "action_movies": "Films d'action",
+        "reality_shows": "Téléréalité",
+        "sports": "Sports",
+        "thrillers": "Thrillers",
+        "romantic_comedy": "Comédie romantique",
+        "football": "Football",
+        "basketball": "Basketball",
+        "olympics": "Jeux Olympiques",
+        "hockey": "Hockey",
+        "board_games": "Jeux de société",
+        "badminton": "Badminton",
+        "pole_dance": "Pole Dance",
+        "tennis": "Tennis",
+        "fitness": "Fitness",
+        "rugby": "Rugby",
+        "cats": "Chats",
+        "dogs": "Chiens",
+        "fish": "Poissons",
+        "allergic": "Allergique",
+        "turtle": "Tortue",
+        "other": "Autre",
+        "i_want_one": "J'en veux un",
+        "shopping": "Shopping",
+        "car_race": "Course de voitures",
+        "karaoke": "Karaoké",
+        "pubs": "Pubs",
+        "art_galleries": "Galeries d'art",
+        "stand_ups": "Stand-up",
+        "festivals": "Festivals",
+        "parties": "Fêtes",
+        "roller_skating": "Roller",
+        "bowling": "Bowling",
+        "concert": "Concert",
+        "road_trips": "Road trips",
+        "gaming": "Jeux vidéo",
+        "blog": "Blog",
+        "nature": "Nature",
+        "jet_ski": "Jet Ski",
+        "snorkeling": "Snorkeling",
+        "photography": "Photographie",
+        "tattoos": "Tatouages",
+        "digital_art": "Art numérique",
+        "writing": "Écriture",
+        "vintage_shopping": "Shopping vintage",
+        "design": "Design",
+        "music_production": "Production musicale",
+        "crafting": "Artisanat",
+        "vinyl_record": "Disques vinyles",
+        "bbq": "BBQ",
+        "brunch": "Brunch",
+        "ramen": "Ramen",
+        "tea": "Thé",
+        "vegetarian": "Végétarien",
+        "fine_dining": "Gastronomie",
+        "wine_tasting": "Dégustation de vins",
+        "pastries": "Pâtisseries",
+        "pasta": "Pâtes",
+        "asian_food": "Cuisine asiatique",
+        "street_food": "Street food",
+        "sushi": "Sushi",
+        "cocktails": "Cocktails",
+        "bars": "Bars",
+        "bible_reading": "Lecture de la Bible",
+        "therapy": "Thérapie",
+        "walking": "Marche"
+      }
     }
   }
 }

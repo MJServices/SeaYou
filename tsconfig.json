@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["esnext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "exclude": [
+    "supabase",
+    "android",
+    "ios",
+    "macos",
+    "windows",
+    "linux",
+    "web",
+    "lib",
+    "build",
+    "node_modules"
+  ]
+}

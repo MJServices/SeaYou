@@ -34,16 +34,6 @@ class FeelingController extends ValueNotifier<FeelingState> {
     });
   }
 
-  Future<void> increment(String conversationId, {int amount = 1}) async {
-    final current = value.percent;
-    if (current >= 100) return;
-
-    int next = current + amount;
-    if (next > 100) next = 100;
-
-    await _db.updateFeelingPercent(conversationId, next);
-  }
-
   Map<String, dynamic> _calculateUnlockState(int percent) {
     return {
       'basic_content': percent >= 25,

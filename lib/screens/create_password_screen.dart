@@ -7,6 +7,8 @@ import '../widgets/warm_gradient_background.dart';
 import 'profile_info_screen.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/database_service.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
@@ -18,7 +20,10 @@ class CreatePasswordScreen extends StatefulWidget {
     required this.email,
     this.selectedLanguage,
     this.isRecovery = false,
+    this.tempPassword,
   });
+
+  final String? tempPassword;
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -34,7 +39,22 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   @override
   void initState() {
     super.initState();
+    _checkRedirect();
     _passwordController.addListener(_validatePassword);
+  }
+
+  Future<void> _checkRedirect() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   void _validatePassword() {
@@ -54,24 +74,6 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
-              ),
-            ),
-          ),
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
@@ -127,6 +129,12 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                       isActive: isPasswordValid,
                       onPressed: () async {
                         try {
+                          // Check if we need to re-authenticate with temp password
+                          if (AuthService().currentUser == null && widget.tempPassword != null) {
+                            print('AUTH_DEBUG: Session missing, re-authenticating with temp password...');
+                            await AuthService().signInWithPassword(widget.email, widget.tempPassword!);
+                          }
+
                           await AuthService().updatePassword(_passwordController.text);
                           if (context.mounted) {
                             if (widget.isRecovery) {

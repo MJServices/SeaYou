@@ -165,6 +165,7 @@ class SentBottle extends Bottle {
   final String status; // 'floating', 'matched', 'delivered', 'read'
   final DateTime? deliveredAt;
   final DateTime? readAt;
+  final List<String>? targetDepartments;
 
   SentBottle({
     required super.id,
@@ -184,6 +185,7 @@ class SentBottle extends Bottle {
     this.status = 'floating',
     this.deliveredAt,
     this.readAt,
+    this.targetDepartments,
   });
 
   /// Check if bottle is currently floating in the sea
@@ -218,6 +220,9 @@ class SentBottle extends Bottle {
       readAt: json['read_at'] != null
           ? DateTime.parse(json['read_at'] as String)
           : null,
+      targetDepartments: (json['target_departments'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
   }
 
@@ -233,6 +238,7 @@ class SentBottle extends Bottle {
       'status': status,
       'delivered_at': deliveredAt?.toIso8601String(),
       'read_at': readAt?.toIso8601String(),
+      'target_departments': targetDepartments,
     });
     return json;
   }

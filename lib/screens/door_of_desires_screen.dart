@@ -6,6 +6,8 @@ import '../i18n/app_localizations.dart';
 import '../utils/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'chat/chat_conversation_screen.dart';
+import 'premium_screen.dart';
+import 'parchment_store_screen.dart';
 
 class DoorOfDesiresScreen extends StatefulWidget {
   const DoorOfDesiresScreen({super.key});
@@ -49,10 +51,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   Future<void> _init() async {
     final user = AuthService().currentUser;
     if (user != null) {
-      final tier = await EntitlementsService().getTier(user.id);
+      final isPremiumOrWoman = await EntitlementsService().isPremiumOrWoman(user.id);
       if (mounted) {
         setState(() {
-          _isPremium = tier == 'premium' || tier == 'elite';
+          _isPremium = isPremiumOrWoman;
         });
       }
     }
@@ -68,11 +70,22 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     setState(() => _loading = true);
 
     final currentUserId = AuthService().currentUser?.id;
+    if (currentUserId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    // Get IDs of users we've already replied to
+    final repliedPartnerIds = await _db.getRepliedPartnerIds(currentUserId);
+    
     final newFantasies = await _db.listFantasies(page: _page);
 
-    // Filter out user's own fantasy
-    final filtered =
-        newFantasies.where((f) => f['user_id'] != currentUserId).toList();
+    // Filter out anyone they've already messaged
+    final filtered = newFantasies.where((f) {
+      final fantasyUserId = f['user_id'] as String?;
+      return fantasyUserId != null && 
+             !repliedPartnerIds.contains(fantasyUserId);
+    }).toList();
 
     setState(() {
       _fantasies.addAll(filtered);
@@ -144,158 +157,170 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       return;
     }
 
-    // 2. Show message input dialog (like Secret Souls)
+    // 2. Check limits (Max 3 per week)
+    final canSend = await _db.canSendMessageThisWeek(user.id);
+    if (!canSend) {
+      if (!mounted) return;
+      _showLimitReachedDialog();
+      return;
+    }
+
+    // 3. Show message input dialog (like Secret Souls)
     final messageController = TextEditingController();
     final message = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: const Color(0xFFFAF9F6), // Premium Off-White
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.message_outlined,
-                  size: 48,
-                  color: Color(0xFF8A2BE2),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Start Anonymous Conversation',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF3E2723),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Write your first message to start the conversation about this fantasy',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF5D4037),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                // Message input field with character counter
-                StatefulBuilder(
-                  builder: (context, setDialogState) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        TextField(
-                          controller: messageController,
-                          maxLines: 4,
-                          maxLength: 200, // Character limit
-                          autofocus: true,
-                          onChanged: (value) {
-                            setDialogState(() {}); // Update counter
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'Type your message here...',
-                            hintStyle: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              color: Color(0xFF9E9E9E),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF8A2BE2), width: 2),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.all(16),
-                            counterText: '', // Hide default counter
-                          ),
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 14,
-                            color: Color(0xFF3E2723),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        // Custom character counter
-                        Text(
-                          '${messageController.text.length}/200',
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 12,
-                            color: messageController.text.length > 180 
-                                ? Colors.red 
-                                : const Color(0xFF9E9E9E),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(dialogContext, null),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: const BorderSide(color: Color(0xFFE0E0E0)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF5D4037),
-                          ),
-                        ),
-                      ),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF8A2BE2)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Anonymous Soul',
+                    style: TextStyle(
+                      fontFamily: 'PlayfairDisplay',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2D2D2D),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          final msg = messageController.text.trim();
-                          if (msg.isNotEmpty) {
-                            Navigator.pop(dialogContext, msg);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A2BE2),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Send',
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(dialogContext, null),
+                    child: Icon(Icons.close_rounded, size: 22, color: Colors.grey.withOpacity(0.6)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              StatefulBuilder(
+                builder: (context, setDialogState) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Styled TextField
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
                             color: Colors.white,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: TextField(
+                            controller: messageController,
+                            maxLines: 2,
+                            maxLength: 200,
+                            autofocus: true,
+                            onChanged: (value) => setDialogState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Whisper your first message...',
+                              hintStyle: TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 13, 
+                                color: Colors.grey.withOpacity(0.7),
+                                fontStyle: FontStyle.italic,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.all(12),
+                              counterText: '',
+                            ),
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 14, 
+                              color: Color(0xFF2D2D2D),
+                              height: 1.4,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      const SizedBox(width: 12),
+                      // Action Column
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${messageController.text.length}/200',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 10, 
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.withOpacity(0.8),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Premium Send Button
+                          GestureDetector(
+                            onTap: () {
+                              final msg = messageController.text.trim();
+                              if (msg.isNotEmpty) {
+                                Navigator.pop(dialogContext, msg);
+                              }
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: messageController.text.trim().isEmpty 
+                                    ? Colors.grey.withOpacity(0.2)
+                                    : const Color(0xFF8A2BE2),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: messageController.text.trim().isEmpty ? [] : [
+                                  BoxShadow(
+                                    color: const Color(0xFF8A2BE2).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Text(
+                                'Send',
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Subtle Cancel
+                          GestureDetector(
+                            onTap: () => Navigator.pop(dialogContext, null),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                AppLocalizations.of(context).tr('dialogs.cancel'),
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  color: Colors.grey.withOpacity(0.7),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -323,6 +348,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
       if (mounted) {
         if (bottleId != null) {
+          // Increment usage
+          await _db.incrementWeeklyMessages(user.id);
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Bottle sent! Wait for their reply to chat.'),
@@ -349,9 +377,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
           });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to send bottle. Please try again.'),
-              backgroundColor: Color(0xFFF44336),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).tr('errors.send_bottle_failed')),
+              backgroundColor: const Color(0xFFF44336),
             ),
           );
         }
@@ -367,6 +395,72 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         );
       }
     }
+  }
+
+  void _showLimitReachedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final tr = AppLocalizations.of(context);
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_clock_outlined, size: 50, color: Color(0xFF8A2BE2)),
+                const SizedBox(height: 16),
+                Text(
+                  tr.tr('limits.weekly.title'),
+                  style: const TextStyle(
+                    fontFamily: 'PlayfairDisplay',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF3E2723),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  tr.tr('limits.weekly.message'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ParchmentStoreScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8A2BE2),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  child: const Text('Cliquez-ici !'), // Updated text to "Click Here!" (French)
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    tr.tr('limits.weekly.ok'),
+                    style: const TextStyle(color: Color(0xFF5D4037)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -599,10 +693,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     // Become Premium (Non-Premium)
                     GestureDetector(
                       onTap: () {
-                        // TODO: Navigate to Premium Subscribe Screen
-                        ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text('Navigate to Premium Subscription')),
-                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                        ).then((_) => _init()); // Refresh status after returning
                       },
                       child: Container(
                         width: double.infinity,
@@ -734,31 +828,66 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                         ],
                                       ),
                                     ),
-                                    // City display
-                                    if (_fantasies[_currentIndex]['profiles'] != null &&
-                                        _fantasies[_currentIndex]['profiles']['city'] != null) ...[
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.location_on,
-                                            size: 14,
-                                            color: Colors.white70,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _fantasies[_currentIndex]['profiles']['city'] as String,
-                                            style: const TextStyle(
-                                              fontFamily: 'Montserrat',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              color: Colors.white70,
+                                    // User Info display
+                                    Builder(
+                                      builder: (context) {
+                                        final profile = _fantasies[_currentIndex]['profiles'];
+                                        if (profile == null) return const SizedBox.shrink();
+
+                                        final department = profile['department'] as String?;
+                                        final city = profile['city'] as String?;
+                                        final fullName = profile['full_name'] as String?;
+                                        final firstName = fullName?.split(' ').first;
+                                        final age = profile['age'];
+
+                                        String locationInfo = city ?? '';
+                                        if (department != null && department.isNotEmpty) {
+                                          final deptNum = department.split(' - ').first;
+                                          if (city != null && city.isNotEmpty) {
+                                            locationInfo = '$city ($deptNum)';
+                                          } else {
+                                            locationInfo = department;
+                                          }
+                                        }
+
+                                        String displayInfo = locationInfo;
+                                        if (firstName != null && age != null) {
+                                          if (locationInfo.isNotEmpty) {
+                                            displayInfo = '$firstName, $age - $locationInfo';
+                                          } else {
+                                            displayInfo = '$firstName, $age';
+                                          }
+                                        }
+
+                                        if (displayInfo.isEmpty) return const SizedBox.shrink();
+
+                                        return Column(
+                                          children: [
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(
+                                                  Icons.location_on,
+                                                  size: 14,
+                                                  color: Colors.white70,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  displayInfo,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Montserrat',
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w400,
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                          ],
+                                        );
+                                      }
+                                    ),
                                   ],
                                 ),
                               ),

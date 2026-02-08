@@ -71,11 +71,11 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unblock User'),
-        content: Text('Are you sure you want to unblock $userName?'),
+        content: Text(AppLocalizations.of(context).tr('dialogs.unblock_confirm').replaceAll('{{userName}}', userName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),

@@ -9,6 +9,7 @@ import '../../utils/app_text_styles.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../widgets/custom_button.dart';
+import '../../i18n/app_localizations.dart';
 import '../../services/database_service.dart';
 import '../../widgets/animated_waveform.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -30,6 +31,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
   bool _recording = false;
   bool _isProcessing = false;
   bool _isPlaying = false;
+  bool _isPlayingCurrent = false;
   bool _isLoading = true;
   bool _isSaving = false;
   int _duration = 0;
@@ -47,7 +49,12 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
     super.initState();
     _loadCurrentVoiceMessage();
     _audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlaying = false);
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _isPlayingCurrent = false;
+        });
+      }
     });
   }
 
@@ -57,18 +64,24 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
       if (userId == null) return;
 
       final profile = await _databaseService.getProfile(userId);
-      if (profile != null && mounted) {
-        setState(() {
-          _currentAudioUrl = profile['secret_audio_url'];
-          _isLoading = false;
-        });
+      debugPrint('🔍 EditVoiceMessage: Loaded profile for $userId');
+      if (profile != null) {
+        debugPrint('🔍 EditVoiceMessage: secret_audio_url = ${profile['secret_audio_url']}');
+        if (mounted) {
+          setState(() {
+            _currentAudioUrl = profile['secret_audio_url'];
+            _isLoading = false;
+          });
+        }
+      } else {
+        debugPrint('⚠️ EditVoiceMessage: Profile is null');
       }
     } catch (e) {
       debugPrint('Error loading voice message: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to load voice message';
+          _errorMessage = AppLocalizations.of(context).tr('errors.load_voice_failed');
         });
       }
     }
@@ -136,8 +149,30 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
       await _audioPlayer.stop();
       if (mounted) setState(() => _isPlaying = false);
     } else {
+      // Stop current voice if playing
+      if (_isPlayingCurrent) {
+        if (mounted) setState(() => _isPlayingCurrent = false);
+        await _audioPlayer.stop();
+      }
       await _audioPlayer.play(DeviceFileSource(_path!));
       if (mounted) setState(() => _isPlaying = true);
+    }
+  }
+
+  Future<void> _toggleCurrentPlayback() async {
+    if (_currentAudioUrl == null) return;
+
+    if (_isPlayingCurrent) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _isPlayingCurrent = false);
+    } else {
+      // Stop newly recorded if playing
+      if (_isPlaying) {
+        if (mounted) setState(() => _isPlaying = false);
+        await _audioPlayer.stop();
+      }
+      await _audioPlayer.play(UrlSource(_currentAudioUrl!));
+      if (mounted) setState(() => _isPlayingCurrent = true);
     }
   }
 
@@ -215,19 +250,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-            // Decorative ellipse
-            Positioned(
-              top: -100,
-              right: -50,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.1),
-                ),
-              ),
-            ),
+            // Decorative ellipses removed as per user request
             // Main content
             SafeArea(
               child: Column(
@@ -268,6 +291,49 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 const SizedBox(height: 32),
+
+                                // Current Voice Message Logic
+                                if (_currentAudioUrl != null && _currentAudioUrl!.isNotEmpty) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        const Text(
+                                          'Current Voice Message',
+                                          style: TextStyle(
+                                            fontFamily: 'Montserrat',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF171717),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        GestureDetector(
+                                          onTap: _toggleCurrentPlayback,
+                                          child: Container(
+                                            width: 48,
+                                            height: 48,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xFFE0B3FF),
+                                            ),
+                                            child: Icon(
+                                              _isPlayingCurrent ? Icons.pause : Icons.play_arrow,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 32),
+                                ],
 
                                 // Title
                                 const Text(
@@ -404,7 +470,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: 'Save',
+                                  text: _isSaving ? 'Processing...' : 'Confirm',
                                   onPressed: _saveVoiceMessage,
                                   isActive: _path != null && _duration >= _minDuration && !_recording && !_isSaving,
                                 ),

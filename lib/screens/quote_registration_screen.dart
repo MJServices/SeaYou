@@ -3,12 +3,14 @@ import '../utils/app_text_styles.dart';
 import '../utils/app_colors.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/custom_button.dart';
-import '../models/user_profile.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/database_service.dart';
+import '../services/auth_service.dart';
+import '../services/tutorial_service.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/coachmark_bubble.dart';
-import '../services/tutorial_service.dart';
-import '../services/auth_service.dart';
-import '../services/database_service.dart';
+import '../models/user_profile.dart';
 
 class QuoteRegistrationScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -28,23 +30,8 @@ class _QuoteRegistrationScreenState extends State<QuoteRegistrationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final seen = await TutorialService().hasSeenQuoteTip();
       if (!seen && mounted) setState(() => _showTip = true);
-      final user = AuthService().currentUser;
-      if (user != null) {
-        final prefs = await DatabaseService().getUserPreferences(user.id);
-        final existing = prefs?['secret_quote'] as String?;
-        if (existing != null && existing.isNotEmpty && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => UploadPictureScreen(userProfile: widget.userProfile),
-            ),
-          );
-        }
-      }
     });
   }
-
-  @override
   Widget build(BuildContext context) {
     final canProceed = _controller.text.trim().isNotEmpty;
     return Scaffold(

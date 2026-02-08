@@ -12,11 +12,13 @@ import '../models/user_profile.dart';
 import '../services/upload_controller.dart';
 import '../services/upload_service.dart';
 import 'upload_picture_screen.dart';
+import 'home_screen.dart';
 import '../widgets/coachmark_bubble.dart';
 import '../services/tutorial_service.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../i18n/app_localizations.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VoiceRegistrationScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -26,7 +28,7 @@ class VoiceRegistrationScreen extends StatefulWidget {
   State<VoiceRegistrationScreen> createState() => _VoiceRegistrationScreenState();
 }
 
-class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
+class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> with WidgetsBindingObserver {
   final _recorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
   bool _recording = false;
@@ -38,6 +40,8 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
   bool _showTip = false;
   late final UploadController _uploadController;
   double _uploadProgress = 0.0;
+  StreamSubscription? _playerCompleteSubscription;
+  bool _isNavigating = false; // Flag to prevent audio after navigation
 
   // Constants for duration limits
   static const int _minDuration = 5;
@@ -46,22 +50,29 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Configure audio player for immediate response
+    _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
+    _audioPlayer.setReleaseMode(ReleaseMode.stop);
+    
+    // Set up audio player completion listener ONCE
+    _playerCompleteSubscription = _audioPlayer.onPlayerComplete.listen((_) {
+      debugPrint('🎵 [VoiceReg] Player complete event');
+      if (mounted) setState(() => _isPlaying = false);
+    });
+
+    _audioPlayer.onLog.listen((msg) {
+      debugPrint('🎵 [VoiceReg] AudioPlayer Log: $msg');
+    });
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      debugPrint('🎵 [VoiceReg] AudioPlayer State Changed: $state');
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final seen = await TutorialService().hasSeenAudioTip();
       if (!seen && mounted) setState(() => _showTip = true);
-      final user = AuthService().currentUser;
-      if (user != null) {
-        final prefs = await DatabaseService().getUserPreferences(user.id);
-        final existing = prefs?['voice_clip_url'] as String?;
-        if (existing != null && existing.isNotEmpty && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => UploadPictureScreen(userProfile: widget.userProfile),
-            ),
-          );
-        }
-      }
+      
     });
     _uploadController = UploadController();
     _uploadController.addListener(() {
@@ -138,29 +149,47 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
   }
 
   Future<void> _togglePlayback() async {
-    if (_path == null) return;
+    if (_path == null || _isNavigating) return;
 
     if (_isPlaying) {
+      await _audioPlayer.pause();
       await _audioPlayer.stop();
       if (mounted) setState(() => _isPlaying = false);
     } else {
+      // Final guard before playing
+      if (_isNavigating) return;
+      await _audioPlayer.setVolume(1.0); // Ensure audible
       await _audioPlayer.play(DeviceFileSource(_path!));
       if (mounted) setState(() => _isPlaying = true);
-      
-      // Listen for completion
-      _audioPlayer.onPlayerComplete.listen((_) {
-        if (mounted) setState(() => _isPlaying = false);
-      });
     }
   }
 
+  Future<void> _stopAudioCompletely() async {
+    _isNavigating = true;
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        await _audioPlayer.stop();
+        if (mounted) setState(() => _isPlaying = false);
+      }
+    } catch (e) {
+      debugPrint('Error stopping audio completely: $e');
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     // Use localized strings
     final tr = AppLocalizations.of(context);
     final canProceed = !_recording && _duration >= _minDuration && _duration <= _maxDuration && _path != null && File(_path!).existsSync();
     
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) async {
+        // Force stop audio when navigating away via back button
+        await _stopAudioCompletely();
+      },
+      child: Scaffold(
       body: WarmGradientBackground(
         child: Stack(children: [
           SafeArea(
@@ -173,7 +202,19 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        debugPrint('🎵 [VoiceReg] Back pressed.');
+                        _isNavigating = true;
+                        try {
+                          await _audioPlayer.pause();
+                          await _audioPlayer.stop();
+                          await _audioPlayer.release();
+                          debugPrint('🎵 [VoiceReg] Audio release finished.');
+                        } catch (e) {
+                          debugPrint('🎵 [VoiceReg] Release Error: $e');
+                        }
+                        if (mounted) Navigator.pop(context);
+                      },
                       padding: EdgeInsets.zero,
                     ),
                     Text(tr.tr('voice.title'), style: AppTextStyles.displayText),
@@ -187,9 +228,19 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(tr.tr('voice.step_label'), style: AppTextStyles.bodyText),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr.tr('voice.step_label'), style: AppTextStyles.bodyText),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Min: 5 seconds • Max: 15 seconds',
+                      style: AppTextStyles.bodyText.copyWith(
+                        color: AppColors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -206,9 +257,23 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
               Text(
                 _isProcessing 
                   ? tr.tr('voice.processing')
-                  : (_path != null ? 'Recording saved: ${_duration.toString().padLeft(2, '0')}:${(_duration % 60).toString().padLeft(2, '0')}' : tr.tr('voice.duration_label', args: {'duration': _duration.toString()})), 
-                style: AppTextStyles.bodyText,
+                  : (_path != null ? 'Recording saved: ${_duration.toString().padLeft(2, '0')}:${(_duration % 60).toString().padLeft(2, '0')}' : tr.tr('voice.duration_label', params: {'duration': _duration.toString()})), 
+                style: AppTextStyles.bodyText.copyWith(
+                  color: (_duration >= _minDuration || _isProcessing || _path == null) ? AppColors.grey : Colors.red,
+                  fontWeight: (_duration < _minDuration && _path != null && !_recording) ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
+              if (_duration < _minDuration && !_recording && _path != null) ...[
+                const SizedBox(height: 4),
+                const Text(
+                  'Voice message must be at least 5 seconds long',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ],
               if (_path != null && !_recording) ...[
                 const SizedBox(height: 16),
                 GestureDetector(
@@ -249,8 +314,29 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
                     CustomButton(
                       text: tr.tr('voice.next'),
                       isActive: canProceed,
-                      onPressed: canProceed
+                       onPressed: canProceed
                           ? () async {
+                            // Ensure audio stops before navigation
+                            debugPrint('🎵 [VoiceReg] NEXT CLICKED - Stopping audio');
+                            
+                            // 1. BLOCK further playback
+                            _isNavigating = true;
+                            
+                            // 2. RELEASE audio resources
+                            try {
+                              debugPrint('🎵 [VoiceReg] Next: Executing pause/stop/release...');
+                              await _audioPlayer.pause();
+                              await _audioPlayer.stop();
+                              await _audioPlayer.release();
+                              debugPrint('🎵 [VoiceReg] Next: Release finished.');
+                            } catch (e) {
+                              debugPrint('🎵 [VoiceReg] Next: Error: $e');
+                            }
+                            
+                            setState(() {
+                              _isPlaying = false;
+                            });
+                            
                             final nav = Navigator.of(context);
                             final user = AuthService().currentUser;
                             if (user != null && _path != null) {
@@ -273,13 +359,13 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
                                 // Update profile object
                                 widget.userProfile.secretAudioUrl = url;
                                 
-                                nav.push(
+                                nav.pushReplacement(
                                   MaterialPageRoute(
                                     builder: (_) => UploadPictureScreen(userProfile: widget.userProfile),
                                   ),
                                 );
                               } else {
-                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload failed. Please try again.')));
+                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).tr('errors.upload_failed'))));
                               }
                               setState(() => _uploadProgress = 0.0);
                             }
@@ -325,11 +411,24 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen> {
                Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator(value: _uploadProgress, color: AppColors.primary)),
         ]),
       ),
+    ),
     );
   }
 
   @override
+  void deactivate() {
+    _audioPlayer.pause();
+    _audioPlayer.stop();
+    _isPlaying = false;
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _playerCompleteSubscription?.cancel();
+    _audioPlayer.pause();
+    _audioPlayer.stop();
     _recorder.dispose();
     _audioPlayer.dispose();
     _timer?.cancel();

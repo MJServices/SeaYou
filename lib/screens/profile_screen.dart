@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -15,7 +16,7 @@ import 'sexual_orientation_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/rate_seayou_modal.dart';
 import '../widgets/sign_out_modal.dart';
-import '../widgets/delete_account_modal.dart';
+
 import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
 import 'manage_gallery_photos_screen.dart';
@@ -40,15 +41,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   String? _avatarUrl;
+  String? _gender;
   bool _isLoading = true;
   String _userName = 'User';
   List<String> _sexualOrientations = [];
   List<String> _interests = [];
+  StreamSubscription<Map<String, dynamic>?>? _profileSub;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _subscribeProfile();
   }
 
   Future<void> _loadProfile() async {
@@ -61,6 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {
           _avatarUrl = profile['avatar_url'];
           _userName = profile['full_name'] ?? 'User';
+          _gender = profile['gender'];
           
           if (profile['sexual_orientation'] != null) {
             _sexualOrientations = List<String>.from(profile['sexual_orientation']);
@@ -79,6 +83,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _subscribeProfile() {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _profileSub?.cancel();
+    _profileSub = _databaseService.profileStream(userId).listen((profile) {
+      if (profile != null && mounted) {
+        setState(() {
+          _avatarUrl = profile['avatar_url'];
+          _userName = profile['full_name'] ?? 'User';
+          _gender = profile['gender'];
+          
+          if (profile['sexual_orientation'] != null) {
+            _sexualOrientations = List<String>.from(profile['sexual_orientation']);
+          }
+          
+          if (profile['interests'] != null) {
+            _interests = List<String>.from(profile['interests']);
+          }
+          
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _profileSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -101,9 +137,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Profile',
-                            style: TextStyle(
+                          Text(
+                            AppLocalizations.of(context).tr('profile.title'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -134,19 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Stack(
                       children: [
                         // Decorative ellipse background
-                        Positioned(
-                          left: 0,
-                          top: 0,
-                          child: Container(
-                            width: 400,
-                            height: 400,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF0AC5C5)
-                                  .withValues(alpha: 0.2),
-                            ),
-                          ),
-                        ),
                         // Profile avatar
                         Center(
                           child: ProfileAvatar(
@@ -177,7 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                   ),
                                 );
-                                _loadProfile();
+                                // _loadProfile() is redundant because of the stream subscription
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -192,9 +215,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   borderRadius: BorderRadius.circular(32),
                                 ),
-                                child: const Text(
-                                  'Edit Photo',
-                                  style: TextStyle(
+                                child: Text(
+                                  AppLocalizations.of(context).tr('profile.edit_photo'),
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -211,6 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 32),
 
                     // Upgrade to Pro Section
+                    if (!(_gender?.toLowerCase() == 'woman' || _gender?.toLowerCase() == 'female'))
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: GestureDetector(
@@ -252,13 +276,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               const SizedBox(width: 16),
-                              const Expanded(
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Upgrade to Pro',
-                                      style: TextStyle(
+                                      AppLocalizations.of(context).tr('profile.upgrade_to_pro'),
+                                      style: const TextStyle(
                                         fontFamily: 'Montserrat',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
@@ -266,8 +290,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ),
                                     ),
                                     Text(
-                                      'Unlock premium reserved just for YOU.',
-                                      style: TextStyle(
+                                      AppLocalizations.of(context).tr('profile.upgrade_description'),
+                                      style: const TextStyle(
                                         fontFamily: 'Montserrat',
                                         fontSize: 14,
                                         fontWeight: FontWeight.w400,
@@ -291,9 +315,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'General',
-                            style: TextStyle(
+                          Text(
+                            AppLocalizations.of(context).tr('profile.general'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
@@ -320,7 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit bio
                           _buildSectionItem(
-                            title: 'Edit bio',
+                            title: AppLocalizations.of(context).tr('profile.edit_bio'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -335,7 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit my quote
                           _buildSectionItem(
-                            title: 'Edit my quote',
+                            title: AppLocalizations.of(context).tr('profile.edit_quote'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -350,7 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit my voice message
                           _buildSectionItem(
-                            title: 'Edit my voice message',
+                            title: AppLocalizations.of(context).tr('profile.edit_voice_message'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -365,7 +389,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Change password
                           _buildSectionItem(
-                            title: 'Change password',
+                            title: AppLocalizations.of(context).tr('profile.change_password'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -381,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Sexual Orientation
                           _buildSectionWithContent(
-                            label: 'Sexual Orientation',
+                            label: AppLocalizations.of(context).tr('profile.sexual_orientation_section'),
                             content: _sexualOrientations,
                             onEdit: () async {
                               await Navigator.push(
@@ -396,7 +420,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ),
                               );
-                              _loadProfile();
+                              // _loadProfile() is handled by stream
                             },
                           ),
 
@@ -417,7 +441,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ),
                               );
-                              _loadProfile();
+                              // _loadProfile() is handled by stream
                             },
                           ),
                         ],
@@ -531,20 +555,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               );
                             },
                           ),
-                          const SizedBox(height: 12),
-                          _buildActionButton(
-                            title: 'Delete account',
-                            color: const Color(0xFFFB3748),
-                            onTap: () {
-                              showDialog(
-                                context: context,
-                                barrierColor:
-                                    Colors.black.withValues(alpha: 0.5),
-                                builder: (context) =>
-                                    const DeleteAccountModal(),
-                              );
-                            },
-                          ),
+
                         ],
                       ),
                     ),
@@ -574,6 +585,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
@@ -621,6 +633,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             GestureDetector(
               onTap: onEdit,
+              behavior: HitTestBehavior.opaque,
               child: Container(
                 width: 32,
                 height: 32,
@@ -725,6 +738,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),

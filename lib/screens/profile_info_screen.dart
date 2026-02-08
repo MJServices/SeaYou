@@ -10,8 +10,14 @@ import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/animated_waveform.dart';
+import '../i18n/app_localizations.dart';
 import 'sexual_orientation_screen.dart';
+import 'gender_identity_screen.dart';
+import 'home_screen.dart';
+import '../services/database_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
+import '../utils/french_departments.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   final String email;
@@ -32,6 +38,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _aboutController = TextEditingController();
+  final TextEditingController _secretQuoteController = TextEditingController();
   final TextEditingController _secretDesireController = TextEditingController();
   
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -41,25 +48,37 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
   String? _secretAudioPath;
+  static const int _minDuration = 5;
+  static const int _maxDuration = 15;
+  String? _selectedDepartment;
 
   bool get isFormValid =>
       _nameController.text.isNotEmpty &&
       _ageController.text.isNotEmpty &&
       _cityController.text.isNotEmpty &&
+      _selectedDepartment != null &&
       _aboutController.text.isNotEmpty &&
+      _secretQuoteController.text.isNotEmpty &&
       _secretDesireController.text.isNotEmpty &&
-      _secretAudioPath != null;
+      _secretAudioPath != null &&
+      _recordingSeconds >= _minDuration;
 
   @override
   void initState() {
     super.initState();
     // Add listeners to update UI when text changes
+    // Add listeners to update UI when text changes
     _nameController.addListener(_updateFormState);
     _ageController.addListener(_updateFormState);
-    _cityController.addListener(_updateFormState);
+    _cityController.addListener(_updateFormState); 
     _aboutController.addListener(_updateFormState);
+    _secretQuoteController.addListener(_updateFormState);
     _secretDesireController.addListener(_updateFormState);
+
+    // V7: Ensure player responds immediately
+    _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
   }
+
 
   void _updateFormState() {
     setState(() {
@@ -73,24 +92,6 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-          Positioned(
-            left: 0,
-            top: -303,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 300,
-                  ),
-                ],
-              ),
-            ),
-          ),
           SafeArea(
             child: Column(
               children: [
@@ -141,28 +142,117 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           keyboardType: TextInputType.number,
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          'City',
-                          style: AppTextStyles.bodyText.copyWith(
-                            color: AppColors.darkGrey,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        CustomTextField(
-                          hintText: 'Nairobi',
-                          controller: _cityController,
-                          isActive: _cityController.text.isNotEmpty,
-                          suffixIcon: const Icon(
-                            Icons.keyboard_arrow_down,
-                            color: AppColors.white,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'City',
+                                    style: AppTextStyles.bodyText.copyWith(
+                                      color: AppColors.darkGrey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  CustomTextField(
+                                    hintText: 'Enter city',
+                                    controller: _cityController,
+                                    isActive: _cityController.text.isNotEmpty,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Department',
+                                    style: AppTextStyles.bodyText.copyWith(
+                                      color: AppColors.darkGrey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: _selectedDepartment != null ? AppColors.primary : AppColors.grey,
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedDepartment,
+                                        hint: Text(
+                                          'Select',
+                                          style: AppTextStyles.bodyText.copyWith(
+                                            color: AppColors.grey,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        isExpanded: true,
+                                        dropdownColor: const Color(0xFF2A2A2A),
+                                        icon: const Icon(
+                                          Icons.keyboard_arrow_down,
+                                          color: AppColors.grey,
+                                          size: 20,
+                                        ),
+                                        style: AppTextStyles.bodyText.copyWith(
+                                          fontSize: 12,
+                                          color: _selectedDepartment != null ? AppColors.darkGrey : AppColors.grey,
+                                        ),
+                                        items: frenchDepartments.map((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(
+                                              value,
+                                              style: AppTextStyles.bodyText.copyWith(
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (newValue) {
+                                          setState(() {
+                                            _selectedDepartment = newValue;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          'About',
-                          style: AppTextStyles.bodyText.copyWith(
-                            color: AppColors.darkGrey,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              'Bio',
+                              style: AppTextStyles.bodyText.copyWith(
+                                color: AppColors.darkGrey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                final tr = AppLocalizations.of(context);
+                                _showBubble(
+                                  tr.tr('tooltip.bio.title'),
+                                  tr.tr('tooltip.bio.message'),
+                                  tr.tr('tooltip.bio.ok'),
+                                );
+                              },
+                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
@@ -181,12 +271,61 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 24),
                         
-                        // Secret Desire Section
-                        Text(
-                          'Secret Desire',
-                          style: AppTextStyles.bodyText.copyWith(
-                            color: AppColors.darkGrey,
-                          ),
+                        // Secret Quote Section
+                        Row(
+                          children: [
+                            Text(
+                              'Secret Quote',
+                              style: AppTextStyles.bodyText.copyWith(
+                                color: AppColors.darkGrey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                final tr = AppLocalizations.of(context);
+                                _showBubble(
+                                  tr.tr('tooltip.quote.title'),
+                                  tr.tr('tooltip.quote.message'),
+                                  tr.tr('tooltip.quote.ok'),
+                                );
+                              },
+                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        CustomTextField(
+                          hintText: 'Add your secret quote',
+                          controller: _secretQuoteController,
+                          isActive: _secretQuoteController.text.isNotEmpty,
+                          maxLines: 2,
+                          maxLength: 200,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Secret Fantasy Section
+                        Row(
+                          children: [
+                            Text(
+                              'Secret Fantasy',
+                              style: AppTextStyles.bodyText.copyWith(
+                                color: AppColors.darkGrey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                final tr = AppLocalizations.of(context);
+                                _showBubble(
+                                  tr.tr('tooltip.fantasy.title'),
+                                  tr.tr('tooltip.fantasy.message'),
+                                  tr.tr('tooltip.fantasy.ok'),
+                                );
+                              },
+                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
@@ -202,7 +341,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Note: This will be anonymous to everyone. At least 200 words.',
+                                'Note: This will be anonymous and only shown in Gate of Desires.',
                                 style: AppTextStyles.bodyText.copyWith(
                                   fontSize: 12,
                                   color: AppColors.darkGrey,
@@ -218,13 +357,37 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         const SizedBox(height: 24),
                         
                         // Secret Audio Section
+                        Row(
+                          children: [
+                            Text(
+                              'Add a secret audio',
+                              style: AppTextStyles.bodyText.copyWith(
+                                color: AppColors.darkGrey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                final tr = AppLocalizations.of(context);
+                                _showBubble(
+                                  tr.tr('tooltip.audio.title'),
+                                  tr.tr('tooltip.audio.message'),
+                                  tr.tr('tooltip.audio.ok'),
+                                );
+                              },
+                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
-                          'Add a secret audio',
+                          'Min: 5 seconds • Max: 15 seconds',
                           style: AppTextStyles.bodyText.copyWith(
-                            color: AppColors.darkGrey,
+                            color: AppColors.grey,
+                            fontSize: 12,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         
                         // Recording button
                         GestureDetector(
@@ -256,16 +419,27 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             barWidth: 3,
                             spacing: 2,
                           ),
-                          const SizedBox(height: 8),
                           Text(
                             _isRecording 
                                 ? 'Recording: ${_formatRecordingTime()}'
                                 : 'Recording saved: ${_formatRecordingTime()}',
                             style: AppTextStyles.bodyText.copyWith(
-                              color: AppColors.grey,
+                              color: (_recordingSeconds >= _minDuration) ? Colors.green : Colors.red,
                               fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (_recordingSeconds < _minDuration && !_isRecording && _secretAudioPath != null) ...[
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Voice message must be at least 5 seconds long',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 11,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                          ],
                           if (_secretAudioPath != null && !_isRecording) ...[
                             const SizedBox(height: 16),
                             GestureDetector(
@@ -297,26 +471,41 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                   child: CustomButton(
                     text: 'Next',
                     isActive: isFormValid,
-                    onPressed: () {
+                    onPressed: () async {
                       if (isFormValid) {
-                        final userProfile = UserProfile(
-                          email: widget.email,
-                          fullName: _nameController.text,
-                          age: int.tryParse(_ageController.text),
-                          city: _cityController.text,
-                          about: _aboutController.text,
-                          language: widget.selectedLanguage ?? "English (device's language)",
-                          secretDesire: _secretDesireController.text,
-                          secretAudioUrl: _secretAudioPath, // Will be uploaded later
-                        );
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SexualOrientationScreen(
-                              userProfile: userProfile,
+                        // V7: Ensure audio stops before navigation
+                        debugPrint('🎵 [ProfileInfo] NEXT CLICKED - Stopping audio');
+
+                        try {
+                          await _audioPlayer.stop();
+                          await _audioPlayer.release();
+                          debugPrint('🎵 [ProfileInfo] Audio released finished.');
+                        } catch (e) {
+                          debugPrint('🎵 [ProfileInfo] Release Error: $e');
+                        }
+
+                          final userProfile = UserProfile(
+                            email: widget.email,
+                            fullName: _nameController.text,
+                            age: int.tryParse(_ageController.text),
+                            city: _cityController.text,
+                            department: _selectedDepartment,
+                            about: _aboutController.text,
+                            language: widget.selectedLanguage ?? "English (device's language)",
+                            secretDesire: _secretDesireController.text,
+                            secretQuote: _secretQuoteController.text,
+                            secretAudioUrl: _secretAudioPath,
+                          );
+                        if (mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => GenderIdentityScreen(
+                                userProfile: userProfile,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       }
                     },
                   ),
@@ -405,6 +594,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       await _audioPlayer.stop();
       if (mounted) setState(() => _isPlaying = false);
     } else {
+      await _audioPlayer.setVolume(1.0); // Ensure audible
       await _audioPlayer.play(DeviceFileSource(_secretAudioPath!));
       if (mounted) setState(() => _isPlaying = true);
       
@@ -427,10 +617,28 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     _ageController.dispose();
     _cityController.dispose();
     _aboutController.dispose();
+    _secretQuoteController.dispose();
     _secretDesireController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _recordingTimer?.cancel();
     super.dispose();
+  }
+
+  void _showBubble(String title, String message, String okText) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: AppTextStyles.displayText.copyWith(fontSize: 18)),
+        content: Text(message, style: AppTextStyles.bodyText.copyWith(color: AppColors.darkGrey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(okText, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 }

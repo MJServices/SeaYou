@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
@@ -29,13 +30,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final DatabaseService _db = DatabaseService();
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
   String? _avatarUrl;
+  StreamSubscription<Map<String, dynamic>?>? _profileSub;
   int _archivedCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
-    _loadUserAvatar();
+    _subscribeProfile();
     _loadArchivedCount();
   }
 
@@ -263,7 +265,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _profileSub?.cancel();
     super.dispose();
+  }
+
+  void _subscribeProfile() {
+    if (_currentUserId == null) return;
+
+    _profileSub?.cancel();
+    _profileSub = _db.profileStream(_currentUserId!).listen((profile) {
+      if (profile != null && mounted) {
+        setState(() {
+          _avatarUrl = profile['avatar_url'];
+        });
+      }
+    });
   }
 
   Widget _buildFilterTabs() {
@@ -415,10 +431,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
           );
         }
 
-        final profile = snapshot.data ?? {};
-        final name = conversation.feelingPercent >= 100 
-            ? (profile['full_name'] ?? 'Unknown') 
-            : (conversation.getPartnerMask(_currentUserId!) ?? 'Anonymous');
+        final profile = snapshot.data;
+        if (profile == null) {
+          return const SizedBox.shrink(); // Or fallback UI
+        }
+
+        // Request: Display actual usernames/full names instead of "anonymous"
+        // And prioritize conversation.title if set (nickname)
+        final profileName = (profile['username'] != null && profile['username'].toString().isNotEmpty)
+            ? profile['username']
+            : (profile['full_name'] ?? 'Someone');
+            
+        final name = (conversation.title != null && conversation.title!.isNotEmpty)
+            ? conversation.title!
+            : (conversation.feelingPercent >= 100 
+                ? profileName 
+                : (conversation.getPartnerMask(_currentUserId!) ?? profileName));
 
         final mood = 'Curious'; 
         final isUnlocked = conversation.feelingPercent >= 100;
@@ -440,6 +468,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
             ).then((_) => _loadConversations());
           },
+          behavior: HitTestBehavior.opaque,
           child: Container(
             margin: const EdgeInsets.only(bottom: 24), // Reduced spacing
             child: Row(

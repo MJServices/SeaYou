@@ -3,8 +3,12 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'interests_screen.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/database_service.dart';
 import '../models/user_profile.dart';
+import '../i18n/app_localizations.dart';
+import 'interests_screen.dart';
 
 class ExpectationsScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -15,6 +19,25 @@ class ExpectationsScreen extends StatefulWidget {
 }
 
 class _ExpectationsScreenState extends State<ExpectationsScreen> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _checkRedirect() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
   String? selectedExpectation;
   String? selectedGender;
 
@@ -51,29 +74,29 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                         padding: EdgeInsets.zero,
                         alignment: Alignment.centerLeft,
                       ),
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'What are you looking for?',
+                            AppLocalizations.of(context).tr('onboarding.expectations.title'),
                             style: AppTextStyles.displayText,
                           ),
-                          Text(
-                            '3/5',
+                          const Text(
+                            '3/6',
                             style: AppTextStyles.bodyText,
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Tell us your expectations so we can personalize your experience',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.expectations.subtitle'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 24),
                       ...expectations.map((exp) => _buildOption(exp, true)),
                       const SizedBox(height: 32),
-                      const Text(
-                        'Who do you want to meet?',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.expectations.who_to_meet'),
                         style: AppTextStyles.displayText,
                       ),
                       const SizedBox(height: 24),
@@ -85,7 +108,7 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
-                  text: 'Next',
+                  text: AppLocalizations.of(context).tr('common.next'),
                   isActive:
                       selectedExpectation != null && selectedGender != null,
                   onPressed: () {
@@ -136,7 +159,9 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
           ),
         ),
         child: Text(
-          text,
+          isExpectation 
+              ? AppLocalizations.of(context).tr('onboarding.expectations.options.${text.toLowerCase().replaceAll(' ', '_')}')
+              : AppLocalizations.of(context).tr('onboarding.expectations.genders.${text.toLowerCase().replaceAll(' ', '_')}'),
           style: AppTextStyles.bodyText.copyWith(
             color: isSelected ? AppColors.darkGrey : AppColors.grey,
           ),

@@ -15,24 +15,6 @@ class TermsOfServiceScreen extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Decorative ellipse background
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF0AC5C5).withValues(alpha: 0.2),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 300, sigmaY: 300),
-                  child: Container(),
-                ),
-              ),
-            ),
-
             // Content
             SafeArea(
               child: Column(

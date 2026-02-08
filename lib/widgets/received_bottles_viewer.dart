@@ -248,12 +248,21 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             duration: '00:00:21', // TODO: Calculate from audio file
             onReply: () async {
               Navigator.pop(context); // Close modal
+              // Immediate Disappearance
+              final bottleId = currentBottle.id;
+              setState(() {
+                _bottles.removeWhere((b) => b.id == bottleId);
+                if (currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                  currentIndex = _bottles.length - 1;
+                }
+              });
+
               // Navigate to SendBottleScreen with reply context
               await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => SendBottleScreen(
-                    replyToBottleId: currentBottle.id,
+                    replyToBottleId: bottleId,
                     replyToUserId: currentBottle.senderId,
                   ),
                 ),
@@ -267,12 +276,21 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             isReceived: true,
             onReply: () async {
               Navigator.pop(context); // Close modal
+              // Immediate Disappearance
+              final bottleId = currentBottle.id;
+              setState(() {
+                _bottles.removeWhere((b) => b.id == bottleId);
+                if (currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                  currentIndex = _bottles.length - 1;
+                }
+              });
+
               // Navigate to SendBottleScreen with reply context
               await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => SendBottleScreen(
-                    replyToBottleId: currentBottle.id,
+                    replyToBottleId: bottleId,
                     replyToUserId: currentBottle.senderId,
                   ),
                 ),
@@ -344,7 +362,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               ),
             ),
 
-          // Counter indicator
+          /*
           Positioned(
             top: 60,
             left: 0,
@@ -367,6 +385,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               ),
             ),
           ),
+          */
         ],
 
         // Filter toggle button at top-right

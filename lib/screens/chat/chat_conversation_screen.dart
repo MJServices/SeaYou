@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/warm_gradient_background.dart';
 import 'chat_profile_screen.dart';
+import '../../widgets/custom_button.dart';
 import '../../widgets/feeling_progress.dart';
 import '../../services/feeling_controller.dart';
 import '../../i18n/app_localizations.dart';
@@ -54,6 +56,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   bool _isTyping = false;
   bool _isSaving = false; // Track if message is being sent
+  bool _isPhotoRevealed = false;
+  bool _hasAutoShownNaughty = false;
   bool _isRecording = false;
   String? _recordingPath;
   Timer? _recordingTimer;
@@ -63,13 +67,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   int _feelingPercent = 0;
   String? _threadTitle;
+  String? _partnerAvatarUrl;
   late final FeelingController _feelingController;
-  bool _surpriseRequired = false;
-  bool _surpriseShown = false;
-  final TextEditingController _q1Controller = TextEditingController();
-  final TextEditingController _q2Controller = TextEditingController();
-  final TextEditingController _q3Controller = TextEditingController();
-  
   // Milestone tracking
   final Set<int> _shownMilestones = {}; // Track which milestones have been shown
   int _previousFeelingPercent = 0;
@@ -82,6 +81,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   
   // Store conversation data for feeling bar
   Conversation? _conversation;
+  bool _isPremium = false; // Track if user has premium subscription
 
   @override
   void initState() {
@@ -137,6 +137,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             }
           });
           _scrollToBottom();
+          
+          // Refresh conversation state (feeling percent) whenever a message arrives
+          // This serves as a robust fallback if 'conversations' realtime updates are flaky
+          _loadConversation();
         }
       });
       
@@ -167,6 +171,25 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           vals.map((s) => s.progress).fold(0.0, (a, b) => a + b) / vals.length;
       setState(() => _uploadProgress = p);
     });
+    
+    // Load premium status
+    _loadPremiumStatus();
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final userId = AuthService().currentUser?.id;
+      if (userId != null) {
+        final tier = await _db.getUserTier(userId);
+        if (mounted) {
+          setState(() {
+            _isPremium = (tier == 'bond' || tier == 'ritual');
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading premium status: $e');
+    }
   }
 
   Future<void> _loadConversation() async {
@@ -179,19 +202,51 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _threadTitle = conversation.title;
         _previousFeelingPercent = conversation.feelingPercent; // Set initial previous
       });
+
+      // Load photo reveal state from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final revealedKey = 'is_photo_revealed_${widget.conversationId}';
+      if (mounted) {
+        setState(() {
+          _isPhotoRevealed = prefs.getBool(revealedKey) ?? false;
+        });
+      }
       
-      // Load unlocked milestones from database
+      // Load partner avatar URL for photo reveal
       try {
+        final currentUserId = AuthService().currentUser?.id;
+        final partnerId = conversation.userAId == currentUserId
+            ? conversation.userBId
+            : conversation.userAId;
+        
+        final profileData = await _db.getProfile(partnerId);
+        if (mounted) {
+          setState(() {
+            _partnerAvatarUrl = profileData?['avatar_url'] as String?;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error pre-fetching partner avatar: $e');
+      }
+
+      // Load user-specific seen milestones from database
+      try {
+        final currentUserId = AuthService().currentUser?.id;
         final response = await Supabase.instance.client
             .from('conversations')
-            .select('unlocked_milestones, user_a_id, user1_naughty_answer, user2_naughty_answer')
+            .select('user_a_id, user_b_id, user_a_seen_milestones, user_b_seen_milestones, user1_naughty_answer, user2_naughty_answer')
             .eq('id', widget.conversationId!)
             .single();
         
-        final unlockedList = response['unlocked_milestones'] as List?;
-        if (unlockedList != null) {
-          _shownMilestones.addAll(unlockedList.cast<int>());
-          debugPrint('📚 Loaded shown milestones: $_shownMilestones');
+        // Determine which user's milestones to load
+        final isUserA = response['user_a_id'] == currentUserId;
+        final userMilestones = isUserA 
+            ? response['user_a_seen_milestones'] 
+            : response['user_b_seen_milestones'];
+        
+        if (userMilestones != null) {
+          _shownMilestones.addAll((userMilestones as List).cast<int>());
+          debugPrint('📚 Loaded user-specific seen milestones: $_shownMilestones');
         }
         
         // Check if user needs to answer naughty question
@@ -224,29 +279,29 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 // Assuming gender values are 'Man'/'Male' vs 'Woman'/'Female'
                 final isMale = gender == 'Man' || gender == 'Male';
                 
+                // Check SharedPreferences to see if we already auto-shown this session/device
+                final prefs = await SharedPreferences.getInstance();
+                final hasSeenKey = 'has_seen_naughty_popup_${widget.conversationId}';
+                final hasSeen = prefs.getBool(hasSeenKey) ?? false;
+
                 if (isMale && !isPremium) {
                    // MALE + FREE = LOCKED
                    // Show Premium Screen instead of Question Screen
                    Future.delayed(const Duration(milliseconds: 500), () {
-                    if (mounted) {
+                    if (mounted && !hasSeen) {
+                        prefs.setBool(hasSeenKey, true);
                        debugPrint('🔒 Premium Gate: Redirecting male user to Premium Screen');
                        Navigator.push(
                         context, 
                         MaterialPageRoute(builder: (context) => const PremiumScreen()),
-                       );
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(
-                           content: Text('Upgrade to Premium to unlock the Naughty Question!'),
-                           backgroundColor: Color(0xFF9B7FED),
-                           duration: Duration(seconds: 4),
-                         ),
                        );
                     }
                    });
                 } else {
                   // FEMALE or PREMIUM MALE = UNLOCKED
                    Future.delayed(const Duration(milliseconds: 500), () {
-                    if (mounted) {
+                    if (mounted && !hasSeen) {
+                      prefs.setBool(hasSeenKey, true);
                       _showNaughtyQuestionsScreen();
                     }
                   });
@@ -413,10 +468,14 @@ Future<void> _loadInitialMessages() async {
                 ),
               ),
               const SizedBox(width: 8),
-              // Profile Icon  
+              // Profile Icon / Photo Reveal
               GestureDetector(
                 onTap: () {
-                  if (widget.conversationId != null && _conversation != null) {
+                  if (widget.conversationId == null || _conversation == null) return;
+                  
+                  if (_feelingPercent >= 100 && !_isPhotoRevealed) {
+                    _showPhotoReveal();
+                  } else {
                     final currentUserId = AuthService().currentUser?.id;
                     final partnerId = _conversation!.userAId == currentUserId
                         ? _conversation!.userBId
@@ -441,16 +500,40 @@ Future<void> _loadInitialMessages() async {
                   height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFFFFBF0), // White/cream background
-                    border: Border.all(color: const Color(0xFFE8E8E8), width: 1.5),
+                    color: const Color(0xFFFFFBF0),
+                    border: Border.all(
+                      color: (_feelingPercent >= 100 && !_isPhotoRevealed)
+                          ? const Color(0xFF0AC5C5) // Highlight if ready to reveal
+                          : const Color(0xFFE8E8E8),
+                      width: (_feelingPercent >= 100 && !_isPhotoRevealed) ? 2.5 : 1.5,
+                    ),
                   ),
                   child: Center(
-                    child: Image.asset(
-                      'assets/icons/profile.jpeg',
-                      width: 22,
-                      height: 22,
-                      fit: BoxFit.cover,
-                    ),
+                    child: _isPhotoRevealed
+                        ? ClipOval(
+                            child: (_partnerAvatarUrl != null)
+                                ? Image.network(
+                                    _partnerAvatarUrl!,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                    },
+                                    errorBuilder: (context, error, stackTrace) => 
+                                        const Icon(Icons.person, color: Color(0xFF0AC5C5)),
+                                  )
+                                : const Icon(Icons.person, color: Color(0xFF0AC5C5)),
+                          )
+                        : (_feelingPercent >= 100)
+                            ? const Icon(Icons.card_giftcard, size: 22, color: Color(0xFF0AC5C5))
+                            : Image.asset(
+                                'assets/icons/profile.jpeg',
+                                width: 22,
+                                height: 22,
+                                fit: BoxFit.cover,
+                              ),
                   ),
                 ),
               ),
@@ -459,43 +542,41 @@ Future<void> _loadInitialMessages() async {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.isUnlocked 
-                                ? widget.contactName 
-                                : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? 'Anonymous'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF151515),
-                            ),
-                          ),
-                          if (!widget.isUnlocked)
-                            const Text(
-                              'Online',
-                              style: TextStyle(
+                      child: GestureDetector(
+                        onTap: _showRenameDialog,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              (_conversation?.title != null && _conversation!.title!.isNotEmpty)
+                                  ? _conversation!.title!
+                                  : (widget.isUnlocked 
+                                      ? widget.contactName 
+                                      : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? widget.contactName)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
+                              style: const TextStyle(
                                 fontFamily: 'Montserrat',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFF0AC5C5),
+                                fontSize: 20,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF151515),
                               ),
                             ),
-                        ],
+                            if (!widget.isUnlocked)
+                              const Text(
+                                'Online',
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF0AC5C5),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                    // Removed rename button as per request
-                    if (_feelingPercent >= 100)
-                      IconButton(
-                        onPressed: _showPhotoReveal,
-                        icon: const Icon(Icons.photo_camera_back,
-                            size: 20, color: Color(0xFF151515)),
-                      ),
                     IconButton(
                       onPressed: _showConnectionLevel,
                       icon: const Icon(Icons.insights,
@@ -601,6 +682,65 @@ Future<void> _loadInitialMessages() async {
     );
   }
 
+  void _showRenameDialog() {
+    final TextEditingController renameController = TextEditingController(
+      text: (_conversation?.title != null && _conversation!.title!.isNotEmpty)
+          ? _conversation!.title!
+          : (widget.isUnlocked 
+              ? widget.contactName 
+              : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? widget.contactName))
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nickname', style: TextStyle(fontFamily: 'Montserrat')),
+        content: TextField(
+          controller: renameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter a nickname',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
+            onPressed: () async {
+              final newName = renameController.text.trim();
+              if (newName.isNotEmpty) {
+                try {
+                  if (widget.conversationId != null) {
+                    await DatabaseService().renameConversation(widget.conversationId!, newName);
+                  }
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nickname updated!')),
+                    );
+                    // Refresh conversation to show new name in header if possible, 
+                    // or just rely on state update.
+                    _loadConversation(); 
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildConnectionItem(String label, bool isUnlocked) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -677,6 +817,13 @@ Future<void> _loadInitialMessages() async {
           end: Alignment.bottomCenter,
           colors: [Color(0xFF9ECFD4), Color(0xFF65ADA9)],
         );
+      case 'naughty_question':
+      case 'naughty_answer':
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFF9F9B), Color(0xFFFF6D68)], // Same as 'Taquin' (Naughty)
+        );
       default:
         return const LinearGradient(
           colors: [Color(0xFF9B98E6), Color(0xFFC7CEEA)],
@@ -697,8 +844,9 @@ Widget _buildMessagesList() {
 
   Widget _buildMessageBubble(ChatMessage message) {
     bool isMe = message.isMe;
-    // Use message's mood if available, otherwise use current mood for user or widget mood for others
-    final messageMood = message.mood ?? (isMe ? _currentMood : widget.mood);
+    // Use message's saved mood if available, otherwise use default 'Curious' for old messages
+    // Never use _currentMood as fallback to prevent changing colors of old messages
+    final messageMood = message.mood ?? 'Curious';
     final gradient = _getMoodGradient(messageMood);
 
     return Padding(
@@ -911,6 +1059,63 @@ Widget _buildMessagesList() {
           ),
         ],
       );
+    } else if (message.mood == 'naughty_question') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.favorite, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+              const Text(
+                'Question Flirt',
+                style: TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message.text ?? '',
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFF151515),
+            ),
+          ),
+        ],
+      );
+    } else if (message.mood == 'naughty_answer') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Réponse:',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message.text ?? '',
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFF151515),
+            ),
+          ),
+        ],
+      );
     } else {
       return Text(
         message.text ?? '',
@@ -972,29 +1177,16 @@ Widget _buildMessagesList() {
               padding: const EdgeInsets.only(bottom: 8),
               child: LinearProgressIndicator(value: _uploadProgress),
             ),
-          if (_surpriseRequired)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                AppLocalizations.of(context).tr('surprise.banner_required'),
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFFFB3748),
-                ),
-              ),
-            ),
           Row(
             children: [
               GestureDetector(
-                onTap: (!_surpriseRequired && _feelingPercent >= 75)
+                onTap: (_isPremium || _feelingPercent >= 75)
                     ? _showAttachmentOptions
                     : null,
                 child: Icon(
                   Icons.camera_alt,
                   size: 24,
-                  color: (!_surpriseRequired && _feelingPercent >= 75)
+                  color: (_isPremium || _feelingPercent >= 75)
                       ? const Color(0xFF151515)
                       : const Color(0xFFE3E3E3),
                 ),
@@ -1014,7 +1206,7 @@ Widget _buildMessagesList() {
                     children: [
                       if (_feelingPercent >= 25)
                         GestureDetector(
-                          onTap: _surpriseRequired ? null : _insertQuote,
+                          onTap: _insertQuote,
                           child: const Padding(
                             padding: EdgeInsets.only(right: 8),
                             child: Icon(Icons.format_quote,
@@ -1024,7 +1216,7 @@ Widget _buildMessagesList() {
                       Expanded(
                         child: TextField(
                           controller: _messageController,
-                          enabled: !_surpriseRequired,
+                          enabled: true,
                           onChanged: (value) {
                             setState(() {
                               _isTyping = value.isNotEmpty;
@@ -1045,39 +1237,30 @@ Widget _buildMessagesList() {
                         ),
                       ),
                       GestureDetector(
-                        onTap: (!_surpriseRequired && _feelingPercent >= 50)
+                        onTap: (_isPremium || _feelingPercent >= 75)
                             ? _showVoiceRecorder
                             : null,
                         child: Icon(
                           Icons.mic,
                           size: 20,
-                          color: (!_surpriseRequired && _feelingPercent >= 50)
+                          color: (_isPremium || _feelingPercent >= 75)
                               ? const Color(0xFF737373)
                               : const Color(0xFFE3E3E3),
                         ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: (!_surpriseRequired && _feelingPercent >= 75)
+                        onTap: (_isPremium || _feelingPercent >= 75)
                             ? _showImagePicker
                             : null,
                         child: Icon(
                           Icons.image,
                           size: 20,
-                          color: (!_surpriseRequired && _feelingPercent >= 75)
+                          color: (_isPremium || _feelingPercent >= 75)
                               ? const Color(0xFF737373)
                               : const Color(0xFFE3E3E3),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      if (_feelingPercent >= 75)
-                        GestureDetector(
-                          onTap: _surpriseRequired
-                              ? _showSurpriseUnlockModal
-                              : _showSurprise,
-                          child: const Icon(Icons.help_outline,
-                              size: 20, color: Color(0xFF737373)),
-                        ),
                     ],
                   ),
                 ),
@@ -1085,7 +1268,7 @@ Widget _buildMessagesList() {
               const SizedBox(width: 10),
               // Larger hit area for send button
               InkWell(
-                onTap: (_isTyping && !_surpriseRequired && !_isSaving) ? _sendMessage : null,
+                onTap: (_isTyping && !_isSaving) ? _sendMessage : null,
                 borderRadius: BorderRadius.circular(24),
                 child: Padding(
                   padding: const EdgeInsets.all(4), // Increases hit area
@@ -1093,7 +1276,7 @@ Widget _buildMessagesList() {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      gradient: (_isTyping && !_surpriseRequired)
+                      gradient: (_isTyping)
                           ? const LinearGradient(
                               colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
                           : LinearGradient(colors: [
@@ -1154,79 +1337,39 @@ Widget _buildMessagesList() {
     }
   }
 
-  void _showSurprise() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Surprise question',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF151515),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'What is a small joy you had today?',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  color: Color(0xFF737373),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  void _checkMilestones() {
-    print('🎯🎯🎯 _checkMilestones CALLED - current=$_feelingPercent, previous=$_previousFeelingPercent');
+  Future<void> _checkMilestones() async {
+    if (widget.conversationId == null) return;
+    
     debugPrint('🎯 Checking milestones: current=$_feelingPercent, previous=$_previousFeelingPercent');
-    debugPrint('🎯 Shown milestones: $_shownMilestones');
+    
+    // Load seen milestones from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final seenKey = 'seen_milestones_${widget.conversationId}';
+    final seenList = prefs.getStringList(seenKey) ?? [];
+    final seenSet = seenList.map(int.parse).toSet();
     
     // Check if we've crossed any milestone thresholds
     final milestones = [25, 50, 75, 100];
     
     for (final threshold in milestones) {
-      // Show milestone if:
-      // 1. We're at or above the threshold
-      // 2. We haven't shown it yet
-      // 3. Either we just crossed it (previous < threshold) OR this is first check (previous == current)
-      final justCrossed = _feelingPercent >= threshold && _previousFeelingPercent < threshold;
-      final firstCheck = _feelingPercent >= threshold && _previousFeelingPercent == _feelingPercent;
-      
-      if ((justCrossed || firstCheck) && !_shownMilestones.contains(threshold)) {
+      if (_feelingPercent >= threshold && !seenSet.contains(threshold)) {
+        debugPrint('✅ Milestone $threshold% reached and NOT seen locally! Showing modal...');
         
-        debugPrint('✅ Milestone $threshold% reached! Showing modal...');
-        _shownMilestones.add(threshold);
+        // Mark as seen immediately to prevent duplicate shows
+        seenSet.add(threshold);
+        await prefs.setStringList(seenKey, seenSet.map((e) => e.toString()).toList());
         
-        // Save to database
-        _saveMilestoneToDatabase(threshold);
+        // Also save to database (shared status)
+        if (!_shownMilestones.contains(threshold)) {
+          _shownMilestones.add(threshold);
+          _saveMilestoneToDatabase(threshold);
+        }
         
         final milestone = FeelingMilestone.fromPercentage(threshold);
-        
         if (milestone != null) {
-          // Small delay to let the feeling bar animate
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
-              debugPrint('📱 Showing milestone modal for ${milestone.title}');
               _showMilestoneModal(milestone);
             }
           });
@@ -1241,17 +1384,23 @@ Widget _buildMessagesList() {
   }
 
   Future<void> _saveMilestoneToDatabase(int threshold) async {
-    if (widget.conversationId == null) return;
+    if (widget.conversationId == null || _conversation == null) return;
     
     try {
       debugPrint('💾 Saving milestone $threshold% to database');
+      
+      // Determine which user field to update
+      final currentUserId = AuthService().currentUser?.id;
+      final isUserA = _conversation!.userAId == currentUserId;
+      final fieldName = isUserA ? 'user_a_seen_milestones' : 'user_b_seen_milestones';
+      
       await Supabase.instance.client
           .from('conversations')
           .update({
-            'unlocked_milestones': _shownMilestones.toList(),
+            fieldName: _shownMilestones.toList(),
           })
           .eq('id', widget.conversationId!);
-      debugPrint('✅ Milestone saved');
+      debugPrint('✅ Milestone saved to $fieldName');
     } catch (e) {
       debugPrint('❌ Error saving milestone: $e');
     }
@@ -1349,6 +1498,15 @@ Widget _buildMessagesList() {
               ),
             );
           }
+          // If 100% milestone, auto-trigger photo reveal dialog
+          if (milestone == FeelingMilestone.heart) {
+            debugPrint('❤️ 100% milestone - auto-triggering Photo Reveal');
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                _showPhotoReveal();
+              }
+            });
+          }
         },
       ),
     );
@@ -1356,142 +1514,6 @@ Widget _buildMessagesList() {
     debugPrint('🎭 Dialog closed');
   }
 
-  void _showSurpriseUnlockModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: StatefulBuilder(
-            builder: (context, setModalState) {
-              final canContinue = _q1Controller.text.trim().isNotEmpty ||
-                  _q2Controller.text.trim().isNotEmpty ||
-                  _q3Controller.text.trim().isNotEmpty;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppLocalizations.of(context).tr('surprise.modal_title'),
-                    style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF151515)),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppLocalizations.of(context).tr('surprise.modal_subtitle'),
-                    style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 12,
-                        color: Color(0xFF737373)),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('1. ${AppLocalizations.of(context).tr('surprise.q1')}',
-                      style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 13,
-                          color: Color(0xFF151515))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _q1Controller,
-                    onChanged: (_) => setModalState(() {}),
-                    decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: AppLocalizations.of(context)
-                            .tr('surprise.input_placeholder')),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('2. ${AppLocalizations.of(context).tr('surprise.q2')}',
-                      style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 13,
-                          color: Color(0xFF151515))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _q2Controller,
-                    onChanged: (_) => setModalState(() {}),
-                    decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: AppLocalizations.of(context)
-                            .tr('surprise.input_placeholder')),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('3. ${AppLocalizations.of(context).tr('surprise.q3')}',
-                      style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 13,
-                          color: Color(0xFF151515))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _q3Controller,
-                    onChanged: (_) => setModalState(() {}),
-                    decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: AppLocalizations.of(context)
-                            .tr('surprise.input_placeholder')),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: canContinue
-                            ? () async {
-                                // Save intimate questions to database
-                                final userId = Supabase.instance.client.auth.currentUser?.id;
-                                if (userId != null && widget.conversationId != null) {
-                                  try {
-                                    await _db.saveIntimateQuestions(
-                                      conversationId: widget.conversationId!,
-                                      userId: userId,
-                                      question1: _q1Controller.text.trim().isNotEmpty 
-                                          ? _q1Controller.text.trim() 
-                                          : null,
-                                      question2: _q2Controller.text.trim().isNotEmpty 
-                                          ? _q2Controller.text.trim() 
-                                          : null,
-                                      question3: _q3Controller.text.trim().isNotEmpty 
-                                          ? _q3Controller.text.trim() 
-                                          : null,
-                                    );
-                                    debugPrint('✅ Intimate questions saved');
-                                  } catch (e) {
-                                    debugPrint('❌ Error saving intimate questions: $e');
-                                  }
-                                }
-                                
-                                setState(() {
-                                  _surpriseRequired = false;
-                                });
-                                Navigator.pop(context);
-                              }
-                            : null,
-                        child: Text(
-                          AppLocalizations.of(context).tr('surprise.continue'),
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
-                            color: canContinue
-                                ? const Color(0xFF0AC5C5)
-                                : const Color(0xFF737373),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
 
   void _showPhotoReveal() async {
     // Fetch partner's photo
@@ -1515,139 +1537,122 @@ Widget _buildMessagesList() {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Photo Reveal',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF151515),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Photo container
-                Container(
-                  width: 240,
-                  height: 240,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFE3E3E3),
-                    image: partnerPhotoUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(partnerPhotoUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: partnerPhotoUrl == null
-                      ? const Icon(Icons.person,
-                          size: 120, color: Color(0xFF737373))
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'You both reached 100% feeling level!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF737373),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Buttons in Column instead of Row
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isRevealed = false; // Internal state for this dialog session if needed, or better use a local var
+          // Actually, let's use a local variable and update it.
+          
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        final nav = Navigator.of(dialogContext);
-                        final messenger = ScaffoldMessenger.of(dialogContext);
-                        final uid = Supabase.instance.client.auth.currentUser?.id;
-                        if (uid != null) {
-                          await DatabaseService().upsertUserPreferences(
-                            userId: uid,
-                            consentPhotoReveal: true,
-                          );
-                        }
-                        nav.pop();
-                        messenger.showSnackBar(
-                          const SnackBar(content: Text('Reveal consent saved')),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0AC5C5),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Accept Reveal',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
+                    const Text(
+                      'Photo Reveal',
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF151515),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () async {
-                        final nav = Navigator.of(dialogContext);
-                        final messenger = ScaffoldMessenger.of(dialogContext);
-                        nav.pop();
-                        messenger.showSnackBar(
-                          const SnackBar(content: Text('Reveal request sent')),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: Color(0xFF0AC5C5)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 24),
+                    // Photo container
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 240,
+                          height: 240,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFE3E3E3),
+                            image: (partnerPhotoUrl != null && _isPhotoRevealed)
+                                ? DecorationImage(
+                                    image: NetworkImage(partnerPhotoUrl),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: (partnerPhotoUrl == null || !_isPhotoRevealed)
+                              ? const Icon(Icons.person,
+                                  size: 120, color: Color(0xFF737373))
+                              : null,
                         ),
-                      ),
-                      child: const Text(
-                        'Request Reveal',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF0AC5C5),
-                        ),
+                        if (!_isPhotoRevealed)
+                          ClipOval(
+                            child: Container(
+                              width: 240,
+                              height: 240,
+                              color: Colors.black.withValues(alpha: 0.7),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.lock_outline, color: Colors.white, size: 48),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    '100% Feeling!',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      _isPhotoRevealed 
+                        ? 'Here is your match! ✨'
+                        : 'You both reached 100% feeling level! Ready to reveal the mystery?',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF737373),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text(
-                        'Close',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF737373),
-                        ),
+                    const SizedBox(height: 32),
+                    if (!_isPhotoRevealed)
+                      CustomButton(
+                        text: 'Reveal Photo',
+                        onPressed: () async {
+                          setState(() {
+                            _isPhotoRevealed = true;
+                          });
+                          
+                          // Persist revealed state locally
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setBool('is_photo_revealed_${widget.conversationId}', true);
+
+                          // Also save consent/status to database if needed
+                          final uid = Supabase.instance.client.auth.currentUser?.id;
+                          if (uid != null) {
+                            DatabaseService().upsertUserPreferences(
+                              userId: uid,
+                              consentPhotoReveal: true,
+                            );
+                          }
+                          // Re-render dialog
+                          setDialogState(() {});
+                        },
+                      )
+                    else
+                      CustomButton(
+                        text: 'Close',
+                        onPressed: () => Navigator.pop(dialogContext),
                       ),
-                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        }
       ),
     );
   }
@@ -1685,6 +1690,7 @@ Widget _buildMessagesList() {
         debugPrint('  📨 Current user ID: $userId');
         debugPrint('  📨 Is exchange (different sender): $isExchange');
         
+        
         // Send message to database (will appear via realtime subscription)
         await _db.sendMessage(
           conversationId: widget.conversationId!,
@@ -1694,23 +1700,14 @@ Widget _buildMessagesList() {
           mood: _currentMood,
         );
         
-        // Increment feeling ONLY if this was an exchange
-        if (isExchange) {
-          debugPrint('✅ Exchange detected! Incrementing feeling by 5%');
-          debugPrint('   Current feeling: $_feelingPercent');
-          await _feelingController.increment(widget.conversationId!, amount: 5);
-          
-          // Immediately update local state for instant UI feedback
-          final oldPercent = _feelingPercent;
-          setState(() {
-            _feelingPercent = (_feelingPercent + 5).clamp(0, 100);
-          });
-          debugPrint('   Updated feeling: $oldPercent → $_feelingPercent');
-          
-          // Check milestones after increment
-          _checkMilestones();
-        } else {
-          debugPrint('🚫 Consecutive message - no increment');
+        // Database trigger handles feeling increment automatically
+        // Realtime subscription SHOULD update _feelingPercent, but we force a refresh
+        // here to be completely sure the sender sees the update immediately.
+        debugPrint('✅ Message sent. Forcing state refresh...');
+        if (mounted) {
+           Future.delayed(const Duration(milliseconds: 300), () {
+             if (mounted) _loadConversation();
+           });
         }
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
@@ -2153,10 +2150,10 @@ Widget _buildMessagesList() {
                             color: const Color(0xFFF5F5F5),
                             borderRadius: BorderRadius.circular(28),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
-                              'Cancel',
-                              style: TextStyle(
+                              AppLocalizations.of(context).tr('dialogs.cancel'),
+                              style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -2326,8 +2323,7 @@ Widget _buildMessagesList() {
                 duration: duration,
                 mood: _currentMood,
             );
-            // Check if this is an exchange before incrementing feeling
-            _incrementFeelingIfExchange(userId, 'voice', duration: duration);
+            // Database trigger will handle feeling increment automatically
         }
     }
     
@@ -2392,48 +2388,8 @@ Widget _buildMessagesList() {
     _record.dispose();
     _recordingTimer?.cancel();
     _audioPlayer.dispose();
-    _q1Controller.dispose();
-    _q2Controller.dispose();
-    _q3Controller.dispose();
     super.dispose();
   }
-
-  /// Only increment feeling if this is a message exchange (last message was from other user)
-Future<void> _incrementFeelingIfExchange(
-  String currentUserId, 
-  String messageType, 
-  {String? text, int? duration}
-) async {
-  if (widget.conversationId == null) return;
-  
-  try {
-    // Check if there are any messages in this conversation
-    if (_messages.isEmpty) {
-      // First message in conversation - don't increment yet
-      debugPrint('🚫 First message - no increment');
-      return;
-    }
-    
-    // Since messages are now reversed (oldest first), the last message is at the end
-    // Get the most recent message before the one we're about to send
-    final lastMessage = _messages.last;
-    
-    // Check if last message was from the OTHER user
-    if (lastMessage.senderId != currentUserId) {
-      // This is an exchange! Increment feeling by 5%
-      const int exchangePoints = 5;
-      debugPrint('✅ Exchange detected! Last sender: ${lastMessage.senderId}, Current: $currentUserId');
-      debugPrint('   Incrementing feeling by $exchangePoints%');
-      await _feelingController.increment(widget.conversationId!, amount: exchangePoints);
-    } else {
-      // User sent consecutive messages - don't increment
-      debugPrint('🚫 Consecutive message from same user - no increment');
-      debugPrint('   Last sender: ${lastMessage.senderId}, Current: $currentUserId');
-    }
-  } catch (e) {
-    debugPrint('❌ Error checking message exchange: $e');
-  }
-}
 }
 
 // Animated voice wave bar for waveform visualization

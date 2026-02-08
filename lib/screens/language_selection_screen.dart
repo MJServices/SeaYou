@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'home_screen.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
@@ -17,6 +19,37 @@ class LanguageSelectionScreen extends StatefulWidget {
 
 class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   String? selectedLanguage;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Small delay to ensure navigator is ready if needed, 
+    // though initState is usually fine for pushReplacement
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select()
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+        if (profile != null && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        debugPrint('Error checking profile in LanguageSelection: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

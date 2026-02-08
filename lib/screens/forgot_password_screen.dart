@@ -40,9 +40,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                Text(AppLocalizations.of(context).tr('auth.recover_title'), style: AppTextStyles.displayText),
+                Text('Login with OTP', style: AppTextStyles.displayText),
                 const SizedBox(height: 16),
-                Text(AppLocalizations.of(context).tr('auth.recover_description'), style: AppTextStyles.bodyText),
+                Text('Enter your email to receive a verification code', style: AppTextStyles.bodyText),
                 const SizedBox(height: 24),
                 CustomTextField(
                   hintText: AppLocalizations.of(context).tr('auth.email'),
@@ -66,11 +66,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     final ctx = context;
                     setState(() => isLoading = true);
                     try {
-                      // Send OTP for recovery via sign-in OTP (no browser redirect)
-                      await Supabase.instance.client.auth.signInWithOtp(
-                        email: _emailController.text.trim(),
-                        shouldCreateUser: false,
+                      // Call custom send-otp Edge Function using Resend API
+                      final response = await Supabase.instance.client.functions.invoke(
+                        'send-otp',
+                        body: {'email': _emailController.text.trim()},
                       );
+
+                      if (response.status != 200) {
+                        throw Exception(response.data['error'] ?? 'Failed to send OTP');
+                      }
+
                       if (!ctx.mounted) return;
                       Navigator.push(
                         ctx,
@@ -79,7 +84,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             email: _emailController.text.trim(),
                             selectedLanguage: null,
                             isSignIn: true,
-                            isRecovery: true,
+                            isRecovery: false, // OTP login, not password recovery
                           ),
                         ),
                       );

@@ -5,6 +5,7 @@ import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
 import '../../widgets/custom_button.dart';
+import '../../i18n/app_localizations.dart';
 import '../../services/database_service.dart';
 import '../../widgets/voice_player.dart';
 
@@ -61,7 +62,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to load bio';
+          _errorMessage = AppLocalizations.of(context).tr('errors.load_bio_failed');
         });
       }
     }
@@ -268,7 +269,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: _isSaving ? 'Saving...' : 'Save',
+                      text: _isSaving ? 'Saving...' : 'Confirm',
                       isActive: isFormValid,
                       onPressed: isFormValid ? _saveBio : null,
                     ),

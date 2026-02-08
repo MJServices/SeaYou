@@ -11,7 +11,8 @@ import '../widgets/photo_stamp_modal.dart';
 import '../widgets/warm_gradient_background.dart';
 
 class ReceivedBottlesScreen extends StatefulWidget {
-  const ReceivedBottlesScreen({super.key});
+  final ReceivedBottle? initialBottle;
+  const ReceivedBottlesScreen({super.key, this.initialBottle});
 
   @override
   State<ReceivedBottlesScreen> createState() => _ReceivedBottlesScreenState();
@@ -30,7 +31,13 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData().then((_) {
+      if (widget.initialBottle != null) {
+        _db.markBottleAsRead(widget.initialBottle!.id);
+      } else if (_bottles.isNotEmpty) {
+        _db.markBottleAsRead(_bottles[_currentIndex].id);
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -48,7 +55,11 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
 
       if (mounted) {
         setState(() {
-          _bottles = unreplied;
+          if (widget.initialBottle != null) {
+            _bottles = [widget.initialBottle!];
+          } else {
+            _bottles = unreplied;
+          }
           _isLoading = false;
         });
       }
@@ -71,11 +82,20 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
 
     // Handle Reply for different types
     if (bottle.contentType == 'text') {
+      // Immediate Disappearance
+      final bottleId = bottle.id;
+      setState(() {
+        _bottles.removeWhere((b) => b.id == bottleId);
+        if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+          _currentIndex = _bottles.length - 1;
+        }
+      });
+
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SendBottleScreen(
-            replyToBottleId: bottle.id,
+            replyToBottleId: bottleId,
             replyToUserId: bottle.senderId,
           ),
         ),
@@ -87,19 +107,28 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
         builder: (context) => VoiceChatModal(
           isReceived: true,
           audioUrl: bottle.audioUrl,
-          onReply: () async {
-            Navigator.pop(context);
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SendBottleScreen(
-                  replyToBottleId: bottle.id,
-                  replyToUserId: bottle.senderId,
+            onReply: () async {
+              Navigator.pop(context);
+              // Immediate Disappearance: remove from local list before navigating
+              final bottleId = bottle.id;
+              setState(() {
+                _bottles.removeWhere((b) => b.id == bottleId);
+                if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                  _currentIndex = _bottles.length - 1;
+                }
+              });
+
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SendBottleScreen(
+                    replyToBottleId: bottleId,
+                    replyToUserId: bottle.senderId,
+                  ),
                 ),
-              ),
-            );
-            _loadData();
-          },
+              );
+              _loadData(); // Still refresh in background
+            },
         ),
       );
     } else if (bottle.contentType == 'photo') {
@@ -109,19 +138,28 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
           imageUrl: bottle.photoUrl ?? '',
           caption: bottle.caption ?? '',
           isReceived: true,
-          onReply: () async {
-            Navigator.pop(context);
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SendBottleScreen(
-                  replyToBottleId: bottle.id,
-                  replyToUserId: bottle.senderId,
+            onReply: () async {
+              Navigator.pop(context);
+              // Immediate Disappearance
+              final bottleId = bottle.id;
+              setState(() {
+                _bottles.removeWhere((b) => b.id == bottleId);
+                if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                  _currentIndex = _bottles.length - 1;
+                }
+              });
+
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SendBottleScreen(
+                    replyToBottleId: bottleId,
+                    replyToUserId: bottle.senderId,
+                  ),
                 ),
-              ),
-            );
-            _loadData();
-          },
+              );
+              _loadData();
+            },
         ),
       );
     }
@@ -130,12 +168,14 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   void _nextBottle() {
     if (_currentIndex < _bottles.length - 1) {
       setState(() => _currentIndex++);
+      _db.markBottleAsRead(_bottles[_currentIndex].id);
     }
   }
 
   void _prevBottle() {
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
+      _db.markBottleAsRead(_bottles[_currentIndex].id);
     }
   }
 
@@ -194,18 +234,16 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Spacer(flex: 2),
-                    // Bottle Image - Rotated Right & Smaller
-                    Transform.rotate(
-                      angle: 0.15, // Rotate right (positive)
-                      child: Image.asset(
-                        'assets/images/bottle_illustration.png',
-                        width: 160, // Reduced from 240
-                        height: 160,
-                        fit: BoxFit.contain,
-                      ),
+                    // Bottle Image - Home Screen Version
+                    Image.asset(
+                      'assets/images/homepage_bottle.png',
+                      width: 200, 
+                      height: 200,
+                      fit: BoxFit.contain,
                     ),
                     const SizedBox(height: 10),
-                    // Counter
+                    // Counter REMOVED as requested
+                    /*
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: BoxDecoration(
@@ -222,6 +260,7 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                         ),
                       ),
                     ),
+                    */
                     const Spacer(flex: 1),
                     // Message Card
                     _buildMessageCard(bottle, isLocked),
@@ -229,6 +268,7 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                     // Action Button
                     GestureDetector(
                       onTap: () => _handleReply(bottle),
+                      behavior: HitTestBehavior.opaque,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
                         decoration: BoxDecoration(

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user_profile.dart';
+import '../i18n/app_localizations.dart';
+import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'expectations_screen.dart';
-import '../models/user_profile.dart';
-import '../services/auth_service.dart';
-import '../services/database_service.dart';
 
 class SexualOrientationScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -25,7 +28,7 @@ class SexualOrientationScreen extends StatefulWidget {
 
 class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
   final List<String> _selectedOrientations = [];
-  bool _showOnProfile = false;
+  bool _isSaving = false;
 
   final List<String> orientations = [
     'Heterosexual',
@@ -50,7 +53,21 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
         }
       }
     }
-    _showOnProfile = widget.userProfile.showOrientation;
+  }
+
+  Future<void> _checkRedirect() async {
+    if (widget.isEditMode) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final profile = await DatabaseService().getProfile(user.id);
+      if (profile != null && profile['full_name'] != null && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   @override
@@ -77,28 +94,30 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              widget.isEditMode ? 'Edit Sexual Orientation' : 'What is your sexual orientation?',
+                              widget.isEditMode 
+                                  ? AppLocalizations.of(context).tr('onboarding.sexual_orientation.title_edit') 
+                                  : AppLocalizations.of(context).tr('onboarding.sexual_orientation.title'),
                               style: AppTextStyles.displayText,
                             ),
                           ),
                           if (!widget.isEditMode)
                             const Text(
-                              '2/5',
+                              '2/6',
                               style: AppTextStyles.bodyText,
                             ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Select all the options that describe your identity.',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.sexual_orientation.subtitle'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 24),
                       ...orientations
                           .map((orientation) => _buildOption(orientation)),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Sexual orientation not listed here?',
+                      Text(
+                        AppLocalizations.of(context).tr('onboarding.sexual_orientation.not_listed'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 8),
@@ -108,48 +127,12 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: AppColors.grey, width: 0.8),
                         ),
-                        child: const Text(
-                          'Input sexual orientation',
+                        child: Text(
+                          AppLocalizations.of(context).tr('onboarding.sexual_orientation.input_placeholder'),
                           style: AppTextStyles.bodyText,
                         ),
                       ),
                       const SizedBox(height: 24),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _showOnProfile = !_showOnProfile;
-                          });
-                        },
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _showOnProfile
-                                      ? AppColors.primary
-                                      : AppColors.grey,
-                                  width: 1.5,
-                                ),
-                                borderRadius: BorderRadius.circular(1),
-                              ),
-                              child: _showOnProfile
-                                  ? const Icon(
-                                      Icons.check,
-                                      size: 12,
-                                      color: AppColors.primary,
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Show my sexual orientation on profile',
-                              style: AppTextStyles.bodyText,
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -157,33 +140,41 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
-                  text: widget.isEditMode ? 'Save' : 'Next',
+                  text: widget.isEditMode 
+                      ? (_isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm')) 
+                      : AppLocalizations.of(context).tr('common.next'),
                   isActive: _selectedOrientations.isNotEmpty,
                   onPressed: () async {
+                    if (_isSaving) return;
                     widget.userProfile.sexualOrientation = _selectedOrientations;
-                    widget.userProfile.showOrientation = _showOnProfile;
+                    widget.userProfile.showOrientation = true;
                     
                     if (widget.isEditMode) {
+                      setState(() => _isSaving = true);
                       // Update DB
                       try {
                         final user = AuthService().currentUser;
                         if (user != null) {
                           await DatabaseService().updateProfile(user.id, {
                             'sexual_orientation': _selectedOrientations,
-                            'show_orientation': _showOnProfile,
+                            'show_orientation': true,
                           });
                           if (context.mounted) {
                             Navigator.pop(context);
                           }
                         }
                       } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error updating profile: $e')),
-                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() => _isSaving = false);
+                          }
                         }
-                      }
-                    } else {
+                      } else {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -227,7 +218,9 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
           ),
         ),
         child: Text(
-          text,
+          orientations.contains(text) 
+              ? AppLocalizations.of(context).tr('onboarding.sexual_orientation.options.${text.toLowerCase()}') 
+              : text,
           style: AppTextStyles.bodyText.copyWith(
             color: isSelected ? AppColors.darkGrey : AppColors.grey,
           ),

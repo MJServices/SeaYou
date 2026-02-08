@@ -119,15 +119,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        content: Text(AppLocalizations.of(context).tr('dialogs.logout_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: const Text('Confirm Logout', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -226,7 +226,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 32),
                 ],
               ),
@@ -234,6 +233,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildProfileSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          ProfileAvatar(
+            imageUrl: _userProfile?['avatar_url'],
+            radius: 30,
+            isLoading: _isLoading,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(

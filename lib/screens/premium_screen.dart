@@ -47,7 +47,7 @@ class PremiumScreen extends StatelessWidget {
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Column(
                       children: [
                         const SizedBox(height: 5),
@@ -89,16 +89,18 @@ class PremiumScreen extends StatelessWidget {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        'Classique',
-                                        style: const TextStyle(
-                                          fontFamily: 'Montserrat',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF666666),
-                                          height: 1.1,
+                                      Flexible(
+                                        child: Text(
+                                          'Classique',
+                                          style: const TextStyle(
+                                            fontFamily: 'Montserrat',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF666666),
+                                            height: 1.1,
+                                          ),
+                                          textAlign: TextAlign.center,
                                         ),
-                                        textAlign: TextAlign.center,
                                       ),
                                       const SizedBox(height: 12),
                                       _buildFeature(
@@ -136,7 +138,7 @@ class PremiumScreen extends StatelessWidget {
                                 ),
                               ),
                               
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               
                               // Premium
                               Expanded(
@@ -160,17 +162,28 @@ class PremiumScreen extends StatelessWidget {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        'SeaYou PREMIUM',
-                                        style: const TextStyle(
-                                          fontFamily: 'Montserrat',
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                          height: 1.1,
-                                          letterSpacing: 0.5,
-                                        ),
-                                        textAlign: TextAlign.center,
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Text(
+                                            '👑 ',
+                                            style: TextStyle(fontSize: 14),
+                                          ),
+                                          Flexible(
+                                            child: Text(
+                                              'SeaYou PREMIUM',
+                                              style: const TextStyle(
+                                                fontFamily: 'Montserrat',
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.white,
+                                                height: 1.1,
+                                                letterSpacing: 0.5,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 12),
                                       _buildFeature(
@@ -278,6 +291,10 @@ class PremiumScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        
+                        const SizedBox(height: 32),
+                        
+                        const SizedBox(height: 30),
                         
                         const SizedBox(height: 30),
                       ],

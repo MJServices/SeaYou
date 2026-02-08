@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/audio_service.dart';
 import 'services/localization_service.dart';
 import 'i18n/app_localizations.dart';
@@ -14,10 +15,11 @@ final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
 
   await Supabase.initialize(
-    url: 'https://nenugkyvcewatuddrwvf.supabase.co',
-    anonKey: 'sb_publishable_FJpEIk5UxIj73h-qrs99fA_1dlJO0LT',
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
   SystemChrome.setPreferredOrientations([

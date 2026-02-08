@@ -5,13 +5,16 @@ import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'account_setup_done_screen.dart';
+
 import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
 import '../services/tutorial_service.dart';
 
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/face_detection_service.dart';
+import '../services/notification_service.dart';
+import 'home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UploadPictureScreen extends StatefulWidget {
@@ -31,9 +34,20 @@ class UploadPictureScreen extends StatefulWidget {
 class _UploadPictureScreenState extends State<UploadPictureScreen> {
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage;
+  final List<XFile> _galleryPhotos = [];
+  final _faceDetector = FaceDetectionService();
 
   Future<void> _pickImageFromGallery() async {
     try {
+      if (_selectedImage == null) {
+        final t = TutorialService();
+        final seen = await t.hasSeenPhotoTooltip();
+        if (!seen) {
+          await _showPhotoBubble();
+          await t.setSeenPhotoTooltip();
+        }
+      }
+
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1080,
@@ -41,14 +55,35 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         imageQuality: 85,
       );
       if (image != null) {
-        setState(() {
-          _selectedImage = image;
-        });
+        if (_selectedImage == null) {
+          // Check for face in the primary photo
+          setState(() => _isLoading = true);
+          final hasFace = await _faceDetector.hasFace(File(image.path));
+          setState(() => _isLoading = false);
+
+          if (!hasFace) {
+            if (mounted) {
+              _showNoFaceDialog();
+            }
+            return;
+          }
+
+          setState(() {
+            _selectedImage = image;
+          });
+          // Show the explanatory bubble as soon as they pick the first photo
+          _showPhotoBubble();
+        } else if (_galleryPhotos.length < 5) {
+          setState(() {
+            _galleryPhotos.add(image);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
         );
       }
     }
@@ -56,6 +91,15 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
 
   Future<void> _takePhoto() async {
     try {
+      if (_selectedImage == null) {
+        final t = TutorialService();
+        final seen = await t.hasSeenPhotoTooltip();
+        if (!seen) {
+          await _showPhotoBubble();
+          await t.setSeenPhotoTooltip();
+        }
+      }
+
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
         maxWidth: 1080,
@@ -63,14 +107,34 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         imageQuality: 85,
       );
       if (photo != null) {
-        setState(() {
-          _selectedImage = photo;
-        });
+        if (_selectedImage == null) {
+          // Check for face in the primary photo
+          setState(() => _isLoading = true);
+          final hasFace = await _faceDetector.hasFace(File(photo.path));
+          setState(() => _isLoading = false);
+
+          if (!hasFace) {
+            if (mounted) {
+              _showNoFaceDialog();
+            }
+            return;
+          }
+
+          setState(() {
+            _selectedImage = photo;
+          });
+          _showPhotoBubble();
+        } else if (_galleryPhotos.length < 5) {
+          setState(() {
+            _galleryPhotos.add(photo);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error taking photo: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
         );
       }
     }
@@ -85,31 +149,22 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       final t = TutorialService();
       final seen = await t.hasSeenPhotoTooltip();
       if (!seen && mounted) {
+        final tr = AppLocalizations.of(context);
         showDialog(
           context: context,
-          barrierColor: Colors.black.withValues(alpha: 0.5),
+          barrierColor: Colors.black.withOpacity(0.5),
           builder: (context) {
-            final tr = AppLocalizations.of(context);
             return AlertDialog(
-              title: Text(tr.tr('tooltip.photo.title')),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(tr.tr('tooltip.photo.line1')),
-                  const SizedBox(height: 8),
-                  Text(tr.tr('tooltip.photo.line2')),
-                  const SizedBox(height: 8),
-                  Text(tr.tr('tooltip.photo.line3')),
-                ],
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(tr.tr('tooltip.photo.title'), style: AppTextStyles.displayText),
+              content: Text(tr.tr('tooltip.photo.message'), style: AppTextStyles.bodyText),
               actions: [
                 TextButton(
                   onPressed: () async {
                     await t.setSeenPhotoTooltip();
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: Text(tr.tr('tooltip.photo.ok')),
+                  child: Text(tr.tr('tooltip.photo.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -130,81 +185,93 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         if (user != null) {
           final file = File(_selectedImage!.path);
           
-          debugPrint('📸 Uploading photo for user: ${user.id}');
+          debugPrint('📸 Uploading main photo for user: ${user.id}');
           
-          // Just upload to storage - profile creation will handle database insert
-          final String ext = file.path.split('.').last;
-          final String path = '${user.id}/face_${DateTime.now().millisecondsSinceEpoch}.$ext';
+          // Use DatabaseService to upload first face photo
+          final res = await DatabaseService().uploadFirstFacePhotoAndInsert(
+            userId: user.id,
+            imageFile: file,
+          );
           
-          await Supabase.instance.client.storage
-              .from('face_photos')
-              .upload(path, file, fileOptions: const FileOptions(upsert: false));
+          if (res == null) throw Exception('Failed to upload main photo');
+          widget.userProfile.avatarUrl = res['url'];
+
+          // Upload gallery photos if any
+          for (var i = 0; i < _galleryPhotos.length; i++) {
+            debugPrint('📸 Uploading gallery photo ${i + 1}');
+            await DatabaseService().uploadGalleryPhoto(
+              user.id,
+              File(_galleryPhotos[i].path),
+            );
+          }
           
-          final publicUrl = Supabase.instance.client.storage
-              .from('face_photos')
-              .getPublicUrl(path);
-          
-          widget.userProfile.avatarUrl = publicUrl;
-          debugPrint('✅ Photo uploaded successfully: $publicUrl');
+          debugPrint('✅ All photos uploaded successfully');
+
+          // Upload secret audio if it's a local file
+          if (widget.userProfile.secretAudioUrl != null && 
+              !widget.userProfile.secretAudioUrl!.startsWith('http')) {
+            debugPrint('🎤 Uploading secret audio clip...');
+            final audioFile = File(widget.userProfile.secretAudioUrl!);
+            if (await audioFile.exists()) {
+              final audioUrl = await DatabaseService().uploadAudioClip(
+                userId: user.id,
+                audioFile: audioFile,
+              );
+              if (audioUrl != null) {
+                widget.userProfile.secretAudioUrl = audioUrl;
+                debugPrint('✅ Audio uploaded: $audioUrl');
+              }
+            } else {
+              debugPrint('⚠️ Audio file does not exist at path: ${widget.userProfile.secretAudioUrl}');
+            }
+          }
         } else {
           debugPrint('❌ No user logged in');
           throw Exception('No user logged in');
         }
       }
 
-      
-      // Check if this is onboarding or profile update
-      if (widget.isOnboarding) {
-        // Onboarding: proceed to AccountSetupDoneScreen
-        if (mounted) {
-          debugPrint('✅ Navigating to AccountSetupDoneScreen');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AccountSetupDoneScreen(
-                userProfile: widget.userProfile,
-              ),
-            ),
+      if (mounted) {
+        debugPrint('✅ Saving full profile to database...');
+        final userId = AuthService().currentUser?.id;
+        if (userId != null) {
+          await DatabaseService().createProfile(
+            userId: userId,
+            email: widget.userProfile.email ?? '',
+            fullName: widget.userProfile.fullName ?? '',
+            age: widget.userProfile.age ?? 0,
+            city: widget.userProfile.city ?? '',
+            about: widget.userProfile.about ?? '',
+            sexualOrientation: widget.userProfile.sexualOrientation ?? [],
+            showOrientation: widget.userProfile.showOrientation,
+            expectation: widget.userProfile.expectation ?? '',
+            interestedIn: widget.userProfile.interestedIn ?? '',
+            interests: widget.userProfile.interests ?? [],
+            avatarUrl: widget.userProfile.avatarUrl,
+            language: widget.userProfile.language,
+            secretDesire: widget.userProfile.secretDesire,
+            secretQuote: widget.userProfile.secretQuote,
+            secretAudioUrl: widget.userProfile.secretAudioUrl,
+            gender: widget.userProfile.gender,
+            department: widget.userProfile.department,
           );
         }
-      } else {
-        // Profile update: save to database and go back
-        final user = AuthService().currentUser;
-        if (user != null && widget.userProfile.avatarUrl != null) {
-          debugPrint('💾 Updating profile picture in database...');
-          
-          // Upload to database using uploadFirstFacePhotoAndInsert
-          final file = File(_selectedImage!.path);
-          final res = await DatabaseService().uploadFirstFacePhotoAndInsert(
-            userId: user.id,
-            imageFile: file,
-          );
-          
-          if (res != null) {
-            debugPrint('✅ Profile picture updated successfully');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Profile picture updated!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Go back to profile screen
-              Navigator.pop(context);
-            }
-          } else {
-            throw Exception('Failed to update profile picture in database');
-          }
-        }
+
+        debugPrint('✅ Navigating to HomeScreen');
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
       }
     } catch (e) {
       debugPrint('❌ Error in _proceedToNextScreen: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading image: $e'),
-            backgroundColor: Colors.red,
-          ),
+        NotificationService().show(
+          context: context,
+          title: AppLocalizations.of(context).tr('notification.error'),
+          message: AppLocalizations.of(context).tr('notification.upload_failed'),
+          gradientColors: [Colors.red, Colors.redAccent],
         );
       }
     } finally {
@@ -214,6 +281,27 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         });
       }
     }
+  }
+
+  Future<void> _showPhotoBubble() async {
+    final tr = AppLocalizations.of(context);
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(tr.tr('tooltip.photo.title'), style: AppTextStyles.displayText),
+        content: Text(
+          tr.tr('tooltip.photo.message'),
+          style: AppTextStyles.bodyText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr.tr('tooltip.photo.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // Run face verification in background without blocking navigation
@@ -243,6 +331,32 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
     }
   }
 
+  void _showNoFaceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.no_face_title'), style: AppTextStyles.displayText),
+        content: Text(
+          AppLocalizations.of(context).tr('secret_souls.main_photo_warning.no_face_message'),
+          style: AppTextStyles.bodyText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context).tr('common.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _faceDetector.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -253,24 +367,6 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
               const Center(
                 child: CircularProgressIndicator(color: AppColors.white),
               ),
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      blurRadius: 300,
-                    ),
-                  ],
-                ),
-              ),
-            ),
             SafeArea(
               child: Column(
                 children: [
@@ -303,11 +399,11 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                   GestureDetector(
                     onTap: _pickImageFromGallery,
                     child: Container(
-                      width: 300,
-                      height: 300,
+                      width: 200, // Slightly smaller to leave room for gallery
+                      height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.lightPurple,
+                        color: AppColors.lightPurple.withValues(alpha: 0.5), // Softened
                         image: _selectedImage != null
                             ? DecorationImage(
                                 image: FileImage(File(_selectedImage!.path)),
@@ -320,7 +416,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                               child: Text(
                                 'A',
                                 style: AppTextStyles.largeTitle.copyWith(
-                                  fontSize: 80,
+                                  fontSize: 60,
                                   color: AppColors.purple,
                                 ),
                               ),
@@ -328,6 +424,78 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                           : null,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  if (_selectedImage != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Gallery (up to 5)',
+                            style: AppTextStyles.bodyText,
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 60,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _galleryPhotos.length + (_galleryPhotos.length < 5 ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == _galleryPhotos.length) {
+                                  return GestureDetector(
+                                    onTap: _pickImageFromGallery,
+                                    child: Container(
+                                      width: 60,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lightGrey,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(Icons.add, color: AppColors.grey),
+                                    ),
+                                  );
+                                }
+                                return Stack(
+                                  children: [
+                                    Container(
+                                      width: 60,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        image: DecorationImage(
+                                          image: FileImage(File(_galleryPhotos[index].path)),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 0,
+                                      right: 8,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _galleryPhotos.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.close, size: 12, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -348,14 +516,16 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                           Builder(
                             builder: (context) {
                               // Verify all requirements
-                              final hasQuote = widget.userProfile.secretDesire != null && 
+                              final hasQuote = widget.userProfile.secretQuote != null && 
+                                             widget.userProfile.secretQuote!.isNotEmpty;
+                              final hasFantasy = widget.userProfile.secretDesire != null && 
                                              widget.userProfile.secretDesire!.isNotEmpty;
                               final hasAudio = widget.userProfile.secretAudioUrl != null && 
                                              widget.userProfile.secretAudioUrl!.isNotEmpty;
                               
-                              // If onboarding, require all 3. If updating profile, only require image (already checked by _selectedImage != null outer if)
-                              final requirementsMet = !widget.isOnboarding || (hasQuote && hasAudio);
-                              final canProceed = requirementsMet; // _selectedImage is already not null here
+                              // If onboarding, require all 4.
+                              final requirementsMet = !widget.isOnboarding || (hasQuote && hasFantasy && hasAudio);
+                              final canProceed = requirementsMet; 
 
                               return Column(
                                 children: [
@@ -363,20 +533,34 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 8.0),
                                       child: Text(
-                                        'Required: Photo${!hasQuote ? ", Quote" : ""}${!hasAudio ? ", Audio" : ""}',
+                                        'Required: Photo${!hasQuote ? ", Quote" : ""}${!hasFantasy ? ", Fantasy" : ""}${!hasAudio ? ", Audio" : ""}',
                                         style: const TextStyle(color: Colors.red, fontSize: 12),
                                       ),
                                     ),
                                   CustomButton(
-                                    text: widget.isOnboarding ? 'Continue' : 'Save',
+                                    text: widget.isOnboarding ? 'Continue' : 'Confirm',
                                     isActive: canProceed,
                                     onPressed: canProceed ? _proceedToNextScreen : () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Please complete all requirements: Photo, Quote, and Audio message.'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
+                  showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.title')),
+            content: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.message')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _proceedToNextScreen();
+                },
+                child: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.set_main')),
+              ),
+            ],
+          ),
+        );
                                     },
                                   ),
                                 ],

@@ -4,6 +4,8 @@ import '../screens/home_screen.dart';
 import '../screens/chat/chat_list_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/database_service.dart';
+import '../i18n/app_localizations.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BottomNavBar extends StatelessWidget {
   final String activeScreen; // 'home', 'chat', or 'profile'
@@ -51,7 +53,7 @@ class BottomNavBar extends StatelessWidget {
               _buildNavItem(
                 context: context,
                 iconPath: 'assets/icons/home_simple.svg',
-                label: 'Home',
+                label: AppLocalizations.of(context).tr('navigation.home'),
                 isActive: activeScreen == 'home',
                 onTap: () {
                   if (activeScreen != 'home') {
@@ -71,7 +73,7 @@ class BottomNavBar extends StatelessWidget {
                   return _buildNavItem(
                     context: context,
                     iconPath: 'assets/icons/chat_lines.svg',
-                    label: 'Chat',
+                    label: AppLocalizations.of(context).tr('navigation.chat'),
                     isActive: activeScreen == 'chat',
                     hasNotification: hasNotification,
                     onTap: () {
@@ -85,21 +87,29 @@ class BottomNavBar extends StatelessWidget {
                   );
                 }
               ),
-              _buildNavItem(
-                context: context,
-                iconPath: null,
-                label: 'Profile',
-                isActive: activeScreen == 'profile',
-                hasAvatar: true,
-                avatarUrl: userProfile?['avatar_url'],
-                onTap: () {
-                  if (activeScreen != 'profile') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                    );
-                  }
-                },
+              StreamBuilder<Map<String, dynamic>?>(
+                stream: DatabaseService().profileStream(Supabase.instance.client.auth.currentUser?.id ?? ''),
+                builder: (context, snapshot) {
+                  final profile = snapshot.data;
+                  final avatarUrl = profile?['avatar_url'];
+                  
+                  return _buildNavItem(
+                    context: context,
+                    iconPath: null,
+                    label: AppLocalizations.of(context).tr('navigation.profile'),
+                    isActive: activeScreen == 'profile',
+                    hasAvatar: true,
+                    avatarUrl: avatarUrl,
+                    onTap: () {
+                      if (activeScreen != 'profile') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        );
+                      }
+                    },
+                  );
+                }
               ),
             ],
           ),
@@ -133,6 +143,7 @@ class BottomNavBar extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

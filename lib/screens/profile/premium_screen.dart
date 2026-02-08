@@ -17,22 +17,6 @@ class PremiumScreen extends StatelessWidget {
         child: Stack(
           children: [
             // Decorative ellipse background
-            Positioned(
-              left: 0,
-              top: -303,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFFFC700).withValues(alpha: 0.2),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 300, sigmaY: 300),
-                  child: Container(),
-                ),
-              ),
-            ),
 
             // Content
             SafeArea(

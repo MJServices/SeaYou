@@ -10,7 +10,6 @@ class PreviewModal extends StatefulWidget {
   final String? imagePath;
   final String? audioPath;
   final Future<void> Function() onSend;
-  final VoidCallback onSaveDraft;
   final bool isLoading; // Kept for external control if needed
 
   const PreviewModal({
@@ -21,7 +20,6 @@ class PreviewModal extends StatefulWidget {
     this.imagePath,
     this.audioPath,
     required this.onSend,
-    required this.onSaveDraft,
     this.isLoading = false,
   });
 
@@ -261,71 +259,38 @@ class _PreviewModalState extends State<PreviewModal> {
             const SizedBox(height: 24),
 
             // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton(
-                      onPressed: widget.onSaveDraft,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: Color(0xFF0AC5C5),
-                          width: 0.8,
+            SizedBox(
+              height: 48,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _localIsLoading ? null : _handleSend,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0AC5C5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                  disabledBackgroundColor: const Color(0xFF0AC5C5).withValues(alpha: 0.6),
+                ),
+                child: _localIsLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                        backgroundColor: const Color(0xFFECFAFA),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Save as Drafts',
+                      )
+                    : const Text(
+                        'Send',
                         style: TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF0AC5C5),
+                          color: Colors.white,
                         ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: _localIsLoading ? null : _handleSend,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0AC5C5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                        disabledBackgroundColor: const Color(0xFF0AC5C5).withValues(alpha: 0.6),
-                      ),
-                      child: _localIsLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text(
-                              'Send',
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),

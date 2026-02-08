@@ -24,10 +24,28 @@ class BottleMatchingService {
         return null;
       }
 
+      // 1.5. Fetch bottle details for targeting
+      final bottle = await _supabase
+          .from('sent_bottles')
+          .select('target_min_age, target_max_age, target_gender, target_distance_km, target_departments')
+          .eq('id', bottleId)
+          .single();
+
+      final int? minAge = bottle['target_min_age'];
+      final int? maxAge = bottle['target_max_age'];
+      final List<String> targetGender = (bottle['target_gender'] as List?)?.cast<String>() ?? [];
+      final int? maxDistance = bottle['target_distance_km'];
+      final List<String> targetDepartments = (bottle['target_departments'] as List?)?.cast<String>() ?? [];
+
       // 2. Find eligible recipients
       final eligibleUsers = await _getEligibleRecipients(
         senderId: senderId,
         senderProfile: senderProfile,
+        minAge: minAge,
+        maxAge: maxAge,
+        targetGender: targetGender,
+        maxDistance: maxDistance,
+        targetDepartments: targetDepartments,
       );
 
       if (eligibleUsers.isEmpty) {
@@ -76,16 +94,24 @@ class BottleMatchingService {
   Future<List<Map<String, dynamic>>> _getEligibleRecipients({
     required String senderId,
     required Map<String, dynamic> senderProfile,
+    int? minAge,
+    int? maxAge,
+    List<String> targetGender = const [],
+    int? maxDistance,
+    List<String> targetDepartments = const [],
   }) async {
     try {
       final lookingFor = senderProfile['interested_in'] as String? ?? 'everyone';
       final senderOrientation = senderProfile['sexual_orientation'] as List? ?? [];
+      final double? senderLat = senderProfile['lat'];
+      final double? senderLng = senderProfile['lng'];
       
       // Build query for eligible users
       var query = _supabase
           .from('profiles')
           .select('id, full_name, interests, sexual_orientation, expectation, '
-              'interested_in, last_active, bottles_received_today, is_active, receive_bottles')
+              'interested_in, last_active, bottles_received_today, is_active, receive_bottles, '
+              'gender, birth_year, lat, lng, department')
           .neq('id', senderId)
           .eq('is_active', true)
           .eq('receive_bottles', true)
@@ -109,6 +135,56 @@ class BottleMatchingService {
           }
         }
         
+        // Check targeting criteria
+        
+        // 1. Gender Targeting
+        if (targetGender.isNotEmpty) {
+          final userGender = (user['gender'] as String?)?.toLowerCase() ?? 'other';
+          // Map stored genders to DB values if needed, or assume consistency
+          // DB: male, female, nonbinary
+          // Target: Man, Woman, Non-binary
+          bool genderMatch = false;
+          if (targetGender.contains('Man') && (userGender == 'male' || userGender == 'man')) genderMatch = true;
+          if (targetGender.contains('Woman') && (userGender == 'female' || userGender == 'woman')) genderMatch = true;
+          if (targetGender.contains('Non-binary') && (userGender == 'nonbinary' || userGender == 'non-binary')) genderMatch = true;
+          
+          if (!genderMatch) return false;
+        }
+
+        // 1.5. Department Targeting
+        if (targetDepartments.isNotEmpty) {
+           final userDepartment = user['department'] as String?;
+           if (userDepartment == null || !targetDepartments.contains(userDepartment)) {
+             return false;
+           }
+        }
+
+        // 2. Age Targeting
+        if (minAge != null || maxAge != null) {
+          final birthYear = user['birth_year'] as int?;
+          if (birthYear == null) return false; // Skip users without age info if filter is active
+          
+          final currentYear = DateTime.now().year;
+          final age = currentYear - birthYear;
+          
+          if (minAge != null && age < minAge) return false;
+          if (maxAge != null && age > maxAge) return false;
+        }
+
+        // 3. Distance Targeting
+        if (maxDistance != null) {
+          final double? userLat = user['lat'];
+          final double? userLng = user['lng'];
+          
+          if (senderLat == null || senderLng == null || userLat == null || userLng == null) {
+             // If location missing for either, skip or allow? STRICT: skip
+             return false;
+          }
+          
+          final dist = _calculateDistance(senderLat, senderLng, userLat, userLng);
+          if (dist > maxDistance) return false;
+        }
+
         // Check if user's preference matches sender's gender
         if (userInterestedIn != 'everyone') {
           if (userInterestedIn == 'women' && !senderOrientation.contains('Woman')) {
@@ -299,5 +375,14 @@ class BottleMatchingService {
     } catch (e) {
       debugPrint('Error delivering bottle: $e');
     }
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    var p = 0.017453292519943295;
+    var c = cos;
+    var a = 0.5 - c((lat2 - lat1) * p)/2 + 
+          c(lat1 * p) * c(lat2 * p) * 
+          (1 - c((lon2 - lon1) * p))/2;
+    return 12742 * asin(sqrt(a));
   }
 }

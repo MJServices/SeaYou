@@ -48,6 +48,7 @@ class ProfileAvatar extends StatelessWidget {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return Image.network(
         imageUrl!,
+        key: ValueKey(imageUrl), // Force rebuild if URL changes
         fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
