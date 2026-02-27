@@ -62,7 +62,6 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
       }
 
       int? persistedId = conv['naughty_question_id'];
-      
       setState(() {
         _availableQuestions = questions;
         _persistedQuestionId = persistedId;
@@ -140,26 +139,25 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
         answer: _answerController.text.trim(),
       );
 
-      // NEW: Persist in chat history
-      // 1. Send the question (only if not already sent to this chat)
-      final questionText = _selectedQuestion!.questionText;
+      // 1. Send the selected question (only if not already sent to this chat)
+      // We now use a more specific mood to allow for easier translation on the receiver side
+      final mood = 'naughty_question_${_selectedQuestion!.id}';
       
-      // We use a simple check to avoid duplicate question bubbles if both users answer
       final existingMsg = await Supabase.instance.client
           .from('messages')
           .select('id')
           .eq('conversation_id', widget.conversationId)
-          .eq('mood', 'naughty_question') // Use mood instead of type
-          .eq('text', questionText)
+          .eq('mood', mood)
           .maybeSingle();
 
       if (existingMsg == null) {
         await _db.sendMessage(
           conversationId: widget.conversationId,
           senderId: currentUserId,
-          type: 'text', // Standard type to avoid constraint violation
-          mood: 'naughty_question', // Custom mood for UI logic
-          text: questionText,
+          type: 'text',
+          mood: mood,
+          text: _selectedQuestion!.questionText, // Still send English as fallback/storage
+          feelingDelta: 5,
         );
       }
 
@@ -170,6 +168,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
         type: 'text', // Standard type to avoid constraint violation
         mood: 'naughty_answer', // Custom mood for UI logic
         text: _answerController.text.trim(),
+        feelingDelta: 5,
       );
 
       if (mounted) {
@@ -211,11 +210,11 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                       icon: const Icon(Icons.arrow_back, color: Color(0xFF151515)),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Intimate Discoveries',
+                        AppLocalizations.of(context).tr('chat.naughty_question_selection_title'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -237,20 +236,20 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                     children: [
                       const SizedBox(height: 20),
                       if (!_questionDiscovered) ...[
-                        const Text(
-                          'Naughty Question!',
-                          style: TextStyle(
-                            fontFamily: 'PlayfairDisplay', // Elegant serif font
+                        Text(
+                          AppLocalizations.of(context).tr('chat.naughty_question_main_title'),
+                          style: const TextStyle(
+                            fontFamily: 'PlayfairDisplay',
                             fontSize: 32,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFFFF4081), // Softer Pink (PinkAccent)
+                            color: Color(0xFFFF4081),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          'You can only ask one question!\nChoose wisely!',
+                        Text(
+                          AppLocalizations.of(context).tr('chat.naughty_question_subtitle'),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -267,7 +266,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                           children: _availableQuestions.map((q) => Expanded(child: _buildScroll(q))).toList(),
                         )
                         else 
-                        const Text('No questions available in database.'),
+                        Text(AppLocalizations.of(context).tr('chat.naughty_question_no_questions')),
                         const SizedBox(height: 40),
                       ] else ...[
                         const SizedBox(height: 20),
@@ -294,7 +293,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  _selectedQuestion!.category.toUpperCase(),
+                                  AppLocalizations.of(context).tr('chat.naughty_question_category_${_selectedQuestion!.category.toLowerCase()}').toUpperCase(),
                                   style: TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
@@ -305,23 +304,23 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                               ),
                               const SizedBox(height: 20),
                               Text(
-                                _selectedQuestion!.questionText,
+                                AppLocalizations.of(context).tr('surprise.q${_selectedQuestion!.id}'),
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: 'PlayfairDisplay', // Use Serif for question too?
                                   fontSize: 22, // Larger font for question
                                   fontWeight: FontWeight.w600,
                                   fontStyle: FontStyle.italic,
-                                  color: const Color(0xFF151515),
+                                  color: Color(0xFF151515),
                                   height: 1.5,
                                 ),
                               ),
                               const SizedBox(height: 30),
                               const Divider(),
                               const SizedBox(height: 20),
-                              const Text(
-                                'YOUR ANSWER',
-                                style: TextStyle(
+                              Text(
+                                AppLocalizations.of(context).tr('chat.naughty_question_your_answer'),
+                                style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -335,7 +334,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                                 maxLines: 4,
                                 autofocus: _answerController.text.isEmpty,
                                 decoration: InputDecoration(
-                                  hintText: 'Share your thoughts...',
+                                  hintText: AppLocalizations.of(context).tr('chat.naughty_question_hint'),
                                   hintStyle: const TextStyle(color: Color(0xFFAFAFAF)),
                                   fillColor: const Color(0xFFF9F9F9),
                                   filled: true,
@@ -350,7 +349,9 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                         ),
                         const SizedBox(height: 32),
                         CustomButton(
-                          text: _isSubmitting ? 'Submitting...' : 'Submit Answer',
+                          text: _isSubmitting 
+                              ? AppLocalizations.of(context).tr('chat.naughty_question_submitting') 
+                              : AppLocalizations.of(context).tr('chat.naughty_question_submit'),
                           isActive: _answerController.text.trim().isNotEmpty && !_isSubmitting,
                           onPressed: _submitAnswer,
                         ),
@@ -399,7 +400,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            q.label,
+            AppLocalizations.of(context).tr('chat.naughty_question_category_${q.category.toLowerCase()}'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Montserrat',

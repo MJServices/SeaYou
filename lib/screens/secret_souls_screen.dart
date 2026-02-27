@@ -6,6 +6,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../i18n/app_localizations.dart';
 import 'chat/chat_conversation_screen.dart';
 import 'premium_screen.dart';
+import 'purchase_scrolls_screen.dart';
 import '../services/entitlements_service.dart';
 
 class SecretSoulsScreen extends StatefulWidget {
@@ -76,14 +77,17 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     // Get IDs of users we've already replied to
     final repliedPartnerIds = await _db.getRepliedPartnerIds(user.id);
+    debugPrint('🎬 SecretSoulsScreen: Replied Partners count: ${repliedPartnerIds.length}');
     
     final contentType = _selectedFilter == 'all' ? null : _selectedFilter;
     final newContent = await _db.getSecretSoulsContent(
       contentType: contentType,
       page: _page,
     );
+    debugPrint('🎬 SecretSoulsScreen: Fetched from DB: ${newContent.length}');
     
     if (newContent.isEmpty) {
+      debugPrint('🎬 SecretSoulsScreen: DB returned empty, stopping.');
       setState(() => _loading = false);
       return;
     }
@@ -91,10 +95,26 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     // Filter out items from users we've already messaged (Double safety: exclude self)
     final filteredContent = newContent.where((item) {
       final itemUserId = item['user_id'] as String?;
-      return itemUserId != null && itemUserId != user.id && !repliedPartnerIds.contains(itemUserId);
+      final isSelf = itemUserId == user.id;
+      final alreadyMessaged = repliedPartnerIds.contains(itemUserId);
+      
+      if (isSelf) {
+        debugPrint('🎬 SecretSoulsScreen: Skipping self $itemUserId');
+        return false;
+      }
+
+      // TEMPORARY: Allow users already messaged to show up so we can verify the DB content
+      if (alreadyMessaged) {
+          debugPrint('🎬 SecretSoulsScreen: User $itemUserId already messaged, but SHOWING for verification');
+      }
+      
+      return itemUserId != null && !isSelf;
     }).toList();
     
+    debugPrint('🎬 SecretSoulsScreen: Filtered count: ${filteredContent.length}');
+    
     if (filteredContent.isEmpty && newContent.isNotEmpty) {
+      debugPrint('🎬 SecretSoulsScreen: All items filtered, trying recursion level ${recursionCount + 1}');
       // All items in this page were filtered out, try next page
       _page++;
       _loading = false; // Reset to allow next call
@@ -119,6 +139,11 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     });
     
     _loadContent();
+  }
+
+  void _loadMore() {
+     debugPrint('🎬 SecretSoulsScreen: _loadMore triggered');
+     _loadContent();
   }
 
   void _nextContent() {
@@ -192,9 +217,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 children: [
                    const Icon(Icons.auto_awesome, size: 18, color: Color(0xFFD4B483)),
                    const SizedBox(width: 8),
-                   const Text(
-                    'Secret Whisper',
-                    style: TextStyle(
+                   Text(
+                    AppLocalizations.of(context).tr('chamber.secret_whisper'),
+                    style: const TextStyle(
                       fontFamily: 'PlayfairDisplay',
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -235,7 +260,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: 'Type your message...',
+                              hintText: AppLocalizations.of(context).tr('chamber.type_message_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13, 
@@ -294,9 +319,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                                   ),
                                 ],
                               ),
-                              child: const Text(
-                                'Send',
-                                style: TextStyle(
+                              child: Text(
+                                AppLocalizations.of(context).tr('chamber.send'),
+                                style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
@@ -350,6 +375,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         receiverId: content['user_id'] as String,
         contentType: 'text', // Bottle content is text (the reply)
         message: message,
+        replyToContentType: content['content_type'] as String?,
+        replyToContent: _getContentPreview(content),
       );
       
       debugPrint('📬 SECRET SOULS: Bottle ID returned: $bottleId');
@@ -361,8 +388,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Bottle sent! Wait for their reply to chat.'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).tr('chamber.bottle_sent_success')),
               backgroundColor: Color(0xFF4CAF50),
               duration: Duration(seconds: 4),
             ),
@@ -442,18 +469,18 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const PremiumScreen()),
-                    );
-                  },
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PurchaseScrollsScreen()),
+                      );
+                    },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE4C687),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
-                  child: const Text('Discover Premium'),
+                  child: const Text('Obtenir des Parchemins'),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -468,6 +495,22 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         );
       },
     );
+  }
+
+  String? _getContentPreview(Map<String, dynamic> content) {
+    final contentType = content['content_type'] as String?;
+    switch (contentType) {
+      case 'quote':
+        return content['quote_text'] as String?;
+      case 'bio':
+        return content['bio_text'] as String?;
+      case 'audio':
+        return null; // No text preview for audio
+      case 'photo':
+        return null; // No text preview for photo
+      default:
+        return null;
+    }
   }
 
   Widget _buildGate(BuildContext context) {
@@ -723,7 +766,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'No content available',
+                                AppLocalizations.of(context).tr('chamber.no_content'),
                                 style: const TextStyle(
                                   fontFamily: 'PlayfairDisplay',
                                   fontSize: 18,

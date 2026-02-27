@@ -9,9 +9,11 @@ class ChatMessage {
   final String? voicePath; // Local path for recording
   final int? duration; // Duration in seconds for voice
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final bool isRead;
   final bool isMe; // Helper for UI
   final String? mood; // Mood associated with the message
+  final String? replyToId;
 
   ChatMessage({
     required this.id,
@@ -23,9 +25,11 @@ class ChatMessage {
     this.voicePath,
     this.duration,
     required this.createdAt,
+    this.updatedAt,
     this.isRead = false,
     this.isMe = false,
     this.mood,
+    this.replyToId,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json, {String? currentUserId}) {
@@ -39,9 +43,11 @@ class ChatMessage {
       voicePath: json['voice_path'] as String?,
       duration: json['duration'] as int?,
       createdAt: DateTime.parse(json['created_at'] as String).toUtc(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String).toUtc() : null,
       isRead: json['is_read'] as bool? ?? false,
       isMe: currentUserId != null && json['sender_id'] == currentUserId,
       mood: json['mood'] as String?,
+      replyToId: json['reply_to_id'] as String?,
     );
   }
 
@@ -56,8 +62,10 @@ class ChatMessage {
       'voice_path': voicePath,
       'duration': duration,
       'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
       'is_read': isRead,
       'mood': mood,
+      'reply_to_id': replyToId,
     };
   }
 }

@@ -77,7 +77,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
-                  text: 'Continue',
+                  text: AppLocalizations.of(context).tr('common.continue'),
                   isActive: selectedLanguage != null,
                   onPressed: () async {
                     if (selectedLanguage != null) {

@@ -1,20 +1,27 @@
+import 'package:flutter/material.dart';
+import '../i18n/app_localizations.dart';
+
 enum FeelingMilestone {
-  feather(25, '🪶', 'Quote Unlocked!', 'See what your match shared about themselves'),
-  music(50, '🎵', 'Voice Message Unlocked!', 'Listen to your match\'s secret audio'),
-  gift(75, '🎁', 'Intimate Question Unlocked!', 'Answer a naughty question together'),
-  heart(100, '❤️', 'Photo Reveal Available!', 'Ready to see who you\'ve been chatting with?');
+  feather(25, '🖋️'),
+  music(50, '🎙️'),
+  gift(75, '🎁'),
+  heart(100, '❤️');
 
   final int percentage;
   final String icon;
-  final String title;
-  final String description;
 
   const FeelingMilestone(
     this.percentage,
     this.icon,
-    this.title,
-    this.description,
   );
+
+  String getTitle(BuildContext context) {
+    return AppLocalizations.of(context).tr('chat.milestone_title_$percentage');
+  }
+
+  String getDescription(BuildContext context) {
+    return AppLocalizations.of(context).tr('chat.milestone_desc_$percentage');
+  }
 
   static FeelingMilestone? fromPercentage(int percent) {
     if (percent >= 100) return heart;

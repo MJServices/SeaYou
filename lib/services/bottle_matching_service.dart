@@ -27,14 +27,13 @@ class BottleMatchingService {
       // 1.5. Fetch bottle details for targeting
       final bottle = await _supabase
           .from('sent_bottles')
-          .select('target_min_age, target_max_age, target_gender, target_distance_km, target_departments')
+          .select('target_min_age, target_max_age, target_gender, target_departments')
           .eq('id', bottleId)
           .single();
 
       final int? minAge = bottle['target_min_age'];
       final int? maxAge = bottle['target_max_age'];
       final List<String> targetGender = (bottle['target_gender'] as List?)?.cast<String>() ?? [];
-      final int? maxDistance = bottle['target_distance_km'];
       final List<String> targetDepartments = (bottle['target_departments'] as List?)?.cast<String>() ?? [];
 
       // 2. Find eligible recipients
@@ -44,7 +43,6 @@ class BottleMatchingService {
         minAge: minAge,
         maxAge: maxAge,
         targetGender: targetGender,
-        maxDistance: maxDistance,
         targetDepartments: targetDepartments,
       );
 
@@ -97,14 +95,13 @@ class BottleMatchingService {
     int? minAge,
     int? maxAge,
     List<String> targetGender = const [],
-    int? maxDistance,
     List<String> targetDepartments = const [],
   }) async {
     try {
       final lookingFor = senderProfile['interested_in'] as String? ?? 'everyone';
       final senderOrientation = senderProfile['sexual_orientation'] as List? ?? [];
-      final double? senderLat = senderProfile['lat'];
-      final double? senderLng = senderProfile['lng'];
+      
+      debugPrint('📊 MATCHING: Sender interested_in=$lookingFor, orientation=$senderOrientation');
       
       // Build query for eligible users
       var query = _supabase
@@ -116,87 +113,103 @@ class BottleMatchingService {
           .eq('is_active', true)
           .eq('receive_bottles', true)
           .lt('bottles_received_today', 5) // Fair distribution limit
-          .gte('last_active', DateTime.now().subtract(const Duration(days: 7)).toIso8601String());
+          .gte('last_active', DateTime.now().subtract(const Duration(days: 30)).toIso8601String()); // Widened to 30 days
 
       final results = await query as List<dynamic>;
+      debugPrint('📊 MATCHING: Query returned ${results.length} active users');
       
-      // Filter by gender preferences (client-side filtering for complex logic)
+      // Filter by targeting criteria (Strict UI Filters)
       final filtered = results.where((user) {
-        final userOrientation = user['sexual_orientation'] as List? ?? [];
-        final userInterestedIn = user['interested_in'] as String? ?? 'everyone';
+        final String userName = user['full_name'] ?? 'Unknown';
         
-        // Check if sender's preference matches user's gender
-        if (lookingFor != 'everyone') {
-          if (lookingFor == 'women' && !userOrientation.contains('Woman')) {
-            return false;
-          }
-          if (lookingFor == 'men' && !userOrientation.contains('Man')) {
-            return false;
-          }
-        }
+        debugPrint('  🔍 Checking user: $userName (${user['id']})');
         
-        // Check targeting criteria
-        
-        // 1. Gender Targeting
-        if (targetGender.isNotEmpty) {
-          final userGender = (user['gender'] as String?)?.toLowerCase() ?? 'other';
-          // Map stored genders to DB values if needed, or assume consistency
-          // DB: male, female, nonbinary
-          // Target: Man, Woman, Non-binary
-          bool genderMatch = false;
-          if (targetGender.contains('Man') && (userGender == 'male' || userGender == 'man')) genderMatch = true;
-          if (targetGender.contains('Woman') && (userGender == 'female' || userGender == 'woman')) genderMatch = true;
-          if (targetGender.contains('Non-binary') && (userGender == 'nonbinary' || userGender == 'non-binary')) genderMatch = true;
+        // 1. Gender Targeting (Strict)
+        // If targetGender is empty, we apply a smart default based on sender's orientation
+        List<String> effectiveTargetGender = List.from(targetGender);
+        if (effectiveTargetGender.isEmpty) {
+          final senderGender = (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
+          final lookingFor = (senderProfile['interested_in'] as String? ?? 'everyone').toLowerCase();
           
-          if (!genderMatch) return false;
+          if (lookingFor == 'men') {
+            effectiveTargetGender = ['Man'];
+          } else if (lookingFor == 'women') {
+            effectiveTargetGender = ['Woman'];
+          } else if (lookingFor == 'everyone') {
+             // If looking for everyone, we check orientation for a "smarter" default if possible
+             if (senderGender == 'male' || senderGender == 'man') {
+               effectiveTargetGender = ['Woman']; // Default hetero-leaning for men
+             } else if (senderGender == 'female' || senderGender == 'woman' || senderGender == 'femme') {
+               effectiveTargetGender = ['Man']; // Default hetero-leaning for women
+             }
+          }
+          debugPrint('    💡 SMART DEFAULT: effectiveTargetGender=$effectiveTargetGender (targetGender was empty)');
         }
 
-        // 1.5. Department Targeting
-        if (targetDepartments.isNotEmpty) {
-           final userDepartment = user['department'] as String?;
-           if (userDepartment == null || !targetDepartments.contains(userDepartment)) {
-             return false;
-           }
+        if (effectiveTargetGender.isNotEmpty) {
+          final userGender = (user['gender'] as String?)?.toLowerCase() ?? 'other';
+          bool genderMatch = false;
+          // Exact matches for targeting
+          if (effectiveTargetGender.contains('Man') && (userGender == 'male' || userGender == 'man')) genderMatch = true;
+          if (effectiveTargetGender.contains('Woman') && (userGender == 'female' || userGender == 'woman' || userGender == 'femme')) genderMatch = true;
+          if (effectiveTargetGender.contains('Non-binary') && (userGender == 'nonbinary' || userGender == 'non-binary')) genderMatch = true;
+          
+          if (!genderMatch) {
+            debugPrint('    ❌ Rejected: Gender mismatch (Target: $effectiveTargetGender, User: $userGender)');
+            return false;
+          }
         }
 
-        // 2. Age Targeting
+        // 2. Age Targeting (Strict)
         if (minAge != null || maxAge != null) {
           final birthYear = user['birth_year'] as int?;
-          if (birthYear == null) return false; // Skip users without age info if filter is active
+          if (birthYear == null) {
+            debugPrint('    ❌ Rejected: Age filter active but user has no birth_year');
+            return false;
+          }
           
           final currentYear = DateTime.now().year;
           final age = currentYear - birthYear;
           
-          if (minAge != null && age < minAge) return false;
-          if (maxAge != null && age > maxAge) return false;
+          if (minAge != null && age < minAge) {
+            debugPrint('    ❌ Rejected: Age $age too young (min $minAge)');
+            return false;
+          }
+          if (maxAge != null && age > maxAge) {
+            debugPrint('    ❌ Rejected: Age $age too old (max $maxAge)');
+            return false;
+          }
         }
 
-        // 3. Distance Targeting
-        if (maxDistance != null) {
-          final double? userLat = user['lat'];
-          final double? userLng = user['lng'];
-          
-          if (senderLat == null || senderLng == null || userLat == null || userLng == null) {
-             // If location missing for either, skip or allow? STRICT: skip
+        // 3. Department Targeting (Strict, but empty = All)
+        if (targetDepartments.isNotEmpty) {
+           final userDepartment = user['department'] as String?;
+           if (userDepartment == null || !targetDepartments.contains(userDepartment)) {
+             debugPrint('    ❌ Rejected: Department mismatch ($userDepartment)');
              return false;
-          }
-          
-          final dist = _calculateDistance(senderLat, senderLng, userLat, userLng);
-          if (dist > maxDistance) return false;
+           }
         }
 
-        // Check if user's preference matches sender's gender
+        // 4. Relaxed Mutual Interest (Last priority, doesn't block if matching UI criteria)
+        // We only check if there's a HARD conflict (e.g. sender is a man, but user ONLY wants women)
+        // If user is "interested in everyone", it's always a pass.
+        final userInterestedIn = (user['interested_in'] as String? ?? 'everyone').toLowerCase();
         if (userInterestedIn != 'everyone') {
-          if (userInterestedIn == 'women' && !senderOrientation.contains('Woman')) {
-            return false;
-          }
-          if (userInterestedIn == 'men' && !senderOrientation.contains('Man')) {
-            return false;
+          final senderGender = (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
+          
+          if (userInterestedIn == 'women' && senderGender != 'woman' && senderGender != 'female') {
+            debugPrint('    ⚠️ Note: $userName prefers women, but sender is $senderGender. Match still possible.');
+            // We allow this unless we have BETTER matches, handled by scoring
+          } else if (userInterestedIn == 'men' && senderGender != 'man' && senderGender != 'male') {
+            debugPrint('    ⚠️ Note: $userName prefers men, but sender is $senderGender. Match still possible.');
           }
         }
         
+        debugPrint('    ✅ PASS: $userName matches targeting criteria');
         return true;
       }).toList();
+
+      debugPrint('📊 MATCHING: After filters, ${filtered.length} eligible users');
 
       // Check for blocks
       final filteredWithoutBlocks = await _filterBlockedUsers(senderId, filtered);
@@ -375,14 +388,5 @@ class BottleMatchingService {
     } catch (e) {
       debugPrint('Error delivering bottle: $e');
     }
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    var p = 0.017453292519943295;
-    var c = cos;
-    var a = 0.5 - c((lat2 - lat1) * p)/2 + 
-          c(lat1 * p) * c(lat2 * p) * 
-          (1 - c((lon2 - lon1) * p))/2;
-    return 12742 * asin(sqrt(a));
   }
 }

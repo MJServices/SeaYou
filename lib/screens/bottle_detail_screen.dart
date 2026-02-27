@@ -15,6 +15,8 @@ class BottleDetailScreen extends StatefulWidget {
   final String? bottleId;
   final String? senderId;
   final bool isReplied;
+  final int? senderAge;
+  final String? senderDepartment;
 
   const BottleDetailScreen({
     super.key,
@@ -25,6 +27,8 @@ class BottleDetailScreen extends StatefulWidget {
     this.bottleId,
     this.senderId,
     this.isReplied = false,
+    this.senderAge,
+    this.senderDepartment,
   });
 
   @override
@@ -123,16 +127,33 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Hey $name',
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF151515),
+                                    'Hey $name',
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF151515),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            );
+                                  if (isReceived && (widget.senderAge != null || widget.senderDepartment != null)) ...[
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      '•',
+                                      style: TextStyle(color: Color(0xFF737373)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${widget.senderAge ?? ""} ${widget.senderDepartment != null ? "• ${widget.senderDepartment}" : ""}'.trim(),
+                                      style: const TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: Color(0xFF737373),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
                           },
                         ),
                       ],
@@ -141,14 +162,22 @@ class _BottleDetailScreenState extends State<BottleDetailScreen> {
 
                   const Spacer(),
 
-                  // Hero image
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 21),
-                    child: Image.asset(
-                      'assets/images/homepage_bottle.png',
-                      width: 360,
-                      height: 460,
-                      fit: BoxFit.contain,
+                  // Hero image - ROUND ICON STYLE
+                  Center(
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/homepage_bottle.png',
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
 

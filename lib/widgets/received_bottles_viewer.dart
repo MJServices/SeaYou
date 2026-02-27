@@ -233,6 +233,8 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             bottleId: currentBottle.id,
             senderId: currentBottle.senderId,
             isReplied: currentBottle.isReplied,
+            senderAge: currentBottle.senderAge,
+            senderDepartment: currentBottle.senderDepartment,
           )
         else if (type == 'voice')
           VoiceChatModal(
@@ -246,6 +248,8 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               return currentBottle.audioUrl;
             }(),
             duration: '00:00:21', // TODO: Calculate from audio file
+            senderAge: currentBottle.senderAge,
+            senderDepartment: currentBottle.senderDepartment,
             onReply: () async {
               Navigator.pop(context); // Close modal
               // Immediate Disappearance
@@ -274,6 +278,8 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
             imageUrl: currentBottle.photoUrl ?? '',
             caption: currentBottle.caption ?? '',
             isReceived: true,
+            senderAge: currentBottle.senderAge,
+            senderDepartment: currentBottle.senderDepartment,
             onReply: () async {
               Navigator.pop(context); // Close modal
               // Immediate Disappearance

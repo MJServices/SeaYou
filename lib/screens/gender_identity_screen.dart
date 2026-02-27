@@ -66,7 +66,7 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                             ),
                           ),
                           const Text(
-                            '1/5',
+                            '2/6',
                             style: AppTextStyles.bodyText,
                           ),
                         ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/warm_gradient_background.dart';
 import 'chat_conversation_screen.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Archived Chats Screen - Fully functional
 class ArchivedChatsScreen extends StatefulWidget {
@@ -40,13 +41,15 @@ class _ArchivedChatsScreenState extends State<ArchivedChatsScreen> {
                 size: 24, color: Color(0xFF151515)),
           ),
           const SizedBox(width: 16),
-          const Text(
-            'Archived',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF151515),
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context).tr('chat.archived_title'),
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF151515),
+              ),
             ),
           ),
         ],
@@ -204,10 +207,10 @@ class _ArchivedChatsScreenState extends State<ArchivedChatsScreen> {
             fit: BoxFit.contain,
           ),
           const SizedBox(height: 24),
-          const Text(
-            'No archived conversations yet',
+          Text(
+            AppLocalizations.of(context).tr('chat.empty_no_archived'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
               fontWeight: FontWeight.w500,

@@ -7,15 +7,19 @@ import 'home_screen.dart';
 import 'chat/chat_screen.dart';
 import 'door_of_desires_screen.dart';
 import 'profile/edit_bio_screen.dart';
+import 'profile/edit_fantasy_screen.dart';
 import 'profile/edit_quote_screen.dart';
 import 'profile/edit_voice_message_screen.dart';
 import 'profile/help_center_screen.dart';
 import 'profile/change_password_screen.dart';
+import 'profile/terms_of_service_screen.dart';
+import 'profile/privacy_policy_screen.dart';
 import 'premium_screen.dart';
 import 'sexual_orientation_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/rate_seayou_modal.dart';
 import '../widgets/sign_out_modal.dart';
+import '../widgets/delete_account_modal.dart';
 
 import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
@@ -46,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'User';
   List<String> _sexualOrientations = [];
   List<String> _interests = [];
+  bool _isPremium = false;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
 
   @override
@@ -65,6 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _avatarUrl = profile['avatar_url'];
           _userName = profile['full_name'] ?? 'User';
           _gender = profile['gender'];
+          _isPremium = profile['is_premium'] as bool? ?? false;
           
           if (profile['sexual_orientation'] != null) {
             _sexualOrientations = List<String>.from(profile['sexual_orientation']);
@@ -96,6 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _avatarUrl = profile['avatar_url'];
           _userName = profile['full_name'] ?? 'User';
           _gender = profile['gender'];
+          _isPremium = profile['is_premium'] as bool? ?? false;
           
           if (profile['sexual_orientation'] != null) {
             _sexualOrientations = List<String>.from(profile['sexual_orientation']);
@@ -234,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 32),
 
                     // Upgrade to Pro Section
-                    if (!(_gender?.toLowerCase() == 'woman' || _gender?.toLowerCase() == 'female'))
+                    if (!_isPremium && !(_gender?.toLowerCase() == 'woman' || _gender?.toLowerCase() == 'female'))
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: GestureDetector(
@@ -357,6 +364,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           const SizedBox(height: 16),
 
+                          // Edit my fantasy
+                          _buildSectionItem(
+                            title: AppLocalizations.of(context).tr('profile.edit_fantasy'),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EditFantasyScreen(),
+                                ),
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
                           // Edit my quote
                           _buildSectionItem(
                             title: AppLocalizations.of(context).tr('profile.edit_quote'),
@@ -456,9 +478,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Support',
-                            style: TextStyle(
+                          Text(
+                            AppLocalizations.of(context).tr('profile.support_section'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
@@ -467,7 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           _buildSectionItem(
-                            title: 'Help center',
+                            title: AppLocalizations.of(context).tr('profile.help_center'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -490,9 +512,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'About',
-                            style: TextStyle(
+                          Text(
+                            AppLocalizations.of(context).tr('profile.about_section'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
@@ -501,7 +523,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           _buildSectionItem(
-                            title: 'Rate SeaYou',
+                            title: AppLocalizations.of(context).tr('profile.rate_seayou'),
                             onTap: () {
                               showDialog(
                                 context: context,
@@ -513,23 +535,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           _buildSectionItem(
-                            title: 'Understand how SeaYou works',
+                            title: AppLocalizations.of(context).tr('profile.understand_seayou'),
                             onTap: () {
                               TutorialModal.show(context);
                             },
                           ),
                           const SizedBox(height: 12),
                           _buildSectionItem(
-                            title: 'Terms of Service',
+                            title: AppLocalizations.of(context).tr('legal.terms_title'),
                             onTap: () {
-                              // Navigate to Terms of Service
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const TermsOfServiceScreen(),
+                                ),
+                              );
                             },
                           ),
                           const SizedBox(height: 12),
                           _buildSectionItem(
-                            title: 'Privacy Policy',
+                            title: AppLocalizations.of(context).tr('legal.privacy_policy_title'),
                             onTap: () {
-                              // Navigate to Privacy Policy
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PrivacyPolicyScreen(),
+                                ),
+                              );
                             },
                           ),
                         ],
@@ -543,8 +575,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
+                          if (_isPremium) ...[
+                            const SizedBox(height: 12),
+                            _buildSectionItem(
+                              title: AppLocalizations.of(context).tr('profile.manage_subscription'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const PremiumScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                           _buildActionButton(
-                            title: 'Sign Out',
+                            title: AppLocalizations.of(context).tr('profile.sign_out'),
                             color: const Color(0xFF737373),
                             onTap: () {
                               showDialog(
@@ -552,6 +598,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 barrierColor:
                                     Colors.black.withValues(alpha: 0.5),
                                 builder: (context) => const SignOutModal(),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _buildActionButton(
+                            title: AppLocalizations.of(context).tr('profile.delete_account'),
+                            color: const Color(0xFFFB3748), // Warning Red
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                barrierColor:
+                                    Colors.black.withValues(alpha: 0.5),
+                                builder: (context) => const DeleteAccountModal(),
                               );
                             },
                           ),
@@ -591,15 +650,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF363636),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF363636),
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             const Icon(
               Icons.chevron_right,
               color: Color(0xFF737373),
@@ -622,15 +684,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF737373),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF737373),
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: onEdit,
               behavior: HitTestBehavior.opaque,
@@ -677,15 +742,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Interest',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF737373),
+            Expanded(
+              child: Text(
+                AppLocalizations.of(context).tr('profile.interests_section'),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF737373),
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: onEdit,
               child: Container(
@@ -716,7 +784,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(40),
               ),
               child: Text(
-                interest,
+                _translateInterest(context, interest),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
@@ -729,6 +797,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  String _translateInterest(BuildContext context, String interest) {
+    final slug = interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_').replaceAll('/', '_').replaceAll('&', '_');
+    return AppLocalizations.of(context).tr('onboarding.interests.options.$slug');
   }
 
   Widget _buildActionButton({

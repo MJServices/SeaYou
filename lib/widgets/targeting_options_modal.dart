@@ -8,15 +8,13 @@ import '../utils/french_departments.dart';
 class TargetingOptionsModal extends StatefulWidget {
   final RangeValues currentAgeRange;
   final List<String> currentGenders;
-  final double currentDistance;
   final List<String> currentDepartments;
-  final Function(RangeValues ageRange, List<String> genders, double distance, List<String> departments) onApply;
+  final Function(RangeValues ageRange, List<String> genders, List<String> departments) onApply;
 
   const TargetingOptionsModal({
     super.key,
     required this.currentAgeRange,
     required this.currentGenders,
-    required this.currentDistance,
     required this.currentDepartments,
     required this.onApply,
   });
@@ -28,7 +26,6 @@ class TargetingOptionsModal extends StatefulWidget {
 class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
   late RangeValues _ageRange;
   late List<String> _selectedGenders;
-  late double _distance;
   late List<String> _selectedDepartments;
   bool _isPremium = false;
   bool _isLoading = true;
@@ -38,7 +35,6 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
     super.initState();
     _ageRange = widget.currentAgeRange;
     _selectedGenders = List.from(widget.currentGenders);
-    _distance = widget.currentDistance;
     _selectedDepartments = List.from(widget.currentDepartments);
     _checkPremium();
   }
@@ -51,9 +47,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
         setState(() {
           _isPremium = isPremium;
           _isLoading = false;
-          // Force 150km if not premium
+          // Force all France reset if not premium
           if (!_isPremium) {
-            _distance = 150;
             _selectedDepartments = []; // Reset to full country if not premium
           }
         });
@@ -99,9 +94,9 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
           const SizedBox(height: 24),
           
           // Title
-          const Text(
-            'Targeting Criteria',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('targeting.title'),
+            style: const TextStyle(
               fontFamily: 'PlayfairDisplay',
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -112,7 +107,10 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
 
           // Age Range
           Text(
-            'Age Range: ${_ageRange.start.round()} - ${_ageRange.end.round()}',
+            AppLocalizations.of(context).tr('targeting.age_range', params: {
+              'min': _ageRange.start.round().toString(),
+              'max': _ageRange.end.round().toString(),
+            }),
             style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
@@ -137,9 +135,9 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
           const SizedBox(height: 24),
 
           // Gender
-          const Text(
-            'Gender (Select multiple)',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('targeting.gender_label'),
+            style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -149,10 +147,14 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
-            children: ['Man', 'Woman', 'Non-binary'].map((gender) {
+            children: [
+              'Man',
+              'Woman',
+              'Non-binary',
+            ].map((gender) {
               final isSelected = _selectedGenders.contains(gender);
               return FilterChip(
-                label: Text(gender),
+                label: Text(AppLocalizations.of(context).tr('targeting.gender_${gender.toLowerCase().replaceAll('-', '')}')),
                 selected: isSelected,
                 onSelected: (selected) {
                   setState(() {
@@ -188,9 +190,9 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Target Departments',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tr('targeting.departments_label'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -212,14 +214,14 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: const Color(0xFFFFC107)),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                         Icon(Icons.lock, size: 12, color: Color(0xFFA07800)),
-                         SizedBox(width: 4),
+                         const Icon(Icons.lock, size: 12, color: Color(0xFFA07800)),
+                         const SizedBox(width: 4),
                          Text(
-                          'Premium',
-                          style: TextStyle(
+                          AppLocalizations.of(context).tr('common.premium'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat', 
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
@@ -252,10 +254,10 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                         Expanded(
                           child: Text(
                             _selectedDepartments.isEmpty 
-                                ? 'Select Departments' 
+                                ? AppLocalizations.of(context).tr('targeting.select_departments')
                                 : _selectedDepartments.length == frenchDepartments.length
-                                    ? 'All France'
-                                    : '${_selectedDepartments.length} Departments Selected',
+                                    ? AppLocalizations.of(context).tr('targeting.all_france')
+                                    : AppLocalizations.of(context).tr('targeting.departments_selected', params: {'count': _selectedDepartments.length.toString()}),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
@@ -290,13 +292,13 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                 color: const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.public, color: Color(0xFF0AC5C5), size: 20),
-                  SizedBox(width: 12),
+                  const Icon(Icons.public, color: Color(0xFF0AC5C5), size: 20),
+                  const SizedBox(width: 12),
                   Text(
-                    'All France (Random)',
-                    style: TextStyle(
+                    AppLocalizations.of(context).tr('targeting.all_france_random'),
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
                       color: Color(0xFF5D5D5D),
@@ -313,7 +315,7 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                widget.onApply(_ageRange, _selectedGenders, _distance, _selectedDepartments);
+                widget.onApply(_ageRange, _selectedGenders, _selectedDepartments);
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
@@ -324,9 +326,9 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                 ),
                 elevation: 0,
               ),
-              child: const Text(
-                'Apply Criteria',
-                style: TextStyle(
+              child: Text(
+                AppLocalizations.of(context).tr('targeting.apply_criteria'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -387,9 +389,9 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Select Departments',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('targeting.select_departments'),
+                  style: const TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -406,7 +408,9 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
                      });
                   },
                   child: Text(
-                    _tempSelected.length == frenchDepartments.length ? 'Clear All' : 'Select All',
+                    _tempSelected.length == frenchDepartments.length 
+                        ? AppLocalizations.of(context).tr('common.clear_all') 
+                        : AppLocalizations.of(context).tr('common.select_all'),
                     style: const TextStyle(color: Color(0xFF0AC5C5)),
                   ),
                 ),
@@ -446,7 +450,7 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: Text(AppLocalizations.of(context).tr('common.cancel'), style: const TextStyle(color: Colors.grey)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
@@ -455,7 +459,7 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
                     backgroundColor: const Color(0xFF0AC5C5),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
-                  child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+                  child: Text(AppLocalizations.of(context).tr('common.confirm'), style: const TextStyle(color: Colors.white)),
                 ),
               ],
             ),

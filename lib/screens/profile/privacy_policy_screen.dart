@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui';
+import '../../i18n/app_localizations.dart';
 
 /// Privacy Policy Screen
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -38,9 +39,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Text(
-                          'Privacy Policy',
-                          style: TextStyle(
+                        Text(
+                          AppLocalizations.of(context).tr('legal.privacy_policy_title'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -55,9 +56,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
-                      child: const Text(
-                        'Privacy Policy content will be displayed here.\n\nThis page will contain information about how SeaYou collects, uses, and protects user data.',
-                        style: TextStyle(
+                      child: Text(
+                        AppLocalizations.of(context).tr('legal.privacy_policy_content'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 14,
                           fontWeight: FontWeight.w400,

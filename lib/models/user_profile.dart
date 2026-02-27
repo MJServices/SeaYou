@@ -16,7 +16,9 @@ class UserProfile {
   String? secretAudioUrl;
   String? gender; // Gender identity: Man, Woman, Non-binary
   String? department; // e.g. "75 - Paris"
+  int? birthYear; // Year of birth calculated from age
   bool isPremium;
+  int scrollsCount;
   
   // Usage tracking
   int bottlesSentToday;
@@ -42,7 +44,9 @@ class UserProfile {
     this.secretAudioUrl,
     this.gender,
     this.department,
+    this.birthYear,
     this.isPremium = false,
+    this.scrollsCount = 0,
     this.bottlesSentToday = 0,
     this.lastBottleSentDate,
     this.messagesSentWeek = 0,
@@ -68,7 +72,9 @@ class UserProfile {
       'secret_audio_url': secretAudioUrl,
       'gender': gender,
       'department': department,
+      'birth_year': birthYear,
       'is_premium': isPremium,
+      'scrolls_count': scrollsCount,
       'bottles_sent_today': bottlesSentToday,
       'last_bottle_sent_date': lastBottleSentDate?.toIso8601String(),
       'messages_sent_week': messagesSentWeek,

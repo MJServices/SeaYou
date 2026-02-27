@@ -234,12 +234,21 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Spacer(flex: 2),
-                    // Bottle Image - Home Screen Version
-                    Image.asset(
-                      'assets/images/homepage_bottle.png',
-                      width: 200, 
-                      height: 200,
-                      fit: BoxFit.contain,
+                    // Bottle Image - Circular Version
+                    Container(
+                      width: 160,
+                      height: 160,
+                      decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/homepage_bottle.png',
+                        width: 140,
+                        height: 140,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                     ),
                     const SizedBox(height: 10),
                     // Counter REMOVED as requested
@@ -315,6 +324,28 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   }
 
   Widget _buildMessageCard(ReceivedBottle bottle, bool isLocked) {
+    // Format sender info like Secret Souls: "FirstName, Age - City (DeptNum)"
+    String senderInfo = bottle.senderNickname ?? 'Unknown';
+    if (bottle.senderAge != null) {
+      senderInfo = '${bottle.senderNickname}, ${bottle.senderAge}';
+      
+      String locationInfo = '';
+      if (bottle.senderCity != null && bottle.senderCity!.isNotEmpty) {
+        locationInfo = bottle.senderCity!;
+      }
+      if (bottle.senderDepartment != null && bottle.senderDepartment!.isNotEmpty) {
+        final deptNum = bottle.senderDepartment!.split(' - ').first;
+        if (locationInfo.isNotEmpty) {
+          locationInfo = '$locationInfo ($deptNum)';
+        } else {
+          locationInfo = bottle.senderDepartment!;
+        }
+      }
+      if (locationInfo.isNotEmpty) {
+        senderInfo = '$senderInfo - $locationInfo';
+      }
+    }
+
     return Container(
       width: 320, // Wider
       height: 280, // Fixed height
@@ -328,6 +359,39 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Reply Context (NEW)
+          if (bottle.replyToContentType != null) ...[
+            Text(
+              _getReplyContextLabel(bottle.replyToContentType!),
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF737373),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _getReplyContextPreview(bottle),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF999999),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 1,
+              width: 60,
+              color: Colors.white.withOpacity(0.5),
+            ),
+            const SizedBox(height: 12),
+          ],
+          
           Expanded(
             child: Center(
               child: isLocked 
@@ -366,18 +430,64 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Sender Name
-          Text(
-            bottle.senderNickname ?? 'Unknown',
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF151515),
-            ),
+          // Sender Info with Age/Department (UPDATED)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (bottle.senderCity != null || bottle.senderDepartment != null)
+                const Icon(Icons.location_on, size: 12, color: Color(0xFF737373)),
+              if (bottle.senderCity != null || bottle.senderDepartment != null)
+                const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  senderInfo,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF151515),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  String _getReplyContextLabel(String contentType) {
+    switch (contentType) {
+      case 'quote':
+        return 'Reply to your quote:';
+      case 'voice':
+      case 'audio':
+        return 'Reply to your voice message:';
+      case 'bio':
+        return 'Reply to your bio:';
+      case 'fantasy':
+        return 'Reply to your fantasy:';
+      case 'photo':
+        return 'Reply to your photo:';
+      default:
+        return 'Reply to:';
+    }
+  }
+
+  String _getReplyContextPreview(ReceivedBottle bottle) {
+    if (bottle.replyToContent != null && bottle.replyToContent!.isNotEmpty) {
+      return '"${bottle.replyToContent}"';
+    }
+    
+    switch (bottle.replyToContentType) {
+      case 'voice':
+      case 'audio':
+        return '🎤 Voice message';
+      case 'photo':
+        return '📷 Photo';
+      default:
+        return '';
+    }
   }
 }

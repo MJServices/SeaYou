@@ -33,7 +33,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _partnerProfile;
   String? _naughtyAnswer;
-  bool _reportToSeaYou = false;
+
 
   @override
   void initState() {
@@ -163,26 +163,35 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
     
     return Column(
       children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: showPhoto ? null : _getMoodGradient(widget.mood),
-            image: showPhoto && _partnerProfile?['avatar_url'] != null
-                ? DecorationImage(
-                    image: NetworkImage(_partnerProfile!['avatar_url'] as String),
-                    fit: BoxFit.cover,
-                  )
+        GestureDetector(
+          onTap: () {
+            if (showPhoto && _partnerProfile?['avatar_url'] != null) {
+              _showFullScreenImage(_partnerProfile!['avatar_url'] as String);
+            }
+          },
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: showPhoto ? null : _getMoodGradient(widget.mood),
+              image: showPhoto && _partnerProfile?['avatar_url'] != null
+                  ? DecorationImage(
+                      image: NetworkImage(_partnerProfile!['avatar_url'] as String),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: !showPhoto
+                ? const Icon(Icons.lock, size: 48, color: Colors.white)
                 : null,
           ),
-          child: !showPhoto
-              ? const Icon(Icons.lock, size: 48, color: Colors.white)
-              : null,
         ),
         const SizedBox(height: 16),
         Text(
-          widget.contactName,
+          (widget.feelingPercent >= 100 && _partnerProfile?['username'] != null)
+              ? _partnerProfile!['username'] as String
+              : widget.contactName,
           style: const TextStyle(
             fontFamily: 'Montserrat',
             fontSize: 24,
@@ -201,6 +210,45 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showFullScreenImage(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -385,7 +433,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         _showBlockModal();
       },
       child: Text(
-        'Block ${widget.contactName}',
+        'Block ${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName}',
         style: const TextStyle(
           fontFamily: 'Montserrat',
           fontSize: 16,
@@ -420,7 +468,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Block ${widget.contactName}',
+                  'Block ${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName}',
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 16,
@@ -440,43 +488,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () {
-                    setModalState(() {
-                      _reportToSeaYou = !_reportToSeaYou;
-                    });
-                  },
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                              color: const Color(0xFF363636), width: 1.5),
-                          borderRadius: BorderRadius.circular(1),
-                          color: _reportToSeaYou
-                              ? const Color(0xFF0AC5C5)
-                              : Colors.transparent,
-                        ),
-                        child: _reportToSeaYou
-                            ? const Icon(Icons.check,
-                                size: 14, color: Colors.white)
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Report to SeaYou',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF363636),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+
                 const SizedBox(height: 40),
                 Row(
                   children: [
@@ -518,8 +530,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               blockedId: widget.partnerId,
                             );
                             
-                            // TODO: If _reportToSeaYou is true, send report to admin
-                            
+
                             if (!mounted) return;
                             
                             // Close modal
@@ -530,7 +541,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                             // Show success message
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('${widget.contactName} has been blocked'),
+                                content: Text('${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName} has been blocked'),
                                 backgroundColor: const Color(0xFF0AC5C5),
                               ),
                             );

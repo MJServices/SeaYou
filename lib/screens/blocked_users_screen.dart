@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
+import '../i18n/app_localizations.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});

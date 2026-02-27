@@ -156,71 +156,78 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return Scaffold(
       body: WarmGradientBackground(
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 16),
-                 IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  alignment: Alignment.centerLeft,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  AppLocalizations.of(context).tr('auth.create_account'),
-                  style: AppTextStyles.displayText,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  AppLocalizations.of(context).tr('auth.verification_message'),
-                  style: AppTextStyles.bodyText,
-                ),
-                const SizedBox(height: 32),
-                CustomTextField(
-                  controller: _emailController,
-                  hintText: 'email@example.com',
-                  keyboardType: TextInputType.emailAddress,
-                  isActive: !_isLoading, 
-                ),
-                const Spacer(),
-                Row(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: CustomButton(
-                        text: _isLoading ? AppLocalizations.of(context).tr('auth.signing_up') : AppLocalizations.of(context).tr('auth.sign_up'),
-                        isActive: !_isLoading,
-                        onPressed: _handleSignUp,
-                      ),
+                    const SizedBox(height: 16),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.centerLeft,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomButton(
-                        text: AppLocalizations.of(context).tr('auth.log_in'),
-                        isOutline: true,
-                        isActive: !_isLoading,
-                        onPressed: () {
-                           Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SignInEmailPasswordScreen(),
-                            ),
-                          );
-                        },
-                      ),
+                    const SizedBox(height: 16),
+                    Text(
+                      AppLocalizations.of(context).tr('auth.create_account'),
+                      style: AppTextStyles.displayText,
                     ),
+                    const SizedBox(height: 16),
+                    Text(
+                      AppLocalizations.of(context).tr('auth.verification_message'),
+                      style: AppTextStyles.bodyText,
+                    ),
+                    const SizedBox(height: 32),
+                    CustomTextField(
+                      controller: _emailController,
+                      hintText: 'email@example.com',
+                      keyboardType: TextInputType.emailAddress,
+                      isActive: !_isLoading, 
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomButton(
+                            text: _isLoading ? AppLocalizations.of(context).tr('auth.signing_up') : AppLocalizations.of(context).tr('auth.sign_up'),
+                            isActive: !_isLoading,
+                            onPressed: _handleSignUp,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: CustomButton(
+                            text: AppLocalizations.of(context).tr('auth.log_in'),
+                            isOutline: true,
+                            isActive: !_isLoading,
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SignInEmailPasswordScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      AppLocalizations.of(context).tr('auth.terms_message'),
+                      style: AppTextStyles.labelText,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
-                const SizedBox(height: 16),
-                 Text(
-                  AppLocalizations.of(context).tr('auth.terms_message'),
-                  style: AppTextStyles.labelText,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 160),
-              ],
+              ),
             ),
           ),
         ),

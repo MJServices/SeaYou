@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui';
+import '../../i18n/app_localizations.dart';
 
 /// Terms of Service Screen
 class TermsOfServiceScreen extends StatelessWidget {
@@ -37,9 +38,9 @@ class TermsOfServiceScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Text(
-                          'Terms of Service',
-                          style: TextStyle(
+                        Text(
+                          AppLocalizations.of(context).tr('legal.terms_title'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -54,9 +55,9 @@ class TermsOfServiceScreen extends StatelessWidget {
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
-                      child: const Text(
-                        'Terms of Service content will be displayed here.\n\nThis page will contain the full terms and conditions for using SeaYou.',
-                        style: TextStyle(
+                      child: Text(
+                        AppLocalizations.of(context).tr('legal.terms_content'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 14,
                           fontWeight: FontWeight.w400,

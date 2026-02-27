@@ -55,11 +55,17 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
       debugPrint('✅ Saving full profile to database...');
       final userId = AuthService().currentUser?.id;
       if (userId != null) {
+        final int currentYear = DateTime.now().year;
+        final int age = widget.userProfile.age ?? 0;
+        final int birthYear = currentYear - age;
+        widget.userProfile.birthYear = birthYear;
+
         await DatabaseService().createProfile(
           userId: userId,
           email: widget.userProfile.email ?? '',
           fullName: widget.userProfile.fullName ?? '',
-          age: widget.userProfile.age ?? 0,
+          age: age,
+          birthYear: birthYear,
           city: widget.userProfile.city ?? '',
           about: widget.userProfile.about ?? '',
           sexualOrientation: widget.userProfile.sexualOrientation ?? [],

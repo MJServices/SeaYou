@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../i18n/app_localizations.dart';
 
 class SentBottleVideoModal extends StatefulWidget {
   final VoidCallback onComplete;
@@ -38,7 +39,7 @@ class _SentBottleVideoModalState extends State<SentBottleVideoModal> {
         // If video fails, close modal automatically
         if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('Animation error: $error')),
+             SnackBar(content: Text('${AppLocalizations.of(context).tr("system.animation_error")}: $error')),
            );
            widget.onComplete();
         }

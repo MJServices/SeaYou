@@ -9,6 +9,8 @@ class VoiceChatModal extends StatefulWidget {
   final VoidCallback? onReply;
   final String duration;
   final String? audioUrl;
+  final int? senderAge;
+  final String? senderDepartment;
 
   const VoiceChatModal({
     super.key,
@@ -16,6 +18,8 @@ class VoiceChatModal extends StatefulWidget {
     this.onReply,
     this.duration = '00:12:19',
     this.audioUrl,
+    this.senderAge,
+    this.senderDepartment,
   });
 
   @override
@@ -202,11 +206,13 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
             child: Center(
               child: Opacity(
                 opacity: 0.15,
-                child: Image.asset(
-                  'assets/images/fill bottle.png',
-                  width: 200,
-                  height: 400,
-                  fit: BoxFit.contain,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/fill bottle.png',
+                    width: 200,
+                    height: 200,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -252,6 +258,23 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
                         color: Color(0xFF151515),
                       ),
                     ),
+                    if (widget.isReceived && (widget.senderAge != null || widget.senderDepartment != null)) ...[
+                      const SizedBox(width: 8),
+                      const Text(
+                        '•',
+                        style: TextStyle(color: Color(0xFF737373)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${widget.senderAge ?? ""} ${widget.senderDepartment != null ? "• ${widget.senderDepartment}" : ""}'.trim(),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF737373),
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),

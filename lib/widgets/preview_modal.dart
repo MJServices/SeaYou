@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'voice_player.dart';
+import '../i18n/app_localizations.dart';
 
 class PreviewModal extends StatefulWidget {
   final String content;
@@ -55,16 +56,21 @@ class _PreviewModalState extends State<PreviewModal> {
 
     try {
       await widget.onSend();
-    } catch (e) {
-      // If error occurs and dialog is still open, reset loading
+      // If we reach here, onSend completed. If the modal is still open, stop the spinner.
       if (mounted) {
         setState(() {
           _localIsLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to send. Please try again.')),
-        );
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _localIsLoading = false;
+        });
+      }
+      // Re-throw if it wasn't a silent error (like limit reached)
+      // but for now, we just reset loading so they can click again if needed.
+      debugPrint('Error in PreviewModal send: $e');
     }
   }
 
@@ -138,9 +144,9 @@ class _PreviewModalState extends State<PreviewModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Preview',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('common.preview'),
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF151515),
@@ -182,9 +188,9 @@ class _PreviewModalState extends State<PreviewModal> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Uploading and sending...',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context).tr('common.uploading_sending'),
+                      style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 12,
                         color: Color(0xFF0AC5C5),
@@ -281,9 +287,9 @@ class _PreviewModalState extends State<PreviewModal> {
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Text(
-                        'Send',
-                        style: TextStyle(
+                    : Text(
+                        AppLocalizations.of(context).tr('common.send'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,

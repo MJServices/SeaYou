@@ -4,11 +4,15 @@ import '../utils/app_text_styles.dart';
 import '../models/feeling_milestone.dart';
 import '../widgets/custom_button.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../i18n/app_localizations.dart';
 
 class MilestoneUnlockModal extends StatefulWidget {
   final FeelingMilestone milestone;
   final String? partnerBio;
   final String? partnerSecretAudioUrl;
+  final bool isPremium;
+  final String? userGender;
+  final VoidCallback onPremiumRequested;
   final VoidCallback onContinue;
 
   const MilestoneUnlockModal({
@@ -16,6 +20,9 @@ class MilestoneUnlockModal extends StatefulWidget {
     required this.milestone,
     this.partnerBio,
     this.partnerSecretAudioUrl,
+    required this.isPremium,
+    this.userGender,
+    required this.onPremiumRequested,
     required this.onContinue,
   });
 
@@ -77,19 +84,21 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
               const SizedBox(height: 16),
               
               // Title
-              Text(
-                widget.milestone.title,
-                style: AppTextStyles.displayText.copyWith(
-                  color: AppColors.white,
-                  fontSize: 24,
+              if (widget.milestone.percentage != 75) ...[
+                Text(
+                  widget.milestone.getTitle(context),
+                  style: AppTextStyles.displayText.copyWith(
+                    color: AppColors.white,
+                    fontSize: 24,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
+              ],
               
               // Description
               Text(
-                widget.milestone.description,
+                widget.milestone.getDescription(context),
                 style: AppTextStyles.bodyText.copyWith(
                   color: AppColors.white.withValues(alpha: 0.9),
                 ),
@@ -102,17 +111,42 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
               
               const SizedBox(height: 24),
               
-              // Continue Button
-              CustomButton(
-                text: 'Continue',
-                onPressed: widget.onContinue,
-                isActive: true,
-              ),
+              // Continue or Premium Button
+              _buildActionButton(context),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildActionButton(BuildContext context) {
+    if (widget.milestone.percentage != 75) {
+      return CustomButton(
+        text: AppLocalizations.of(context).tr('chat.milestone_continue'),
+        onPressed: widget.onContinue,
+        isActive: true,
+      );
+    }
+
+    final gender = widget.userGender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+
+    if (isFemale || widget.isPremium) {
+      // Female or Premium Male -> Go to Intimacy Question
+      return CustomButton(
+        text: AppLocalizations.of(context).tr('chat.milestone_75_button_naughty'),
+        onPressed: widget.onContinue,
+        isActive: true,
+      );
+    } else {
+      // Non-Premium Male -> Upgrade
+      return CustomButton(
+        text: AppLocalizations.of(context).tr('chat.milestone_75_button_unlock'),
+        onPressed: widget.onPremiumRequested,
+        isActive: true,
+      );
+    }
   }
 
   Widget _buildMilestoneContent() {
@@ -126,7 +160,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            widget.partnerBio ?? 'No bio available',
+            widget.partnerBio ?? AppLocalizations.of(context).tr('chat.milestone_no_bio'),
             style: AppTextStyles.bodyText.copyWith(
               color: AppColors.white,
               fontStyle: FontStyle.italic,
@@ -157,7 +191,9 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
             ),
             const SizedBox(height: 12),
             Text(
-              _isPlaying ? 'Playing...' : 'Tap to play',
+              _isPlaying 
+                  ? AppLocalizations.of(context).tr('chat.milestone_playing') 
+                  : AppLocalizations.of(context).tr('chat.milestone_tap_play'),
               style: AppTextStyles.bodyText.copyWith(
                 color: AppColors.white,
               ),
@@ -176,7 +212,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
           child: Column(
             children: [
               Text(
-                'Congratulations 🎉',
+                AppLocalizations.of(context).tr('chat.milestone_75_congrats'),
                 style: AppTextStyles.displayText.copyWith(
                   color: AppColors.white,
                   fontSize: 20,
@@ -185,7 +221,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Your intuition is almost 100%!\n\nYou\'re about to discover the person you\'re chatting with 👀\n\nThe free version of SeaYou ends here 😟\n\nUpgrade to SeaYou Premium to continue the adventure and unravel the mystery ✨',
+                _getGiftMilestoneDescription(context),
                 style: AppTextStyles.bodyText.copyWith(
                   color: AppColors.white,
                 ),
@@ -212,7 +248,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
               ),
               const SizedBox(height: 12),
               Text(
-                'You can now reveal your match\'s photo!',
+                AppLocalizations.of(context).tr('chat.milestone_100_reveal'),
                 style: AppTextStyles.bodyText.copyWith(
                   color: AppColors.white,
                 ),
@@ -221,6 +257,17 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
             ],
           ),
         );
+    }
+  }
+
+  String _getGiftMilestoneDescription(BuildContext context) {
+    final gender = widget.userGender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+
+    if (isFemale || widget.isPremium) {
+      return AppLocalizations.of(context).tr('chat.milestone_75_desc_naughty');
+    } else {
+      return AppLocalizations.of(context).tr('chat.milestone_75_desc_premium');
     }
   }
 }

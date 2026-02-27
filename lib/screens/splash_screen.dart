@@ -138,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
 
           SafeArea(
-            bottom: false, // Allow content to extend to bottom edge
+            bottom: true, // Respect system navigation bar/safe area
             child: Column(
               children: [
                 Padding(
@@ -193,7 +193,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const Spacer(),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16), // Reduced bottom padding
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24), // Increased bottom padding
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -353,9 +353,9 @@ class _SplashScreenState extends State<SplashScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           alignment: Alignment.center,
-                          child: const Text(
-                            "S'inscrire gratuitement !",
-                            style: TextStyle(
+                          child: Text(
+                            AppLocalizations.of(context).tr('splash.sign_up_free'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w600,

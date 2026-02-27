@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
 import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -46,6 +47,7 @@ import '../widgets/profile_avatar.dart';
 import '../widgets/tutorial_modal.dart';
 import '../services/notification_service.dart';
 import '../services/location_service.dart';
+import '../services/presence_service.dart';
 
 /// Home Screen - Dynamic with database integration
 class HomeScreen extends StatefulWidget {
@@ -78,13 +80,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    PresenceService.instance.init();
     _loadData();
     GlobalAudioController.instance.playAmbient();
     _subscribeProfile();
     _subscribeNewMessages();
     _subscribeNewBottles();
     _subscribeNewConversations();
-    _subscribeMilestones();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
@@ -317,81 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _subscribeMilestones() async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) return;
-
-      // Subscribe to all conversations the user is part of
-      _supabase
-          .from('conversations')
-          .stream(primaryKey: ['id'])
-          .listen((data) async {
-            if (data.isEmpty || !mounted) return;
-            
-            final prefs = await SharedPreferences.getInstance();
-            
-            for (final row in data) {
-              final conversationId = row['id'] as String;
-              final feelingPercent = row['feeling_percent'] as int? ?? 0;
-              
-              // Check milestones
-              final milestones = [25, 50, 75, 100];
-              final seenKey = 'seen_milestones_$conversationId';
-              final seenList = prefs.getStringList(seenKey) ?? [];
-              final seenSet = seenList.map(int.parse).toSet();
-              
-              for (final threshold in milestones) {
-                if (feelingPercent >= threshold && !seenSet.contains(threshold)) {
-                  debugPrint('🎉 Milestone $threshold% reached for conv $conversationId detected on Home!');
-                  
-                  // Mark as seen
-                  seenSet.add(threshold);
-                  await prefs.setStringList(seenKey, seenSet.map((e) => e.toString()).toList());
-                  
-                  // Show Milestone Modal
-                  final milestone = FeelingMilestone.fromPercentage(threshold);
-                  if (milestone != null && mounted) {
-                    // Fetch partner data for modal
-                    final partnerId = row['user_a_id'] == userId ? row['user_b_id'] : row['user_a_id'];
-                    final partnerProfile = await _databaseService.getProfile(partnerId as String);
-                    
-                    if (mounted) {
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => MilestoneUnlockModal(
-                          milestone: milestone,
-                          partnerBio: partnerProfile?['about'],
-                          partnerSecretAudioUrl: partnerProfile?['secret_audio_url'],
-                          onContinue: () {
-                            Navigator.pop(context);
-                            if (threshold == 75) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ChatConversationScreen(
-                                    conversationId: conversationId,
-                                    contactName: row['title'] ?? 'Chat',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      );
-                    }
-                  }
-                  break; // Only one per conversation per update cycle
-                }
-              }
-            }
-          });
-    } catch (e) {
-      debugPrint('Error subscribing to milestones on Home: $e');
-    }
-  }
-
   Future<void> _subscribeNewConversations() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -552,15 +479,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           child: Column(
                             children: [
-                                SizedBox(
+                                Container(
                                   width: 140,
                                   height: 140,
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      'assets/images/homepage_bottle.png',
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
+                                  decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/homepage_bottle.png',
+                        width: 140,
+                        height: 140,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                                 ),
                               const SizedBox(height: 16),
                               // Message count
@@ -672,7 +604,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 20),
 
                         // Premium Button
-                        if (!(_userProfile?['gender']?.toString().toLowerCase() == 'woman' || _userProfile?['gender']?.toString().toLowerCase() == 'female'))
+                        if (_userProfile?['gender']?.toString().toLowerCase() != 'woman' && 
+                            _userProfile?['gender']?.toString().toLowerCase() != 'female' &&
+                            _userProfile?['gender']?.toString().toLowerCase() != 'femme')
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: GestureDetector(
@@ -718,67 +652,45 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
 
 
-                        // DEBUG: Temporary Premium Activation Button
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () async {
-                            final userId = AuthService().currentUser?.id;
-                            if (userId != null) {
-                              try {
-                                // 1. Put in entitlements
-                                await Supabase.instance.client.from('entitlements').upsert({
-                                  'user_id': userId,
-                                  'tier': 'premium',
-                                  'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
-                                }, onConflict: 'user_id');
-                                
-                                // 2. Put in profiles for legacy/simple checks
-                                await Supabase.instance.client.from('profiles').update({
-                                  'tier': 'premium',
-                                  'is_premium': true,
-                                }).eq('id', userId);
-
+                        // Debug button for testing (Visible in all modes for the user's testing phase)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          child: InkWell(
+                            onTap: () async {
+                              final userId = _supabase.auth.currentUser?.id;
+                              if (userId != null) {
+                                await EntitlementsService().grantEntitlement(userId, 'premium', 'debug_test');
+                                _loadData();
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('✅ Premium activated! Refreshing...'), backgroundColor: Colors.green),
+                                    const SnackBar(
+                                      content: Text('DEBUG: Compte désormais PREMIUM'),
+                                      backgroundColor: Colors.purple,
+                                    ),
                                   );
-                                  
-                                  // Refresh everything immediately
-                                  await _loadData();
-                                  _subscribeProfile();
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                 }
                               }
-                            }
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(28),
-                              border: Border.all(color: Colors.orange.shade700, width: 2),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.bug_report, color: Colors.white, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF0AC5C5).withOpacity(0.5), width: 1),
+                              ),
+                              child: Center(
+                                child: Text(
                                   AppLocalizations.of(context).tr('home.debug_activate_premium'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                                    color: Color(0xFF0AC5C5),
+                                    fontWeight: FontWeight.bold,
                                     letterSpacing: 0.5,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),

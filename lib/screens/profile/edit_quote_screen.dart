@@ -43,7 +43,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       final profile = await _databaseService.getProfile(userId);
       if (profile != null && mounted) {
         setState(() {
-          _quoteController.text = profile['secret_desire'] ?? '';
+          _quoteController.text = profile['secret_quote'] ?? '';
           _isLoading = false;
         });
       }
@@ -79,16 +79,16 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
         throw Exception('Quote cannot be empty');
       }
 
-      await _databaseService.updateSecretDesire(userId, quote);
+      await _databaseService.updateSecretQuote(userId, quote);
 
       if (!mounted) return;
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Quote updated successfully!'),
-          backgroundColor: Color(0xFF0AC5C5),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('profile.quote_updated')),
+          backgroundColor: const Color(0xFF0AC5C5),
+          duration: const Duration(seconds: 2),
         ),
       );
 
@@ -137,7 +137,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Edit my quote',
+                          AppLocalizations.of(context).tr('profile.edit_quote'),
                           style: AppTextStyles.displayText.copyWith(
                             color: AppColors.black,
                           ),
@@ -159,7 +159,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Title
                                 Text(
-                                  'My Quote',
+                                  AppLocalizations.of(context).tr('profile.quote_label'),
                                   style: AppTextStyles.displayText.copyWith(
                                     fontSize: 20,
                                     color: AppColors.black,
@@ -168,9 +168,9 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                 const SizedBox(height: 8),
 
                                 // Description
-                                const Text(
-                                  'This will be anonymous to everyone.',
-                                  style: TextStyle(
+                                Text(
+                                  AppLocalizations.of(context).tr('profile.quote_anonymous_hint'),
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
                                     color: Color(0xFF737373),
@@ -186,13 +186,14 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                   ),
                                   child: TextField(
                                     controller: _quoteController,
+                                    onChanged: (_) => setState(() {}),
                                     maxLines: 8,
                                     maxLength: 400,
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.black,
                                     ),
                                     decoration: InputDecoration(
-                                      hintText: 'Share your favorite quote...',
+                                      hintText: AppLocalizations.of(context).tr('profile.quote_placeholder'),
                                       hintStyle: AppTextStyles.bodyText.copyWith(
                                         color: AppColors.grey,
                                       ),
@@ -234,7 +235,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: 'Confirm',
+                                  text: AppLocalizations.of(context).tr('common.confirm'),
                                   onPressed: _saveQuote,
                                   isActive: isFormValid && !_isSaving,
                                 ),

@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import 'blocked_users_screen.dart';
 import 'splash_screen.dart';
 import '../widgets/profile_avatar.dart';
+import '../i18n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -94,9 +95,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preferences saved successfully'),
-            backgroundColor: Color(0xFF0AC5C5),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('settings.save_success')),
+            backgroundColor: const Color(0xFF0AC5C5),
           ),
         );
       }
@@ -104,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving preferences: $e'),
+            content: Text('${AppLocalizations.of(context).tr('settings.save_error')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -118,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
+        title: Text(AppLocalizations.of(context).tr('settings.logout_confirm_title')),
         content: Text(AppLocalizations.of(context).tr('dialogs.logout_confirm')),
         actions: [
           TextButton(
@@ -127,7 +128,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm Logout', style: TextStyle(color: Colors.red)),
+            child: Text(
+              AppLocalizations.of(context).tr('settings.logout_confirm_button'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -155,9 +159,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: const Icon(Icons.arrow_back, color: Color(0xFF151515)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context).tr('settings.title'),
+          style: const TextStyle(
             fontFamily: 'Montserrat',
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -182,19 +186,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 32),
 
                   // Receiving Preferences
-                  _buildSectionTitle('Receiving Preferences'),
+                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.receiving_preferences')),
                   _buildPreferenceCard(),
 
                   const SizedBox(height: 24),
 
                   // Privacy
-                  _buildSectionTitle('Privacy'),
+                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.privacy')),
                   _buildPrivacyCard(),
 
                   const SizedBox(height: 24),
 
                   // Account
-                  _buildSectionTitle('Account'),
+                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.account')),
                   _buildAccountCard(),
 
                   const SizedBox(height: 32),
@@ -214,9 +218,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                           elevation: 0,
                         ),
-                        child: const Text(
-                          'Save Preferences',
-                          style: TextStyle(
+                        child: Text(
+                          AppLocalizations.of(context).tr('settings.save_button'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -304,9 +308,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Accept bottles from
-            const Text(
-              'Accept bottles from:',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).tr('settings.accept_bottles_from'),
+              style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -323,10 +327,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items: const [
-                DropdownMenuItem(value: 'everyone', child: Text('Everyone')),
-                DropdownMenuItem(value: 'men', child: Text('Men only')),
-                DropdownMenuItem(value: 'women', child: Text('Women only')),
+              items: [
+                DropdownMenuItem(value: 'everyone', child: Text(AppLocalizations.of(context).tr('settings.everyone'))),
+                DropdownMenuItem(value: 'men', child: Text(AppLocalizations.of(context).tr('settings.men_only'))),
+                DropdownMenuItem(value: 'women', child: Text(AppLocalizations.of(context).tr('settings.women_only'))),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -341,7 +345,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Age range
             Text(
-              'Age range: $_minAge - $_maxAge',
+              '${AppLocalizations.of(context).tr('settings.age_range')}: $_minAge - $_maxAge',
               style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 14,
@@ -369,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Max bottles per day
             Text(
-              'Max bottles per day: $_maxBottlesPerDay',
+              '${AppLocalizations.of(context).tr('settings.max_bottles_day')}: $_maxBottlesPerDay',
               style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 14,
@@ -396,9 +400,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Notifications
             SwitchListTile(
-              title: const Text(
-                'Notify when bottle received',
-                style: TextStyle(
+              title: Text(
+                AppLocalizations.of(context).tr('settings.notify_received'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -416,9 +420,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             SwitchListTile(
-              title: const Text(
-                'Notify when bottle read',
-                style: TextStyle(
+              title: Text(
+                AppLocalizations.of(context).tr('settings.notify_read'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -451,9 +455,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: ListTile(
           leading: const Icon(Icons.block, color: Color(0xFF151515)),
-          title: const Text(
-            'Blocked Users',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context).tr('settings.blocked_users'),
+            style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -487,9 +491,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.language, color: Color(0xFF151515)),
-              title: const Text(
-                'Language',
-                style: TextStyle(
+              title: Text(
+                AppLocalizations.of(context).tr('settings.language'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -531,7 +535,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }, onConflict: 'user_id');
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('✅ Premium activated! Restart app.'), backgroundColor: Colors.green),
+                        SnackBar(content: Text(AppLocalizations.of(context).tr('premium.activated')), backgroundColor: Colors.green),
                       );
                     }
                   } catch (e) {
@@ -545,9 +549,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                'Logout',
-                style: TextStyle(
+              title: Text(
+                AppLocalizations.of(context).tr('profile.sign_out'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

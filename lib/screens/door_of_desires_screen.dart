@@ -7,7 +7,7 @@ import '../utils/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'chat/chat_conversation_screen.dart';
 import 'premium_screen.dart';
-import 'parchment_store_screen.dart';
+import 'purchase_scrolls_screen.dart';
 
 class DoorOfDesiresScreen extends StatefulWidget {
   const DoorOfDesiresScreen({super.key});
@@ -83,9 +83,20 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     // Filter out anyone they've already messaged
     final filtered = newFantasies.where((f) {
       final fantasyUserId = f['user_id'] as String?;
-      return fantasyUserId != null && 
-             !repliedPartnerIds.contains(fantasyUserId);
+      debugPrint('🔍 DoorOfDesires: Checking user $fantasyUserId');
+      
+      if (fantasyUserId == null) return false;
+      
+      // TEMPORARILY DISABLED for verification
+      // if (repliedPartnerIds.contains(fantasyUserId)) {
+      //   debugPrint('🔍 DoorOfDesires: Skipping $fantasyUserId (already replied)');
+      //   return false;
+      // }
+      
+      return true;
     }).toList();
+
+    debugPrint('🔍 DoorOfDesires: Fetched ${newFantasies.length}, Filtered ${filtered.length}');
 
     setState(() {
       _fantasies.addAll(filtered);
@@ -103,20 +114,20 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   void _onSwipeEnd(DragEndDetails details) {
     if (_swipeController.value > 0.5 || _swipeController.value < -0.5) {
       // Store the direction before animation
-      // Positive value = swipe RIGHT = next (forward)
-      // Negative value = swipe LEFT = previous (backward)
+      // REVERSED LOGIC: Positive value = swipe RIGHT = previous (backward)
+      // REVERSED LOGIC: Negative value = swipe LEFT = next (forward)
       final bool isRightSwipe = _swipeController.value > 0;
       
       // Animate to the appropriate end position
       final targetValue = isRightSwipe ? 1.0 : -1.0;
       _swipeController.animateTo(targetValue).then((_) {
         setState(() {
-          // Right swipe - move forward to NEXT
-          if (isRightSwipe && _currentIndex < _fantasies.length - 1) {
+          // Left swipe (negative) - move forward to NEXT
+          if (!isRightSwipe && _currentIndex < _fantasies.length - 1) {
             _currentIndex++;
           } 
-          // Left swipe - move backward to PREVIOUS
-          else if (!isRightSwipe && _currentIndex > 0) {
+          // Right swipe (positive) - move backward to PREVIOUS
+          else if (isRightSwipe && _currentIndex > 0) {
             _currentIndex--;
           }
           _swipeController.value = 0; // Reset to center
@@ -184,9 +195,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 children: [
                   const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF8A2BE2)),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Anonymous Soul',
-                    style: TextStyle(
+                  Text(
+                    AppLocalizations.of(context).tr('chamber.anonymous_soul'),
+                    style: const TextStyle(
                       fontFamily: 'PlayfairDisplay',
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -227,7 +238,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: 'Whisper your first message...',
+                              hintText: AppLocalizations.of(context).tr('chamber.whisper_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13, 
@@ -286,9 +297,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                   ),
                                 ],
                               ),
-                              child: const Text(
-                                'Send',
-                                style: TextStyle(
+                              child: Text(
+                                AppLocalizations.of(context).tr('chamber.send'),
+                                style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
@@ -342,6 +353,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         receiverId: fantasy['user_id'] as String,
         contentType: 'text', // Bottle content
         message: message,
+        replyToContentType: 'fantasy',
+        replyToContent: fantasy['fantasy_text'] as String?,
       );
 
       debugPrint('📬 Bottle creation result: $bottleId');
@@ -352,8 +365,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
           await _db.incrementWeeklyMessages(user.id);
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Bottle sent! Wait for their reply to chat.'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).tr('chamber.bottle_sent_success')),
               backgroundColor: Color(0xFF4CAF50),
               duration: Duration(seconds: 4),
             ),
@@ -437,7 +450,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ParchmentStoreScreen()),
+                      MaterialPageRoute(builder: (context) => const PurchaseScrollsScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -550,7 +563,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       : _fantasies.isEmpty
                           ? Center(
                               child: Text(
-                                'No fantasies available',
+                                AppLocalizations.of(context).tr('chamber.no_fantasies'),
                                 style: const TextStyle(
                                   fontFamily: 'PlayfairDisplay',
                                   fontSize: 18,
@@ -799,7 +812,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Colors.white,
+                              color: Colors.black,
                               width: 2,
                             ),
                           ),
@@ -817,15 +830,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                         fontFamily: 'PlayfairDisplay',
                                         fontSize: 20,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white,
+                                        color: Colors.black,
                                         height: 1.4,
-                                        shadows: [
-                                          Shadow(
-                                            offset: Offset(0, 1),
-                                            blurRadius: 4,
-                                            color: Colors.black45,
-                                          ),
-                                        ],
                                       ),
                                     ),
                                     // User Info display
@@ -870,7 +876,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                                 const Icon(
                                                   Icons.location_on,
                                                   size: 14,
-                                                  color: Colors.white70,
+                                                  color: Colors.black54,
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -879,7 +885,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                                     fontFamily: 'Montserrat',
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w400,
-                                                    color: Colors.white70,
+                                                    color: Colors.black87,
                                                   ),
                                                 ),
                                               ],

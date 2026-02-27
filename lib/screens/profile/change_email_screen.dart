@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../verification_screen.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Change Email Address Screen
 /// Allows users to update their email address
@@ -79,7 +80,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 AppLocalizations.of(context).tr('errors.enter_password_to_change_email'),
                 style: TextStyle(
                   fontFamily: 'Montserrat',

@@ -4,6 +4,7 @@ import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
 import '../../widgets/custom_button.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Help Center Screen - Contact support for technical issues
 class HelpCenterScreen extends StatefulWidget {
@@ -29,6 +30,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(
@@ -67,9 +70,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Text(
-                          'Help Center',
-                          style: TextStyle(
+                        Text(
+                          l10n.tr('profile.help_center'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -86,9 +89,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 24),
-                          const Text(
-                            'Email Address',
-                            style: TextStyle(
+                          Text(
+                            l10n.tr('profile.help_center_email'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -106,7 +109,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Enter your email address',
+                              hintText: l10n.tr('profile.help_center_email_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -137,9 +140,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          const Text(
-                            'Technical Issue',
-                            style: TextStyle(
+                          Text(
+                            l10n.tr('profile.help_center_issue'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -157,7 +160,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Describe what you need help with',
+                              hintText: l10n.tr('profile.help_center_issue_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -195,14 +198,14 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: 'Send',
+                      text: l10n.tr('common.send'),
                       isActive: isFormValid,
                       onPressed: isFormValid
                           ? () {
                               // Send help request
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Help request sent!'),
+                                SnackBar(
+                                  content: Text(l10n.tr('profile.help_center_success')),
                                 ),
                               );
                               Navigator.pop(context);

@@ -177,10 +177,10 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
           // No manual _load needed, StreamBuilder handles it
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Photo uploaded successfully!'),
+              SnackBar(
+                content: Text(AppLocalizations.of(context).tr('gallery.upload_success')),
                 backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
+                duration: const Duration(seconds: 2),
               ),
             );
           }
@@ -367,9 +367,9 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                       boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
                                     ),
-                                    child: const Text(
-                                      'MAIN',
-                                      style: TextStyle(
+                                    child: Text(
+                                      AppLocalizations.of(context).tr('gallery.main_badge'),
+                                      style: const TextStyle(
                                         fontFamily: 'Montserrat',
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,

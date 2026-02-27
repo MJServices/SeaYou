@@ -93,8 +93,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
       _startCountdown();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification code sent!'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('notification.message_sent')),
             backgroundColor: AppColors.primary,
           ),
         );
@@ -155,19 +155,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             alignment: Alignment.centerLeft,
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Enter verification code',
+                          Text(
+                            AppLocalizations.of(context).tr('auth.enter_verification_code'),
                             style: AppTextStyles.displayText,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'A verification code has be sent to ${widget.email}',
+                            AppLocalizations.of(context).tr('auth.verification_code_sent', params: {'email': widget.email}),
                             style: AppTextStyles.bodyText,
                           ),
                           const SizedBox(height: 32),
                           CustomTextField(
                             controller: _otpController,
-                            hintText: 'Enter Code',
+                            hintText: AppLocalizations.of(context).tr('auth.enter_code_placeholder'),
                             keyboardType: TextInputType.text,
                             isActive: !_isLoading,
                             onChanged: (_) => setState(() {}),
@@ -178,8 +178,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             children: [
                               Text(
                                 _resendCountdown > 0
-                                    ? 'Resend code in 00:${_resendCountdown.toString().padLeft(2, '0')}'
-                                    : 'Didn\'t receive the code?',
+                                    ? AppLocalizations.of(context).tr('auth.resend_code_in', params: {'time': '00:${_resendCountdown.toString().padLeft(2, '0')}'})
+                                    : AppLocalizations.of(context).tr('auth.did_not_receive_code'),
                                 style: AppTextStyles.bodyText,
                               ),
                               if (_resendCountdown == 0) ...[
@@ -187,7 +187,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 GestureDetector(
                                   onTap: _resendOtp,
                                   child: Text(
-                                    'Resend',
+                                    AppLocalizations.of(context).tr('auth.resend'),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.primary,
                                       fontWeight: FontWeight.bold,
@@ -202,7 +202,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             child: TextButton(
                               onPressed: _showHelpDialog,
                               child: Text(
-                                'Trouble receiving code?',
+                                AppLocalizations.of(context).tr('auth.trouble_receiving_code'),
                                 style: AppTextStyles.bodyText.copyWith(
                                   color: AppColors.primary,
                                   decoration: TextDecoration.underline,
@@ -221,7 +221,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: _isLoading ? 'Verifying...' : 'Confirm & Verify',
+                      text: _isLoading 
+                          ? AppLocalizations.of(context).tr('auth.verifying') 
+                          : AppLocalizations.of(context).tr('auth.confirm_verify'),
                       isActive: _isCodeComplete() && !_isLoading,
                       onPressed: () async {
                         print('AUTH_DEBUG: Verify button pressed.');
@@ -302,10 +304,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Need Help?'),
-        content: const Text(
-          'If you are not receiving the verification code, you can try sending a Password Recovery link instead (which uses a different email system), or try a different email address.',
-        ),
+        title: Text(AppLocalizations.of(context).tr('auth.need_help')),
+        content: Text(AppLocalizations.of(context).tr('auth.help_description')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -316,7 +316,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back to change email
             },
-            child: const Text('Change Email'),
+            child: Text(AppLocalizations.of(context).tr('auth.change_email')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
@@ -327,7 +327,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 await AuthService().resetPasswordForEmail(widget.email);
                 if (mounted) {
                    ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Recovery link sent! Check your email.')),
+                    SnackBar(content: Text(AppLocalizations.of(context).tr('auth.reset_link_sent'))),
                   );
                 }
                } catch (e) {
@@ -340,7 +340,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                  if (mounted) setState(() => _isLoading = false);
                }
             },
-            child: const Text('Send Recovery Link', style: TextStyle(color: Colors.white)),
+            child: Text(AppLocalizations.of(context).tr('auth.send_recovery_link'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),

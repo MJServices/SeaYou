@@ -58,12 +58,12 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         if (_selectedImage == null) {
           // Check for face in the primary photo
           setState(() => _isLoading = true);
-          final hasFace = await _faceDetector.hasFace(File(image.path));
+          final result = await _faceDetector.verifyFace(File(image.path));
           setState(() => _isLoading = false);
 
-          if (!hasFace) {
+          if (result != FaceVerificationResult.success) {
             if (mounted) {
-              _showNoFaceDialog();
+              _showFaceVerificationErrorDialog(result);
             }
             return;
           }
@@ -110,12 +110,12 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         if (_selectedImage == null) {
           // Check for face in the primary photo
           setState(() => _isLoading = true);
-          final hasFace = await _faceDetector.hasFace(File(photo.path));
+          final result = await _faceDetector.verifyFace(File(photo.path));
           setState(() => _isLoading = false);
 
-          if (!hasFace) {
+          if (result != FaceVerificationResult.success) {
             if (mounted) {
-              _showNoFaceDialog();
+              _showFaceVerificationErrorDialog(result);
             }
             return;
           }
@@ -235,11 +235,17 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         debugPrint('✅ Saving full profile to database...');
         final userId = AuthService().currentUser?.id;
         if (userId != null) {
+          final int currentYear = DateTime.now().year;
+          final int age = widget.userProfile.age ?? 0;
+          final int birthYear = currentYear - age;
+          widget.userProfile.birthYear = birthYear;
+
           await DatabaseService().createProfile(
             userId: userId,
             email: widget.userProfile.email ?? '',
             fullName: widget.userProfile.fullName ?? '',
-            age: widget.userProfile.age ?? 0,
+            age: age,
+            birthYear: birthYear,
             city: widget.userProfile.city ?? '',
             about: widget.userProfile.about ?? '',
             sexualOrientation: widget.userProfile.sexualOrientation ?? [],
@@ -255,6 +261,14 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
             gender: widget.userProfile.gender,
             department: widget.userProfile.department,
           );
+          
+          if (widget.userProfile.secretDesire != null && widget.userProfile.secretDesire!.trim().isNotEmpty) {
+            try {
+              await DatabaseService().createFantasy(userId, widget.userProfile.secretDesire!.trim());
+            } catch (e) {
+              debugPrint('⚠️ Error creating fantasy during onboarding: $e');
+            }
+          }
         }
 
         debugPrint('✅ Navigating to HomeScreen');
@@ -331,14 +345,52 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
     }
   }
 
-  void _showNoFaceDialog() {
+  void _showFaceVerificationErrorDialog(FaceVerificationResult result) {
+    if (result == FaceVerificationResult.success || result == FaceVerificationResult.error) {
+      if (result == FaceVerificationResult.error) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).tr('notification.error'))),
+          );
+      }
+      return;
+    }
+
+    String titleKey;
+    String messageKey;
+
+    switch (result) {
+      case FaceVerificationResult.noFace:
+        titleKey = 'secret_souls.main_photo_warning.no_face_title';
+        messageKey = 'secret_souls.main_photo_warning.no_face_message';
+        break;
+      case FaceVerificationResult.tooDistant:
+        titleKey = 'secret_souls.main_photo_warning.too_distant_title';
+        messageKey = 'secret_souls.main_photo_warning.too_distant_message';
+        break;
+      case FaceVerificationResult.notForwardFacing:
+        titleKey = 'secret_souls.main_photo_warning.not_forward_title';
+        messageKey = 'secret_souls.main_photo_warning.not_forward_message';
+        break;
+      case FaceVerificationResult.multipleFaces:
+        titleKey = 'secret_souls.main_photo_warning.multiple_faces_title';
+        messageKey = 'secret_souls.main_photo_warning.multiple_faces_message';
+        break;
+      case FaceVerificationResult.invalidOrientation:
+        titleKey = 'secret_souls.main_photo_warning.invalid_orientation_title';
+        messageKey = 'secret_souls.main_photo_warning.invalid_orientation_message';
+        break;
+      default:
+        titleKey = 'secret_souls.main_photo_warning.no_face_title';
+        messageKey = 'secret_souls.main_photo_warning.no_face_message';
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.no_face_title'), style: AppTextStyles.displayText),
+        title: Text(AppLocalizations.of(context).tr(titleKey), style: AppTextStyles.displayText),
         content: Text(
-          AppLocalizations.of(context).tr('secret_souls.main_photo_warning.no_face_message'),
+          AppLocalizations.of(context).tr(messageKey),
           style: AppTextStyles.bodyText,
         ),
         actions: [
@@ -349,6 +401,10 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         ],
       ),
     );
+  }
+
+  void _showNoFaceDialog() {
+    _showFaceVerificationErrorDialog(FaceVerificationResult.noFace);
   }
 
   @override
@@ -380,16 +436,16 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                           padding: EdgeInsets.zero,
                           alignment: Alignment.centerLeft,
                         ),
-                        const Align(
+                        Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            'Upload a picture',
+                            AppLocalizations.of(context).tr('onboarding.upload_picture.title'),
                             style: AppTextStyles.displayText,
                           ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          '2/2',
+                          '6/6',
                           style: AppTextStyles.bodyText,
                         ),
                       ],
@@ -431,8 +487,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Gallery (up to 5)',
+                          Text(
+                            AppLocalizations.of(context).tr('onboarding.upload_picture.gallery_label'),
                             style: AppTextStyles.bodyText,
                           ),
                           const SizedBox(height: 8),
@@ -502,12 +558,12 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                     child: Column(
                       children: [
                         CustomButton(
-                          text: 'Upload from gallery',
+                          text: AppLocalizations.of(context).tr('onboarding.upload_picture.upload_from_gallery'),
                           onPressed: _pickImageFromGallery,
                         ),
                         const SizedBox(height: 16),
                         CustomButton(
-                          text: 'Take photo',
+                          text: AppLocalizations.of(context).tr('onboarding.upload_picture.take_photo'),
                           onPressed: _takePhoto,
                         ),
                         const SizedBox(height: 16),
@@ -533,12 +589,19 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 8.0),
                                       child: Text(
-                                        'Required: Photo${!hasQuote ? ", Quote" : ""}${!hasFantasy ? ", Fantasy" : ""}${!hasAudio ? ", Audio" : ""}',
+                                        AppLocalizations.of(context).tr(
+                                          'onboarding.upload_picture.requirements_missing',
+                                          params: {
+                                            'quote': !hasQuote ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_quote') : '',
+                                            'fantasy': !hasFantasy ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_fantasy') : '',
+                                            'audio': !hasAudio ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_audio') : '',
+                                          },
+                                        ),
                                         style: const TextStyle(color: Colors.red, fontSize: 12),
                                       ),
                                     ),
                                   CustomButton(
-                                    text: widget.isOnboarding ? 'Continue' : 'Confirm',
+                                    text: widget.isOnboarding ? AppLocalizations.of(context).tr('common.continue') : AppLocalizations.of(context).tr('common.confirm'),
                                     isActive: canProceed,
                                     onPressed: canProceed ? _proceedToNextScreen : () {
                   showDialog(

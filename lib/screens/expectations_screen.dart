@@ -82,7 +82,7 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                             style: AppTextStyles.displayText,
                           ),
                           const Text(
-                            '3/6',
+                            '4/6',
                             style: AppTextStyles.bodyText,
                           ),
                         ],

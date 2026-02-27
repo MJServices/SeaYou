@@ -17,7 +17,7 @@ class LocalizationService {
     } else {
       final system = WidgetsBinding.instance.platformDispatcher.locale;
       final lang = system.languageCode;
-      locale.value = ['en', 'fr', 'de', 'es'].contains(lang) ? Locale(lang) : const Locale('en');
+      locale.value = ['en', 'fr', 'de', 'es'].contains(lang) ? Locale(lang) : const Locale('fr');
     }
   }
 

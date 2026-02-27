@@ -101,45 +101,46 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Tell us about yourself',
+                              AppLocalizations.of(context).tr('onboarding.profile_info.title'),
                               style: AppTextStyles.displayText,
                             ),
-                            Text(
-                              '1/5',
+                            const Text(
+                              '1/6',
                               style: AppTextStyles.bodyText,
                             ),
                           ],
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Full Name',
+                          AppLocalizations.of(context).tr('onboarding.profile_info.full_name'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.darkGrey,
                           ),
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: 'Enter your name',
+                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.full_name_hint'),
                           controller: _nameController,
                           isActive: _nameController.text.isNotEmpty,
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Age',
+                          AppLocalizations.of(context).tr('onboarding.profile_info.age'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.darkGrey,
                           ),
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: 'Enter your age',
+                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.age_hint'),
                           controller: _ageController,
                           isActive: _ageController.text.isNotEmpty,
                           keyboardType: TextInputType.number,
+                          maxLength: 2,
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -150,14 +151,14 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'City',
+                                    AppLocalizations.of(context).tr('onboarding.profile_info.city'),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.darkGrey,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   CustomTextField(
-                                    hintText: 'Enter city',
+                                    hintText: AppLocalizations.of(context).tr('onboarding.profile_info.city_hint'),
                                     controller: _cityController,
                                     isActive: _cityController.text.isNotEmpty,
                                   ),
@@ -171,7 +172,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Department',
+                                    AppLocalizations.of(context).tr('onboarding.profile_info.department'),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.darkGrey,
                                     ),
@@ -190,14 +191,14 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                       child: DropdownButton<String>(
                                         value: _selectedDepartment,
                                         hint: Text(
-                                          'Select',
+                                          AppLocalizations.of(context).tr('onboarding.profile_info.department_hint'),
                                           style: AppTextStyles.bodyText.copyWith(
                                             color: AppColors.grey,
                                             fontSize: 12,
                                           ),
                                         ),
                                         isExpanded: true,
-                                        dropdownColor: const Color(0xFF2A2A2A),
+                                        dropdownColor: Colors.white,
                                         icon: const Icon(
                                           Icons.keyboard_arrow_down,
                                           color: AppColors.grey,
@@ -235,11 +236,11 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                              'Bio',
-                              style: AppTextStyles.bodyText.copyWith(
-                                color: AppColors.darkGrey,
-                              ),
-                            ),
+                          AppLocalizations.of(context).tr('onboarding.profile_info.bio'),
+                          style: AppTextStyles.bodyText.copyWith(
+                            color: AppColors.darkGrey,
+                          ),
+                        ),
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () {
@@ -256,7 +257,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: 'Add a short bio description',
+                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.bio_hint'),
                           controller: _aboutController,
                           isActive: _aboutController.text.isNotEmpty,
                           maxLines: 3,
@@ -275,7 +276,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                              'Secret Quote',
+                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_quote'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -296,7 +297,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: 'Add your secret quote',
+                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.secret_quote_hint'),
                           controller: _secretQuoteController,
                           isActive: _secretQuoteController.text.isNotEmpty,
                           maxLines: 2,
@@ -308,7 +309,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                              'Secret Fantasy',
+                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -329,7 +330,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: 'Add your secret fantasy',
+                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy_hint'),
                           controller: _secretDesireController,
                           isActive: _secretDesireController.text.isNotEmpty,
                           maxLines: 3,
@@ -341,7 +342,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Note: This will be anonymous and only shown in Gate of Desires.',
+                                AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy_note'),
                                 style: AppTextStyles.bodyText.copyWith(
                                   fontSize: 12,
                                   color: AppColors.darkGrey,
@@ -360,7 +361,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                              'Add a secret audio',
+                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_audio'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -381,7 +382,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Min: 5 seconds • Max: 15 seconds',
+                          AppLocalizations.of(context).tr('onboarding.profile_info.secret_audio_duration'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.grey,
                             fontSize: 12,
@@ -419,10 +420,10 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             barWidth: 3,
                             spacing: 2,
                           ),
-                          Text(
-                            _isRecording 
-                                ? 'Recording: ${_formatRecordingTime()}'
-                                : 'Recording saved: ${_formatRecordingTime()}',
+                           Text(
+                             _isRecording 
+                                 ? AppLocalizations.of(context).tr('onboarding.profile_info.recording', params: {'time': _formatRecordingTime()})
+                                 : AppLocalizations.of(context).tr('onboarding.profile_info.recording_saved', params: {'time': _formatRecordingTime()}),
                             style: AppTextStyles.bodyText.copyWith(
                               color: (_recordingSeconds >= _minDuration) ? Colors.green : Colors.red,
                               fontSize: 12,
@@ -431,9 +432,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           ),
                           if (_recordingSeconds < _minDuration && !_isRecording && _secretAudioPath != null) ...[
                             const SizedBox(height: 4),
-                            const Text(
-                              'Voice message must be at least 5 seconds long',
-                              style: TextStyle(
+                            Text(
+                              AppLocalizations.of(context).tr('onboarding.profile_info.voice_too_short'),
+                              style: const TextStyle(
                                 color: Colors.red,
                                 fontSize: 11,
                                 fontFamily: 'Montserrat',
@@ -469,7 +470,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: CustomButton(
-                    text: 'Next',
+                    text: AppLocalizations.of(context).tr('common.next'),
                     isActive: isFormValid,
                     onPressed: () async {
                       if (isFormValid) {
@@ -532,8 +533,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     if (!hasPerm) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission required'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('onboarding.profile_info.mic_permission_required')),
             backgroundColor: Colors.red,
           ),
         );

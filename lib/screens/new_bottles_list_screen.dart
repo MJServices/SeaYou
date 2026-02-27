@@ -139,15 +139,20 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
                            textAlign: TextAlign.center,
                          ),
                          const SizedBox(height: 16),
-                         ClipOval(
-                           child: Image.asset(
-                             'assets/images/homepage_bottle.png',
-                             height: 120,
-                             width: 120,
-                             fit: BoxFit.cover,
-                             errorBuilder: (_,__,___) => const Icon(Icons.mail_outline, size: 80, color: Color(0xFF8D6E63)),
-                           ),
-                         ),
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/homepage_bottle.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_,__,___) => const Icon(Icons.mail_outline, size: 80, color: Color(0xFF8D6E63)),
+                              ),
+                            ),
+                          ),
                        ],
                      ),
                    ),

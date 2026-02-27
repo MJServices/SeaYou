@@ -3,6 +3,7 @@ import 'custom_button.dart';
 import '../services/auth_service.dart';
 import '../services/tutorial_service.dart';
 import '../screens/splash_screen.dart';
+import '../i18n/app_localizations.dart';
 
 /// Sign Out Modal - Confirmation dialog for signing out
 class SignOutModal extends StatelessWidget {
@@ -10,6 +11,8 @@ class SignOutModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -37,22 +40,22 @@ class SignOutModal extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Title and description
-            const Column(
+            Column(
               children: [
                 Text(
-                  'Sign Out of SeaYou',
-                  style: TextStyle(
+                  l10n.tr('dialogs.logout_title'),
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF151515),
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
-                  'You can always sign in at anytime with your login details.',
+                  l10n.tr('dialogs.logout_description'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
@@ -83,9 +86,9 @@ class SignOutModal extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
-                        'Close',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.tr('dialogs.close'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -98,7 +101,7 @@ class SignOutModal extends StatelessWidget {
                 const SizedBox(width: 12),
                   Expanded(
                     child: CustomButton(
-                      text: 'Confirm Sign Out',
+                      text: l10n.tr('dialogs.confirm'),
                       isActive: true,
                       onPressed: () async {
                         // Clear all tutorial flags so they show again for new accounts

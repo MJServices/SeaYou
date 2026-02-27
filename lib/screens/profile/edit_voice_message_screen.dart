@@ -67,9 +67,18 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
       debugPrint('🔍 EditVoiceMessage: Loaded profile for $userId');
       if (profile != null) {
         debugPrint('🔍 EditVoiceMessage: secret_audio_url = ${profile['secret_audio_url']}');
+        String? audioUrl = profile['secret_audio_url'];
+        
+        if (audioUrl == null || audioUrl.isEmpty) {
+          final prefs = await _databaseService.getUserPreferences(userId);
+          if (prefs != null && prefs['voice_clip_url'] != null) {
+            audioUrl = prefs['voice_clip_url'];
+          }
+        }
+
         if (mounted) {
           setState(() {
-            _currentAudioUrl = profile['secret_audio_url'];
+            _currentAudioUrl = audioUrl;
             _isLoading = false;
           });
         }
@@ -178,7 +187,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
 
   Future<void> _saveVoiceMessage() async {
     if (_path == null || _duration < _minDuration) {
-      setState(() => _errorMessage = 'Recording must be at least $_minDuration seconds');
+      setState(() => _errorMessage = AppLocalizations.of(context).tr('profile.must_be_at_least', params: {'min': '$_minDuration'}));
       return;
     }
 
@@ -212,10 +221,10 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Voice message updated successfully!'),
-          backgroundColor: Color(0xFF0AC5C5),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('profile.voice_updated')),
+          backgroundColor: const Color(0xFF0AC5C5),
+          duration: const Duration(seconds: 2),
         ),
       );
 
@@ -271,7 +280,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Edit my voice message',
+                            AppLocalizations.of(context).tr('profile.edit_voice_message'),
                             style: AppTextStyles.displayText.copyWith(
                               color: AppColors.black,
                             ),
@@ -303,9 +312,9 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                                     ),
                                     child: Column(
                                       children: [
-                                        const Text(
-                                          'Current Voice Message',
-                                          style: TextStyle(
+                                        Text(
+                                          AppLocalizations.of(context).tr('profile.voice_message_label'),
+                                          style: const TextStyle(
                                             fontFamily: 'Montserrat',
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
@@ -336,9 +345,9 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                                 ],
 
                                 // Title
-                                const Text(
-                                  'Add a secret audio',
-                                  style: TextStyle(
+                                Text(
+                                  AppLocalizations.of(context).tr('profile.add_secret_audio'),
+                                  style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 20,
                                     fontWeight: FontWeight.w600,
@@ -349,7 +358,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
 
                                 // Duration constraint
                                 Text(
-                                  'Min: $_minDuration seconds • Max: $_maxDuration seconds',
+                                  AppLocalizations.of(context).tr('profile.audio_duration_hint', params: {'min': '$_minDuration', 'max': '$_maxDuration'}),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
@@ -402,8 +411,8 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                                   // Duration display
                                   Text(
                                     _recording
-                                        ? 'Recording: ${_formatDuration()}'
-                                        : 'Recorded: ${_duration}s',
+                                        ? AppLocalizations.of(context).tr('profile.recording_progress', params: {'duration': _formatDuration()})
+                                        : AppLocalizations.of(context).tr('profile.recorded_duration', params: {'duration': '$_duration'}),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: _duration >= _minDuration
                                           ? Colors.green
@@ -415,7 +424,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
                                   if (_duration < _minDuration && !_recording) ...[
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Must be at least $_minDuration seconds',
+                                      AppLocalizations.of(context).tr('profile.must_be_at_least', params: {'min': '$_minDuration'}),
                                       style: const TextStyle(
                                         fontFamily: 'Montserrat',
                                         fontSize: 12,
@@ -470,7 +479,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: _isSaving ? 'Processing...' : 'Confirm',
+                                  text: _isSaving ? AppLocalizations.of(context).tr('profile.processing') : AppLocalizations.of(context).tr('common.confirm'),
                                   onPressed: _saveVoiceMessage,
                                   isActive: _path != null && _duration >= _minDuration && !_recording && !_isSaving,
                                 ),

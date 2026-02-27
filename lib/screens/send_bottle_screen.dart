@@ -21,6 +21,7 @@ import '../widgets/animated_waveform.dart';
 import '../screens/chat/chat_conversation_screen.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../i18n/app_localizations.dart';
+import 'premium_screen.dart';
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
 /// Supports Text, Picture, and Voice Chat bottle creation
 class SendBottleScreen extends StatefulWidget {
@@ -60,7 +61,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   // Targeting State
   RangeValues _ageRange = const RangeValues(18, 99);
   List<String> _targetGenders = [];
-  double _targetDistance = 150;
   List<String> _targetDepartments = [];
 
   final List<Map<String, dynamic>> _moods = [
@@ -352,9 +352,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Choose your mood',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('send_bottle.choose_mood'),
+            style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -437,9 +437,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             controller: _messageController,
             maxLines: null,
             maxLength: 400,
-            decoration: const InputDecoration(
-              hintText: 'Start typing',
-              hintStyle: TextStyle(
+            decoration: InputDecoration(
+              hintText: AppLocalizations.of(context).tr('send_bottle.start_typing'),
+              hintStyle: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
@@ -620,13 +620,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             builder: (context) => TargetingOptionsModal(
               currentAgeRange: _ageRange,
               currentGenders: _targetGenders,
-              currentDistance: _targetDistance,
               currentDepartments: _targetDepartments,
-              onApply: (ageRange, genders, distance, departments) {
+              onApply: (ageRange, genders, departments) {
                 setState(() {
                   _ageRange = ageRange;
                   _targetGenders = genders;
-                  _targetDistance = distance;
                   _targetDepartments = departments;
                 });
               },
@@ -634,11 +632,18 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           );
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+            color: Colors.white.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -646,9 +651,9 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Targeting Criteria',
-                    style: TextStyle(
+                  Text(
+                    AppLocalizations.of(context).tr('send_bottle.targeting_criteria'),
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -666,7 +671,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                   ),
                 ],
               ),
-              const Icon(Icons.settings_input_component, size: 20, color: Color(0xFF151515)),
+              const Icon(Icons.filter_list_rounded, size: 24, color: Color(0xFF151515)),
             ],
           ),
         ),
@@ -676,17 +681,25 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
   String _getTargetingSummary() {
     List<String> parts = [];
-    parts.add('${_ageRange.start.round()}-${_ageRange.end.round()}yo');
+    
+    // Age Range
+    final ageStr = '${_ageRange.start.round()}-${_ageRange.end.round()} ${AppLocalizations.of(context).tr('common.years_short')}';
+    parts.add(ageStr);
+
+    // Genders
     if (_targetGenders.isEmpty) {
-      parts.add('All');
+      parts.add(AppLocalizations.of(context).tr('send_bottle.targeting_summary_all'));
     } else {
       parts.add(_targetGenders.join(', '));
     }
+
+    // Departments
     if (_targetDepartments.isEmpty) {
-      parts.add('France');
+      parts.add(AppLocalizations.of(context).tr('send_bottle.targeting_summary_france'));
     } else {
-      parts.add('${_targetDepartments.length} depts');
+      parts.add(AppLocalizations.of(context).tr('send_bottle.targeting_summary_depts', params: {'count': _targetDepartments.length.toString()}));
     }
+    
     return parts.join(' • ');
   }
 
@@ -707,7 +720,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             elevation: 0,
           ),
           child: Text(
-            'Preview',
+            AppLocalizations.of(context).tr('common.preview'),
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
@@ -757,26 +770,29 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       }
 
       // Check limits
-      final isPremium = await EntitlementsService().isPremium(currentUser.id);
-      final canSend = await _databaseService.canSendBottleToday(currentUser.id, isPremium);
+      final isPremiumOrWoman = await EntitlementsService().isPremiumOrWoman(currentUser.id);
+      final canSend = await _databaseService.canSendBottleToday(currentUser.id, isPremiumOrWoman);
       
       if (!canSend) {
         setState(() => _isSending = false);
         if (!mounted) return;
         
-        await showDialog(
+        showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Daily Limit Reached', style: TextStyle(fontFamily: 'PlayfairDisplay', fontWeight: FontWeight.bold)),
-            content: const Text('You have reached your limit of 3 bottles per day.\n\nUpgrade to Premium for unlimited bottles and more!', style: TextStyle(fontFamily: 'Montserrat')),
+            title: Text(AppLocalizations.of(context).tr('send_bottle.daily_limit_title'), style: const TextStyle(fontFamily: 'PlayfairDisplay', fontWeight: FontWeight.bold)),
+            content: Text(AppLocalizations.of(context).tr('send_bottle.daily_limit_message'), style: const TextStyle(fontFamily: 'Montserrat')),
             actions: [
               TextButton(child: Text(AppLocalizations.of(context).tr('dialogs.cancel')), onPressed: () => Navigator.pop(context)),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
-                child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+                child: Text(AppLocalizations.of(context).tr('common.upgrade'), style: const TextStyle(color: Colors.white)),
                 onPressed: () {
                    Navigator.pop(context);
-                   // Navigate to subscription screen if available
+                   Navigator.push(
+                     context,
+                     MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                   );
                 },
               ),
             ],
@@ -837,7 +853,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         targetMinAge: _ageRange.start.round(),
         targetMaxAge: _ageRange.end.round(),
         targetGender: _targetGenders,
-        targetDistanceKm: _targetDistance.round(),
         targetDepartments: _targetDepartments,
       );
 
@@ -882,6 +897,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                 type: 'text',
                 text: originalBottle.message,
                 mood: originalBottle.mood,
+                feelingDelta: 5,
               );
             }
           }
@@ -894,6 +910,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           type: contentType,
           text: contentType == 'text' ? _messageController.text : null,
           mediaUrl: contentType == 'photo' ? uploadedPhotoUrl : uploadedAudioUrl,
+          feelingDelta: 5,
         );
         
         debugPrint('✅ Reply sent to conversation: $conversationId');
@@ -969,11 +986,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             _isSending = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                  'No compatible users found. Your bottle will be sent when someone matches your preferences.'),
+                  AppLocalizations.of(context).tr('send_bottle.no_matches_found')),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
+              duration: const Duration(seconds: 4),
             ),
           );
           

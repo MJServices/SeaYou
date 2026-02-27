@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
+import '../i18n/app_localizations.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
@@ -88,18 +89,18 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                       alignment: Alignment.centerLeft,
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Create your password',
+                    Text(
+                      AppLocalizations.of(context).tr('auth.create_password_title'),
                       style: AppTextStyles.displayText,
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Your password must be at least 8 characters long and contain one symbol and number',
+                    Text(
+                      AppLocalizations.of(context).tr('auth.password_requirement_subtitle'),
                       style: AppTextStyles.bodyText,
                     ),
                     const SizedBox(height: 32),
                     CustomTextField(
-                      hintText: 'Enter password',
+                      hintText: AppLocalizations.of(context).tr('auth.enter_password_placeholder'),
                       controller: _passwordController,
                       isActive: _passwordController.text.isNotEmpty,
                       obscureText: _obscureText,
@@ -118,14 +119,14 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildRequirement('Minimum of 8 characters', hasMinLength),
+                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.min_characters'), hasMinLength),
                     const SizedBox(height: 8),
-                    _buildRequirement('At least a symbol', hasSymbol),
+                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.at_least_symbol'), hasSymbol),
                     const SizedBox(height: 8),
-                    _buildRequirement('At least a number', hasNumber),
+                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.at_least_number'), hasNumber),
                     const SizedBox(height: 300),
                     CustomButton(
-                      text: 'Create Password',
+                      text: AppLocalizations.of(context).tr('auth.create_password_button'),
                       isActive: isPasswordValid,
                       onPressed: () async {
                         try {
@@ -175,7 +176,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
     );
   }
 
-  Widget _buildRequirement(String text, bool isMet) {
+  Widget _buildRequirement(BuildContext context, String text, bool isMet) {
     return Row(
       children: [
         Icon(

@@ -95,10 +95,10 @@ class _EditBioScreenState extends State<EditBioScreen> {
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bio updated successfully!'),
-          backgroundColor: Color(0xFF0AC5C5),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('profile.bio_updated')),
+          backgroundColor: const Color(0xFF0AC5C5),
+          duration: const Duration(seconds: 2),
         ),
       );
 
@@ -161,9 +161,9 @@ class _EditBioScreenState extends State<EditBioScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Text(
-                          'Edit bio',
-                          style: TextStyle(
+                        Text(
+                          AppLocalizations.of(context).tr('profile.edit_bio'),
+                          style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -180,9 +180,9 @@ class _EditBioScreenState extends State<EditBioScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 24),
-                          const Text(
-                            'Bio',
-                            style: TextStyle(
+                          Text(
+                            AppLocalizations.of(context).tr('profile.bio_label'),
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -200,7 +200,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Describe yourself',
+                              hintText: AppLocalizations.of(context).tr('profile.bio_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -234,9 +234,9 @@ class _EditBioScreenState extends State<EditBioScreen> {
                           
                           // Voice Intro Section
                           if (_voiceClipUrl != null) ...[
-                            const Text(
-                              'Voice Intro',
-                              style: TextStyle(
+                            Text(
+                              AppLocalizations.of(context).tr('profile.voice_intro'),
+                              style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -269,7 +269,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: _isSaving ? 'Saving...' : 'Confirm',
+                      text: _isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm'),
                       isActive: isFormValid,
                       onPressed: isFormValid ? _saveBio : null,
                     ),

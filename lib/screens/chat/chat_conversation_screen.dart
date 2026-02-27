@@ -3,12 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart';
-import '../../utils/app_colors.dart';
+
 import '../../widgets/warm_gradient_background.dart';
 import 'chat_profile_screen.dart';
 import '../../widgets/custom_button.dart';
@@ -58,6 +59,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isSaving = false; // Track if message is being sent
   bool _isPhotoRevealed = false;
   bool _hasAutoShownNaughty = false;
+  bool _isInitialLoad = true; // Prevents 75% lock flicker
+  
+  // 🔒 Feeling Bar Limit State
+  String? _userGender;
+  bool _hasAnsweredNaughty = false;
+  
   bool _isRecording = false;
   String? _recordingPath;
   Timer? _recordingTimer;
@@ -68,6 +75,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   int _feelingPercent = 0;
   String? _threadTitle;
   String? _partnerAvatarUrl;
+  String? _partnerUsername;
+  String? _partnerId;
   late final FeelingController _feelingController;
   // Milestone tracking
   final Set<int> _shownMilestones = {}; // Track which milestones have been shown
@@ -77,11 +86,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   StreamSubscription<List<Map<String, dynamic>>>? _msgSub;
   late final UploadController _uploadController;
   double _uploadProgress = 0.0;
-  String _currentMood = 'Curious';
+  String _currentMood = 'Curieux';
   
   // Store conversation data for feeling bar
   Conversation? _conversation;
+  bool _isBlocked = false;
   bool _isPremium = false; // Track if user has premium subscription
+  Map<String, dynamic>? _partnerProfile;
+  StreamSubscription<Map<String, dynamic>?>? _partnerProfileSub;
+  ChatMessage? _replyingTo;
+  ChatMessage? _editingMessage;
 
   @override
   void initState() {
@@ -99,10 +113,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     });
     Future.microtask(_checkMilestones);
     
+    // Load all critical data in parallel to avoid flickers
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      final futures = <Future>[
+        _loadPremiumStatus(),
+        if (widget.conversationId != null) _loadConversation(),
+        if (widget.conversationId != null) _loadInitialMessages(),
+      ];
+
+      await Future.wait(futures);
+    } catch (e) {
+      debugPrint('Error initializing chat data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitialLoad = false;
+        });
+      }
+    }
+
     if (widget.conversationId != null) {
       _feelingController.subscribe(widget.conversationId!);
-      _loadInitialMessages();
-      _loadConversation(); // Load conversation data for feeling bar
       
       // Get current user ID for message alignment
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -113,33 +148,43 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       // Subscribe to new messages in realtime
       _db.subscribeMessages(widget.conversationId!).listen((messageData) {
         if (mounted) {
-          debugPrint('📨 Received new message via realtime: ${messageData['text']}');
-          debugPrint('   Message ID: ${messageData['id']}');
-          debugPrint('   Created at: ${messageData['created_at']}');
+          final eventType = messageData['event_type'];
+          final messageId = messageData['id'];
           
-          final newMessage = ChatMessage.fromJson(messageData, currentUserId: currentUserId);
+          debugPrint('📨 Received realtime event: $eventType for message ID: $messageId');
           
           setState(() {
-            // Check if message already exists by ID
-            final existingIndex = _messages.indexWhere((m) => m.id == newMessage.id);
-            
-            if (existingIndex == -1) {
-              // Message doesn't exist, add it
-              _messages.add(newMessage);
-              
-              // Sort by timestamp to maintain chronological order
-              _messages.sort((a, b) => a.createdAt.millisecondsSinceEpoch
-                  .compareTo(b.createdAt.millisecondsSinceEpoch));
-              
-              debugPrint('✅ Added new message. Total messages: ${_messages.length}');
+            if (eventType == 'delete') {
+              _messages.removeWhere((m) => m.id == messageId);
+              debugPrint('✅ Deleted message from local list');
             } else {
-              debugPrint('⚠️ Message already exists at index $existingIndex, skipping');
+              final message = ChatMessage.fromJson(messageData, currentUserId: currentUserId);
+              final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+              
+              if (eventType == 'insert' || eventType == 'INSERT') {
+                if (existingIndex == -1) {
+                  _messages.add(message);
+                  _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                  debugPrint('✅ Added new message');
+                }
+              } else if (eventType == 'update' || eventType == 'UPDATE') {
+                if (existingIndex != -1) {
+                  _messages[existingIndex] = message;
+                  debugPrint('✅ Updated existing message');
+                } else {
+                  // If for some reason we missed the insert, add it now
+                  _messages.add(message);
+                  _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                }
+              }
             }
           });
-          _scrollToBottom();
+
+          if (eventType == 'insert' || eventType == 'INSERT') {
+            _scrollToBottom();
+          }
           
-          // Refresh conversation state (feeling percent) whenever a message arrives
-          // This serves as a robust fallback if 'conversations' realtime updates are flaky
+          // Refresh conversation state (feeling percent)
           _loadConversation();
         }
       });
@@ -158,11 +203,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _conversation = Conversation.fromJson(row);
             _feelingPercent = _conversation!.feelingPercent;
             _threadTitle = _conversation!.title;
+            
+            // 🛡️ Ensure naughty answer state is synced from RT update too
+            final isUserA = _conversation!.userAId == currentUserId;
+            final userAnswer = isUserA
+                ? _conversation!.user1NaughtyAnswer
+                : _conversation!.user2NaughtyAnswer;
+            _hasAnsweredNaughty = userAnswer != null;
           });
           _checkMilestones();
         }
       });
     }
+
     _uploadController = UploadController();
     _uploadController.addListener(() {
       final vals = _uploadController.statuses.values;
@@ -171,25 +224,91 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           vals.map((s) => s.progress).fold(0.0, (a, b) => a + b) / vals.length;
       setState(() => _uploadProgress = p);
     });
-    
-    // Load premium status
-    _loadPremiumStatus();
   }
 
   Future<void> _loadPremiumStatus() async {
     try {
       final userId = AuthService().currentUser?.id;
       if (userId != null) {
-        final tier = await _db.getUserTier(userId);
+        // Fetch profile to get both tier and gender
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('is_premium, gender')
+            .eq('id', userId)
+            .single();
+            
         if (mounted) {
           setState(() {
-            _isPremium = (tier == 'bond' || tier == 'ritual');
+            _isPremium = profile['is_premium'] as bool? ?? false;
+            _userGender = profile['gender'] as String?;
+            debugPrint('👤 Loaded User: Gender=$_userGender, Premium=$_isPremium');
           });
         }
       }
     } catch (e) {
-      debugPrint('Error loading premium status: $e');
+      debugPrint('Error loading premium/gender status: $e');
     }
+  }
+
+  bool get _isPartnerOnline {
+    if (_partnerProfile == null || _partnerProfile!['last_active'] == null)
+      return false;
+    try {
+      final lastActiveStr = _partnerProfile!['last_active'] as String;
+      final lastActive = DateTime.parse(lastActiveStr).toUtc();
+      final now = DateTime.now().toUtc();
+      // Consider online if active within last 2 minutes
+      return now.difference(lastActive).inMinutes < 2;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String get _lastSeenText {
+    if (_partnerProfile == null || _partnerProfile!['last_active'] == null)
+      return "";
+    try {
+      final lastActiveStr = _partnerProfile!['last_active'] as String;
+      final lastActive = DateTime.parse(lastActiveStr).toUtc();
+      final now = DateTime.now().toUtc();
+      final diff = now.difference(lastActive);
+
+      if (diff.inMinutes < 2) {
+        return AppLocalizations.of(context).tr('chat.online_status');
+      } else if (diff.inMinutes < 60) {
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inMinutes}m ago";
+      } else if (diff.inHours < 24) {
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inHours}h ago";
+      } else {
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inDays}d ago";
+      }
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /// 🔒 Determines if the user is locked out by the 75% limit
+  bool get _isPremiumLocked {
+    // 1. If below 75%, never locked
+    if (_feelingPercent < 75) return false;
+    
+    // 2. Gender-specific logic
+    final gender = _userGender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+    
+    if (isFemale) {
+      // Females are ONLY gated by the intimacy question (completely free otherwise)
+      return !_hasAnsweredNaughty;
+    }
+    
+    // 3. Males (and other genders)
+    if (_isPremium) {
+      // Premium males are still gated by the intimacy question
+      return !_hasAnsweredNaughty;
+    }
+    
+    // Non-premium males are locked at 75% by the paywall
+    return true; 
   }
 
   Future<void> _loadConversation() async {
@@ -219,109 +338,70 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             ? conversation.userBId
             : conversation.userAId;
         
+        // Safety check: if for some reason partnerId is still current user, 
+        // it means something is wrong with the conversation data or currentUserId
+        if (partnerId == currentUserId) {
+           debugPrint('⚠️ Warning: partnerId matches currentUserId');
+        }
+
         final profileData = await _db.getProfile(partnerId);
+        
+        if (currentUserId == null) return;
+        
+        // Check if blocked (Bidirectional)
+        final blocked = await _db.isRelationBlocked(currentUserId, partnerId);
+        
         if (mounted) {
           setState(() {
+            _partnerId = partnerId;
             _partnerAvatarUrl = profileData?['avatar_url'] as String?;
+            _partnerUsername = profileData?['username'] as String?;
+            _isBlocked = blocked;
           });
         }
+
+        // Subscribe to partner profile for realtime online status
+        _partnerProfileSub?.cancel();
+        _partnerProfileSub = _db.profileStream(partnerId).listen((profile) {
+          if (mounted) {
+            setState(() {
+              _partnerProfile = profile;
+              // Also update avatar/username if they changed
+              if (profile != null) {
+                _partnerAvatarUrl = profile['avatar_url'] as String?;
+                _partnerUsername = profile['username'] as String?;
+              }
+            });
+          }
+        });
       } catch (e) {
-        debugPrint('Error pre-fetching partner avatar: $e');
+        debugPrint('Error pre-fetching partner avatar or block status: $e');
       }
 
-      // Load user-specific seen milestones from database
-      try {
-        final currentUserId = AuthService().currentUser?.id;
-        final response = await Supabase.instance.client
-            .from('conversations')
-            .select('user_a_id, user_b_id, user_a_seen_milestones, user_b_seen_milestones, user1_naughty_answer, user2_naughty_answer')
-            .eq('id', widget.conversationId!)
-            .single();
-        
-        // Determine which user's milestones to load
-        final isUserA = response['user_a_id'] == currentUserId;
-        final userMilestones = isUserA 
-            ? response['user_a_seen_milestones'] 
-            : response['user_b_seen_milestones'];
-        
-        if (userMilestones != null) {
-          _shownMilestones.addAll((userMilestones as List).cast<int>());
-          debugPrint('📚 Loaded user-specific seen milestones: $_shownMilestones');
-        }
-        
-        // Check if user needs to answer naughty question
-        if (_feelingPercent >= 75 && _shownMilestones.contains(75)) {
-          final currentUserId = AuthService().currentUser?.id;
-          final isUserA = response['user_a_id'] == currentUserId;
-          final userAnswer = isUserA 
-              ? response['user1_naughty_answer'] 
-              : response['user2_naughty_answer'];
+      // 🛡️ Consolidated: Extract naughty answer & milestones directly from Conversation model
+      final currentUserId = AuthService().currentUser?.id;
+      final isUserA = conversation.userAId == currentUserId;
+      
+      // 1. Set seen milestones
+      final userMilestones = isUserA 
+          ? conversation.userASeenMilestones 
+          : conversation.userBSeenMilestones;
           
-          if (userAnswer == null) {
-            // User hasn't answered yet
-            debugPrint('⚠️ User at 75%+ but hasn\'t answered naughty question');
-            
-            // Check gender and premium status
-            try {
-              if (currentUserId != null) {
-                final userProfile = await Supabase.instance.client
-                    .from('profiles')
-                    .select('gender, is_premium') // Assuming 'gender' column exists
-                    .eq('id', currentUserId)
-                    .single();
-                
-                final gender = userProfile['gender'] as String?;
-                final isPremium = userProfile['is_premium'] as bool? ?? false;
-                
-                debugPrint('👤 User Gender: $gender, Premium: $isPremium');
+      if (userMilestones != null) {
+        _shownMilestones.addAll(userMilestones);
+        debugPrint('📚 Loaded milestones from Conversation model: $_shownMilestones');
+      }
 
-                // Logic: Men (Free) -> content locked. Women or Premium Men -> Unlocked.
-                // Assuming gender values are 'Man'/'Male' vs 'Woman'/'Female'
-                final isMale = gender == 'Man' || gender == 'Male';
-                
-                // Check SharedPreferences to see if we already auto-shown this session/device
-                final prefs = await SharedPreferences.getInstance();
-                final hasSeenKey = 'has_seen_naughty_popup_${widget.conversationId}';
-                final hasSeen = prefs.getBool(hasSeenKey) ?? false;
-
-                if (isMale && !isPremium) {
-                   // MALE + FREE = LOCKED
-                   // Show Premium Screen instead of Question Screen
-                   Future.delayed(const Duration(milliseconds: 500), () {
-                    if (mounted && !hasSeen) {
-                        prefs.setBool(hasSeenKey, true);
-                       debugPrint('🔒 Premium Gate: Redirecting male user to Premium Screen');
-                       Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => const PremiumScreen()),
-                       );
-                    }
-                   });
-                } else {
-                  // FEMALE or PREMIUM MALE = UNLOCKED
-                   Future.delayed(const Duration(milliseconds: 500), () {
-                    if (mounted && !hasSeen) {
-                      prefs.setBool(hasSeenKey, true);
-                      _showNaughtyQuestionsScreen();
-                    }
-                  });
-                }
-              }
-            } catch (e) {
-              debugPrint('Error checking gender/premium for gate: $e');
-              // Fallback to showing it if check fails (safest UX) or block? 
-              // Safest is to block if error implies security, but for UX let's show default or retry.
-              // Let's stick to existing behavior (show) if error, to avoid softlock.
-               Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
-                  _showNaughtyQuestionsScreen();
-                }
-              });
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error loading unlocked milestones: $e');
+      // 2. Set naughty answer status
+      final userAnswer = isUserA
+          ? conversation.user1NaughtyAnswer
+          : conversation.user2NaughtyAnswer;
+          
+      if (mounted) {
+        setState(() {
+          _hasAnsweredNaughty = userAnswer != null;
+          debugPrint('🔒 Naughty answer status: $_hasAnsweredNaughty');
+        });
       }
       
       _feelingController.setInitial(
@@ -331,26 +411,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  void _showNaughtyQuestionsScreen() {
-    debugPrint('🎁 Showing Naughty Questions screen');
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => NaughtyQuestionsScreen(
-          conversationId: widget.conversationId!,
-          onComplete: () {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Answer submitted!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
 
 Future<void> _loadInitialMessages() async {
   if (widget.conversationId == null) return;
@@ -475,25 +535,28 @@ Future<void> _loadInitialMessages() async {
                   
                   if (_feelingPercent >= 100 && !_isPhotoRevealed) {
                     _showPhotoReveal();
-                  } else {
-                    final currentUserId = AuthService().currentUser?.id;
-                    final partnerId = _conversation!.userAId == currentUserId
-                        ? _conversation!.userBId
-                        : _conversation!.userAId;
-                    
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatProfileScreen(
-                          conversationId: widget.conversationId!,
-                          partnerId: partnerId,
-                          feelingPercent: _feelingPercent,
-                          contactName: widget.contactName,
-                          mood: widget.mood,
-                        ),
-                      ),
-                    );
+                    return;
                   }
+
+                  final currentUserId = AuthService().currentUser?.id;
+                  final partnerId = _conversation!.userAId == currentUserId
+                      ? _conversation!.userBId
+                      : _conversation!.userAId;
+                  
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatProfileScreen(
+                        conversationId: widget.conversationId!,
+                        partnerId: _partnerId ?? partnerId,
+                        feelingPercent: _feelingPercent,
+                        contactName: (_feelingPercent >= 100 && _partnerUsername != null)
+                            ? _partnerUsername!
+                            : widget.contactName,
+                        mood: widget.mood,
+                      ),
+                    ),
+                  );
                 },
                 child: Container(
                   width: 40,
@@ -542,39 +605,37 @@ Future<void> _loadInitialMessages() async {
                 child: Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        onTap: _showRenameDialog,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _feelingPercent >= 100 
+                                ? (_partnerUsername ?? widget.contactName) 
+                                : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? 
+                                   (widget.contactName == 'Curious' || widget.contactName == 'Curieux' 
+                                      ? AppLocalizations.of(context).tr('chat.anonymous') 
+                                      : widget.contactName)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF151515),
+                            ),
+                          ),
+                          if (!widget.isUnlocked)
                             Text(
-                              (_conversation?.title != null && _conversation!.title!.isNotEmpty)
-                                  ? _conversation!.title!
-                                  : (widget.isUnlocked 
-                                      ? widget.contactName 
-                                      : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? widget.contactName)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                              style: const TextStyle(
+                              _lastSeenText,
+                              style: TextStyle(
                                 fontFamily: 'Montserrat',
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF151515),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400,
+                                color: _isPartnerOnline ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
                               ),
                             ),
-                            if (!widget.isUnlocked)
-                              const Text(
-                                'Online',
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF0AC5C5),
-                                ),
-                              ),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -613,9 +674,9 @@ Future<void> _loadInitialMessages() async {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Feeling Level',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tr('chat.feeling_level_title'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 20,
                   fontWeight: FontWeight.w500,
@@ -623,9 +684,9 @@ Future<void> _loadInitialMessages() async {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Send messages to unlock milestones.',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tr('chat.feeling_level_subtitle'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 12,
                   color: Color(0xFF737373),
@@ -660,10 +721,10 @@ Future<void> _loadInitialMessages() async {
               ),
               const SizedBox(height: 24),
               // Dynamic milestone list
-              _buildConnectionItem('Bio Reveal (25%)', unlockedMilestones.contains(25)),
-              _buildConnectionItem('Secret Audio (50%)', unlockedMilestones.contains(50)),
-              _buildConnectionItem('Naughty Question (75%)', unlockedMilestones.contains(75)),
-              _buildConnectionItem('Photo Reveal (100%)', _feelingPercent >= 100),
+              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_bio'), unlockedMilestones.contains(25)),
+              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_audio'), unlockedMilestones.contains(50)),
+              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_naughty'), unlockedMilestones.contains(75)),
+              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_photo'), _feelingPercent >= 100),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
@@ -682,64 +743,6 @@ Future<void> _loadInitialMessages() async {
     );
   }
 
-  void _showRenameDialog() {
-    final TextEditingController renameController = TextEditingController(
-      text: (_conversation?.title != null && _conversation!.title!.isNotEmpty)
-          ? _conversation!.title!
-          : (widget.isUnlocked 
-              ? widget.contactName 
-              : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? widget.contactName))
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nickname', style: TextStyle(fontFamily: 'Montserrat')),
-        content: TextField(
-          controller: renameController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter a nickname',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0AC5C5)),
-            onPressed: () async {
-              final newName = renameController.text.trim();
-              if (newName.isNotEmpty) {
-                try {
-                  if (widget.conversationId != null) {
-                    await DatabaseService().renameConversation(widget.conversationId!, newName);
-                  }
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nickname updated!')),
-                    );
-                    // Refresh conversation to show new name in header if possible, 
-                    // or just rely on state update.
-                    _loadConversation(); 
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                }
-              }
-            },
-            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildConnectionItem(String label, bool isUnlocked) {
     return Padding(
@@ -753,14 +756,16 @@ Future<void> _loadInitialMessages() async {
                 isUnlocked ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
           ),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
-              color: isUnlocked
-                  ? const Color(0xFF363636)
-                  : const Color(0xFF737373),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 14,
+                color: isUnlocked
+                    ? const Color(0xFF363636)
+                    : const Color(0xFF737373),
+              ),
             ),
           ),
         ],
@@ -768,28 +773,7 @@ Future<void> _loadInitialMessages() async {
     );
   }
 
-  Widget _buildAvatar() {
-    if (widget.isUnlocked) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFFE3E3E3),
-        ),
-        child: const Icon(Icons.person, color: Color(0xFF737373), size: 24),
-      );
-    } else {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: _getMoodGradient(widget.mood),
-        ),
-      );
-    }
-  }
+
 
   LinearGradient _getMoodGradient(String? mood) {
     switch (mood) {
@@ -825,28 +809,35 @@ Future<void> _loadInitialMessages() async {
           colors: [Color(0xFFFF9F9B), Color(0xFFFF6D68)], // Same as 'Taquin' (Naughty)
         );
       default:
+        // Handle localized naughty questions (naughty_question_1, naughty_question_2, etc.)
+        if (mood != null && mood.startsWith('naughty_question_')) {
+          return const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFF9F9B), Color(0xFFFF6D68)],
+          );
+        }
         return const LinearGradient(
           colors: [Color(0xFF9B98E6), Color(0xFFC7CEEA)],
         );
     }
   }
 
-Widget _buildMessagesList() {
-  return ListView.builder(
-    controller: _scrollController,
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-    itemCount: _messages.length,
-    itemBuilder: (context, index) {
-      return _buildMessageBubble(_messages[index]);
-    },
-  );
-}
+  Widget _buildMessagesList() {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        return _buildMessageBubble(_messages[index]);
+      },
+    );
+  }
 
   Widget _buildMessageBubble(ChatMessage message) {
     bool isMe = message.isMe;
-    // Use message's saved mood if available, otherwise use default 'Curious' for old messages
-    // Never use _currentMood as fallback to prevent changing colors of old messages
-    final messageMood = message.mood ?? 'Curious';
+    // Use message's saved mood if available, otherwise use default 'Curieux' for old messages
+    final messageMood = message.mood ?? 'Curieux';
     final gradient = _getMoodGradient(messageMood);
 
     return Padding(
@@ -862,7 +853,9 @@ Widget _buildMessagesList() {
               if (!isMe) ...[
                 Expanded(
                   child: Text(
-                    widget.mood ?? widget.contactName,
+                    _feelingPercent >= 100 
+                        ? (_partnerUsername ?? widget.contactName) 
+                        : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName),
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 12,
@@ -897,34 +890,49 @@ Widget _buildMessagesList() {
             ],
           ),
           const SizedBox(height: 4),
-          Container(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 0),
-                bottomRight: Radius.circular(isMe ? 0 : 16),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+          GestureDetector(
+            onHorizontalDragEnd: (details) {
+              // Swipe right to reply
+              if (details.primaryVelocity! > 500) {
+                _onReply(message);
+              }
+            },
+            onLongPress: () => _showMessageOptions(message),
+            child: Container(
+              constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isMe ? 16 : 0),
+                  bottomRight: Radius.circular(isMe ? 0 : 16),
                 ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (message.replyToId != null) _buildRepliedMessageContext(message.replyToId!),
+                  _buildMessageContent(message, isMe),
+                ],
+              ),
             ),
-            child: _buildMessageContent(message),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMessageContent(ChatMessage message) {
+  Widget _buildMessageContent(ChatMessage message, bool isMe) {
     if (message.type == 'image') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -973,43 +981,22 @@ Widget _buildMessagesList() {
         children: [
           GestureDetector(
             onTap: () async {
-              debugPrint('🎵 Voice message tapped: $voiceId');
-              debugPrint('🎵 Media URL: ${message.mediaUrl}');
-              debugPrint('🎵 Currently playing: $_playingVoiceId, isPlaying: $_isPlayingVoice');
-              
               try {
                 if (isPlaying) {
-                  // Stop playback
-                  debugPrint('⏸️ Stopping playback');
                   await _audioPlayer.stop();
                   setState(() {
                     _isPlayingVoice = false;
                     _playingVoiceId = null;
                   });
                 } else {
-                  // Start playback
-                  if (message.mediaUrl == null) {
-                    debugPrint('❌ No media URL for voice message');
-                    return;
-                  }
-                  
-                  debugPrint('▶️ Starting playback from: ${message.mediaUrl}');
-                  
-                  // Stop any currently playing audio
+                  if (message.mediaUrl == null) return;
                   await _audioPlayer.stop();
-                  
                   setState(() {
                     _isPlayingVoice = true;
                     _playingVoiceId = voiceId;
                   });
-                  
-                  // Play the audio
                   await _audioPlayer.play(UrlSource(message.mediaUrl!));
-                  debugPrint('✅ Audio playback started');
-                  
-                  // Listen for completion
                   _audioPlayer.onPlayerComplete.listen((event) {
-                    debugPrint('🏁 Audio playback completed');
                     if (mounted && _playingVoiceId == voiceId) {
                       setState(() {
                         _isPlayingVoice = false;
@@ -1019,15 +1006,11 @@ Widget _buildMessagesList() {
                   });
                 }
               } catch (e) {
-                debugPrint('❌ Error playing voice message: $e');
                 if (mounted) {
                   setState(() {
                     _isPlayingVoice = false;
                     _playingVoiceId = null;
                   });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error playing voice message: $e')),
-                  );
                 }
               }
             },
@@ -1059,7 +1042,15 @@ Widget _buildMessagesList() {
           ),
         ],
       );
-    } else if (message.mood == 'naughty_question') {
+    } else if (message.mood == 'naughty_question_intro' || (message.mood != null && message.mood!.startsWith('naughty_question'))) {
+      // Determine if it's a specific question or the generic mood
+      String questionText = message.text ?? '';
+      if (message.mood!.startsWith('naughty_question_')) {
+        final id = message.mood!.replaceFirst('naughty_question_', '');
+        // Use translation key if it exists
+        questionText = AppLocalizations.of(context).tr('surprise.q$id');
+      }
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1067,23 +1058,24 @@ Widget _buildMessagesList() {
             children: [
               const Icon(Icons.favorite, size: 14, color: Colors.white),
               const SizedBox(width: 6),
-              const Text(
-                'Question Flirt',
-                style: TextStyle(
-                  fontFamily: 'PlayfairDisplay',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              Text(
+                AppLocalizations.of(context).tr('chat.naughty_question_main_title').toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                   color: Colors.white,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            message.text ?? '',
+            questionText,
             style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 16,
               fontWeight: FontWeight.w600,
               fontStyle: FontStyle.italic,
               color: Color(0xFF151515),
@@ -1095,25 +1087,212 @@ Widget _buildMessagesList() {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Réponse:',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.7),
-            ),
+          Row(
+            children: [
+              const Icon(Icons.forum, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                isMe 
+                  ? AppLocalizations.of(context).tr('chat.naughty_question_your_answer')
+                  : AppLocalizations.of(context).tr('chat.naughty_question_partner_choice'),
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             message.text ?? '',
             style: const TextStyle(
               fontFamily: 'Montserrat',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
               color: Color(0xFF151515),
             ),
           ),
+        ],
+      );
+    } else if (message.mood?.startsWith('milestone_') ?? false) {
+      final isMilestone50 = message.mood == 'milestone_50';
+      final hasAudio = message.mediaUrl != null;
+      final voiceId = message.id;
+      final isPlaying = _isPlayingVoice && _playingVoiceId == voiceId;
+
+      // Extract content if present (separated by |--CONTENT--|)
+      String title = message.text ?? '';
+      String? extraContent;
+      if (title.contains('|--CONTENT--|')) {
+        final parts = title.split('|--CONTENT--|');
+        title = parts[0];
+        extraContent = parts.length > 1 ? parts[1] : null;
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                AppLocalizations.of(context).tr('common.milestone_header'),
+                style: const TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Only show title if there is no extra content and no audio for milestone 50
+          if ((extraContent == null || extraContent.isEmpty) && 
+              !(hasAudio && message.mood == 'milestone_50'))
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF151515),
+              ),
+            ),
+          
+          // Render extra content (Bio for 25%, Photo for 100%, etc.)
+          if (extraContent != null && extraContent.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            if (message.mood == 'milestone_25')
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  extraContent,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF151515),
+                  ),
+                ),
+              )
+            else if (message.mood == 'milestone_75')
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  extraContent,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF151515),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              )
+            else if (message.mood == 'milestone_100')
+              Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: (extraContent != null && extraContent.startsWith('http'))
+                    ? Image.network(extraContent, fit: BoxFit.cover)
+                    : const Center(child: Icon(Icons.person, size: 50, color: Colors.white)),
+                ),
+              ),
+          ],
+
+          if (hasAudio) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    try {
+                      if (isPlaying) {
+                        await _audioPlayer.pause();
+                        setState(() {
+                          _isPlayingVoice = false;
+                        });
+                      } else {
+                        // Stop any current playing
+                        if (_isPlayingVoice) {
+                          await _audioPlayer.stop();
+                        }
+                        
+                        setState(() {
+                          _isPlayingVoice = true;
+                          _playingVoiceId = voiceId;
+                        });
+                        
+                        await _audioPlayer.play(UrlSource(message.mediaUrl!));
+                        _audioPlayer.onPlayerComplete.listen((event) {
+                          if (mounted && _playingVoiceId == voiceId) {
+                            setState(() {
+                              _isPlayingVoice = false;
+                              _playingVoiceId = null;
+                            });
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint('Error playing milestone audio: $e');
+                      if (mounted) {
+                        setState(() {
+                          _isPlayingVoice = false;
+                          _playingVoiceId = null;
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      size: 20,
+                      color: const Color(0xFF151515),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildVoiceWaveform(isPlaying),
+                const SizedBox(width: 8),
+                Text(
+                  '${message.duration ?? 3}s',
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF151515),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       );
     } else {
@@ -1160,7 +1339,339 @@ Widget _buildMessagesList() {
     );
   }
 
+  Widget _buildReplyPreview() {
+    if (_replyingTo == null) return const SizedBox.shrink();
+    
+    final isMe = _replyingTo!.senderId == (Supabase.instance.client.auth.currentUser?.id);
+    final senderName = isMe 
+        ? 'You' 
+        : (_feelingPercent >= 100 
+            ? (_partnerUsername ?? widget.contactName) 
+            : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: BorderSide(color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800), width: 4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  senderName,
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800),
+                  ),
+                ),
+                Text(
+                  _replyingTo!.text ?? (_replyingTo!.type == 'image' ? 'Picture' : 'Voice Message'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20, color: Color(0xFF737373)),
+            onPressed: () => setState(() => _replyingTo = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditingPreview() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: Color(0xFFFF9800), width: 4),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.edit, size: 16, color: Color(0xFFFF9800)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Editing Message',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFF9800),
+                  ),
+                ),
+                Text(
+                  _editingMessage!.text ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 14,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20, color: Color(0xFF737373)),
+            onPressed: () {
+              setState(() {
+                _editingMessage = null;
+                _messageController.clear();
+                _isTyping = false;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onReply(ChatMessage message) {
+    setState(() {
+      _replyingTo = message;
+    });
+  }
+
+  void _showMessageOptions(ChatMessage message) {
+    final isMe = message.senderId == (Supabase.instance.client.auth.currentUser?.id);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply, color: Color(0xFF0AC5C5)),
+              title: const Text('Reply', style: TextStyle(fontFamily: 'Montserrat')),
+              onTap: () {
+                Navigator.pop(context);
+                _onReply(message);
+              },
+            ),
+            if (isMe && message.type == 'text')
+              ListTile(
+                leading: const Icon(Icons.edit, color: Color(0xFF0AC5C5)),
+                title: const Text('Edit', style: TextStyle(fontFamily: 'Montserrat')),
+                onTap: () {
+                  Navigator.pop(context);
+                  _editMessage(message);
+                },
+              ),
+            if (isMe)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete', style: TextStyle(fontFamily: 'Montserrat', color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmDelete(message);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.copy, color: Color(0xFF0AC5C5)),
+              title: const Text('Copy Text', style: TextStyle(fontFamily: 'Montserrat')),
+              onTap: () {
+                Navigator.pop(context);
+                if (message.text != null) {
+                  Clipboard.setData(ClipboardData(text: message.text!));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied to clipboard')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editMessage(ChatMessage message) {
+    setState(() {
+      _editingMessage = message;
+      _messageController.text = message.text ?? '';
+      _isTyping = _messageController.text.isNotEmpty;
+    });
+  }
+
+  void _confirmDelete(ChatMessage message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessage(message);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteMessage(ChatMessage message) async {
+    try {
+      await _db.deleteMessage(message.id);
+      // Realtime subscription should handle UI update, but we can also update local state
+      setState(() {
+        _messages.removeWhere((m) => m.id == message.id);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $e')),
+      );
+    }
+  }
+
+  Widget _buildRepliedMessageContext(String replyToId) {
+    // Find the original message in the list
+    final repliedMsg = _messages.firstWhere(
+      (m) => m.id == replyToId,
+      orElse: () => ChatMessage(
+        id: '',
+        conversationId: '',
+        senderId: '',
+        type: 'text',
+        text: 'Message deleted or not found',
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    if (repliedMsg.id.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          'Message not found',
+          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.white70),
+        ),
+      );
+    }
+
+    final isMe = repliedMsg.senderId == (Supabase.instance.client.auth.currentUser?.id);
+    final senderName = isMe 
+        ? 'You' 
+        : (_feelingPercent >= 100 
+            ? (_partnerUsername ?? widget.contactName) 
+            : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800), width: 4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            senderName,
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800),
+            ),
+          ),
+          Text(
+            repliedMsg.text ?? (repliedMsg.type == 'image' ? 'Picture' : 'Voice Message'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 12,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputArea() {
+    // 🛡️ Prevent flicker: shows nothing or a basic loading state 
+    // until we know for sure if we are locked or not.
+    if (_isInitialLoad) {
+      return const SizedBox(
+        height: 80,
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE3E3E3)),
+          ),
+        ),
+      );
+    }
+
+    if (_isBlocked) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          border: const Border(top: BorderSide(color: Color(0xFFE3E3E3))),
+        ),
+        child: const Center(
+          child: Text(
+            'This conversation is no longer available.',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 14,
+              color: Color(0xFF737373),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -1169,161 +1680,233 @@ Widget _buildMessagesList() {
           top: BorderSide(color: Color(0xFFE3E3E3), width: 0.5),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_uploadProgress > 0 && _uploadProgress < 1.0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: LinearProgressIndicator(value: _uploadProgress),
-            ),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: (_isPremium || _feelingPercent >= 75)
-                    ? _showAttachmentOptions
-                    : null,
-                child: Icon(
-                  Icons.camera_alt,
-                  size: 24,
-                  color: (_isPremium || _feelingPercent >= 75)
-                      ? const Color(0xFF151515)
-                      : const Color(0xFFE3E3E3),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border:
-                        Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
-                    borderRadius: BorderRadius.circular(8),
+      child: _isPremiumLocked 
+          ? _buildPremiumLockState()
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_uploadProgress > 0 && _uploadProgress < 1.0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: LinearProgressIndicator(value: _uploadProgress),
                   ),
-                  child: Row(
-                    children: [
-                      if (_feelingPercent >= 25)
-                        GestureDetector(
-                          onTap: _insertQuote,
-                          child: const Padding(
-                            padding: EdgeInsets.only(right: 8),
-                            child: Icon(Icons.format_quote,
-                                size: 20, color: Color(0xFF737373)),
-                          ),
+                if (_replyingTo != null) _buildReplyPreview(),
+                if (_editingMessage != null) _buildEditingPreview(),
+                Row(
+                  children: [
+                    // Camera icon removed - text only per request
+                    const SizedBox(width: 8),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border:
+                              Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          enabled: true,
-                          onChanged: (value) {
-                            setState(() {
-                              _isTyping = value.isNotEmpty;
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Send a bottle',
-                            hintStyle: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF737373),
+                        child: Row(
+                          children: [
+                            if (_feelingPercent >= 25)
+                              GestureDetector(
+                                onTap: _insertQuote,
+                                child: const Padding(
+                                  padding: EdgeInsets.only(right: 8),
+                                  child: Icon(Icons.format_quote,
+                                      size: 20, color: Color(0xFF737373)),
+                                ),
+                              ),
+                            Expanded(
+                              child: TextField(
+                                controller: _messageController,
+                                enabled: true,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isTyping = value.isNotEmpty;
+                                  });
+                                },
+                                decoration: const InputDecoration(
+                                  hintText: 'Send a bottle',
+                                  hintStyle: TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF737373),
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
                             ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
+                    // Voice and Image icons removed - text only per request
+                    const SizedBox(width: 8),
+                          ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: (_isPremium || _feelingPercent >= 75)
-                            ? _showVoiceRecorder
-                            : null,
-                        child: Icon(
-                          Icons.mic,
-                          size: 20,
-                          color: (_isPremium || _feelingPercent >= 75)
-                              ? const Color(0xFF737373)
-                              : const Color(0xFFE3E3E3),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: (_isPremium || _feelingPercent >= 75)
-                            ? _showImagePicker
-                            : null,
-                        child: Icon(
-                          Icons.image,
-                          size: 20,
-                          color: (_isPremium || _feelingPercent >= 75)
-                              ? const Color(0xFF737373)
-                              : const Color(0xFFE3E3E3),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Larger hit area for send button
-              InkWell(
-                onTap: (_isTyping && !_isSaving) ? _sendMessage : null,
-                borderRadius: BorderRadius.circular(24),
-                child: Padding(
-                  padding: const EdgeInsets.all(4), // Increases hit area
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: (_isTyping)
-                          ? const LinearGradient(
-                              colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
-                          : LinearGradient(colors: [
-                              const Color(0xFF0AC5C5).withValues(alpha: 0.5),
-                              const Color(0xFF08A3A3).withValues(alpha: 0.5)
-                            ]),
-                      shape: BoxShape.circle,
                     ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Icon(Icons.send, color: Colors.white, size: 24),
-                  ),
+                    const SizedBox(width: 10),
+                    // Larger hit area for send button
+                    InkWell(
+                      onTap: (_isTyping && !_isSaving) ? _sendMessage : null,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4), // Increases hit area
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: (_isTyping)
+                                ? const LinearGradient(
+                                    colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
+                                : LinearGradient(colors: [
+                                    const Color(0xFF0AC5C5).withValues(alpha: 0.5),
+                                    const Color(0xFF08A3A3).withValues(alpha: 0.5)
+                                  ]),
+                            shape: BoxShape.circle,
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Icon(_editingMessage != null ? Icons.edit : Icons.send, color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildPremiumLockState() {
+    // Determine the primary reason for the lock
+    final gender = _userGender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+    
+    // Females only see the question flow. 
+    // Males see premium flow if not premium, else question flow.
+    final needsNaughtyQuestion = isFemale 
+        ? !_hasAnsweredNaughty 
+        : (_isPremium && !_hasAnsweredNaughty);
+    
+    final l10n = AppLocalizations.of(context);
+    String title = l10n.tr('chat.milestone_75_reached_title');
+    String description = needsNaughtyQuestion 
+        ? l10n.tr('chat.milestone_75_desc_naughty')
+        : l10n.tr('chat.milestone_75_desc_premium');
+    String buttonText = needsNaughtyQuestion 
+        ? l10n.tr('chat.milestone_75_button_naughty') 
+        : l10n.tr('chat.milestone_75_button_unlock');
+    VoidCallback onPressed = needsNaughtyQuestion 
+        ? _showNaughtyQuestionsScreen 
+        : () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PremiumScreen()),
+            ).then((_) {
+              _loadPremiumStatus();
+            });
+          };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE3E3E3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF151515),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 13,
+              color: Color(0xFF737373),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0AC5C5),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                buttonText,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  void _showNaughtyQuestionsScreen() {
+    if (widget.conversationId == null) return;
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NaughtyQuestionsScreen(
+          conversationId: widget.conversationId!,
+          onComplete: () {
+            if (mounted) {
+              setState(() {
+                _hasAnsweredNaughty = true;
+              });
+            }
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).tr('chat.answer_submitted')),
+                backgroundColor: Colors.green,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _insertQuote() {
+    if (_isPremiumLocked) return;
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    final msg = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      conversationId: widget.conversationId ?? '',
-      senderId: userId,
-      type: 'quote',
-      text: '“A shared moment matters more.”',
-      createdAt: DateTime.now(),
-      isMe: true,
-      mood: _currentMood,
-    );
-
-    setState(() {
-      _messages.add(msg);
-      _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    });
     _scrollToBottom();
 
     if (widget.conversationId != null) {
@@ -1333,13 +1916,14 @@ Widget _buildMessagesList() {
         type: 'quote', // Treat as text for DB compatibility if needed, or 'quote'
         text: '“A shared moment matters more.”',
         mood: _currentMood,
+        feelingDelta: 5,
       );
     }
   }
 
 
   Future<void> _checkMilestones() async {
-    if (widget.conversationId == null) return;
+    if (widget.conversationId == null || _isBlocked) return;
     
     debugPrint('🎯 Checking milestones: current=$_feelingPercent, previous=$_previousFeelingPercent');
     
@@ -1368,9 +1952,92 @@ Widget _buildMessagesList() {
         
         final milestone = FeelingMilestone.fromPercentage(threshold);
         if (milestone != null) {
+          // Fetch partner data if needed for the milestone
+          String? partnerBio;
+          String? partnerSecretAudioUrl;
+          
+          if (_conversation != null) {
+            try {
+              final currentUserId = AuthService().currentUser?.id;
+              final partnerId = _conversation!.userAId == currentUserId
+                  ? _conversation!.userBId
+                  : _conversation!.userAId;
+              
+              final response = await Supabase.instance.client
+                  .from('profiles')
+                  .select('about, secret_audio_url')
+                  .eq('id', partnerId)
+                  .single();
+              
+              partnerBio = response['about'] as String?;
+              partnerSecretAudioUrl = response['secret_audio_url'] as String?;
+            } catch (e) {
+              debugPrint('❌ Error fetching partner data for milestone: $e');
+            }
+          }
+
+          // Determine content to show in the chat bubble based on milestone
+          String? milestoneContent;
+          if (milestone.percentage == 25) {
+            milestoneContent = partnerBio ?? AppLocalizations.of(context).tr('chat.milestone_no_bio');
+          } else if (milestone.percentage == 50) {
+            // No extra text content for 50%, the audio player is the material
+            milestoneContent = null; 
+          } else if (milestone.percentage == 75) {
+            // ONLY fetch intimate questions if the user is PREMIUM
+            if (_isPremium) {
+              try {
+                final currentUserId = AuthService().currentUser?.id;
+                final partnerId = _conversation!.userAId == currentUserId
+                    ? _conversation!.userBId
+                    : _conversation!.userAId;
+                    
+                final questionsResponse = await Supabase.instance.client
+                    .from('intimate_questions')
+                    .select('question_1, question_2, question_3')
+                    .eq('conversation_id', widget.conversationId!)
+                    .eq('user_id', partnerId)
+                    .maybeSingle();
+                    
+                if (questionsResponse != null) {
+                  final q1 = questionsResponse['question_1'] as String?;
+                  final q2 = questionsResponse['question_2'] as String?;
+                  final q3 = questionsResponse['question_3'] as String?;
+                  
+                  List<String> questions = [];
+                  if (q1 != null && q1.isNotEmpty) questions.add(q1);
+                  if (q2 != null && q2.isNotEmpty) questions.add(q2);
+                  if (q3 != null && q3.isNotEmpty) questions.add(q3);
+                  
+                  if (questions.isNotEmpty) {
+                    milestoneContent = questions.join('\n\n');
+                  } else {
+                    milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+                  }
+                } else {
+                  milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+                }
+              } catch (e) {
+                milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+              }
+            } else {
+              // Non-premium users just get the generic "congrats" text, no answers!
+              milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+            }
+          } else if (milestone.percentage == 100) {
+            milestoneContent = _partnerAvatarUrl; // Link to reveals photo if exists
+          }
+
+          // NEW: Auto-post milestone to chat thread
+          _postMilestoneMessage(milestone, content: milestoneContent, audioUrl: partnerSecretAudioUrl);
+          
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
-              _showMilestoneModal(milestone);
+              _showMilestoneModal(
+                milestone,
+                partnerBio: partnerBio,
+                partnerSecretAudioUrl: partnerSecretAudioUrl,
+              );
             }
           });
         }
@@ -1406,15 +2073,61 @@ Widget _buildMessagesList() {
     }
   }
 
-  Future<void> _showMilestoneModal(FeelingMilestone milestone) async {
-    debugPrint('🎉 _showMilestoneModal called for: ${milestone.title}');
+  Future<void> _postMilestoneMessage(FeelingMilestone milestone, {String? content, String? audioUrl}) async {
+    if (widget.conversationId == null) return;
+    
+    final userId = AuthService().currentUser?.id;
+    if (userId == null) return;
+
+    debugPrint('📣 Posting milestone message to thread: ${milestone.percentage}%');
+
+    try {
+      // Determine message type and content
+      String? mediaUrl;
+      int? duration;
+      
+      if (milestone.percentage == 50 && audioUrl != null) {
+        mediaUrl = audioUrl;
+        duration = 3; // Provide a default duration for the media
+      }
+
+      // We use a custom mood to identify this as a milestone message in the UI
+      // For content-rich milestones (25% bio, 75% naughty, 100% photo), 
+      // we append the content to the text field with a separator
+      String messageText = milestone.getTitle(context);
+      if (content != null && content.isNotEmpty) {
+        messageText = "$messageText|--CONTENT--|$content";
+      }
+
+      await _db.sendMessage(
+        conversationId: widget.conversationId!,
+        senderId: userId,
+        type: 'text', // Always use text for milestones to ensure DB compatibility
+        text: messageText,
+        mood: 'milestone_${milestone.percentage}',
+        mediaUrl: mediaUrl,
+        duration: duration,
+        feelingDelta: 0,
+        lastMessageSummary: AppLocalizations.of(context).tr('chat.milestone_summary_${milestone.percentage}'),
+      );
+    } catch (e) {
+      debugPrint('❌ Error posting milestone message: $e');
+    }
+  }
+
+  Future<void> _showMilestoneModal(
+    FeelingMilestone milestone, {
+    String? partnerBio,
+    String? partnerSecretAudioUrl,
+  }) async {
+    debugPrint('🎉 _showMilestoneModal called for: ${milestone.getTitle(context)}');
     
     // Show in-app notification for milestone unlock
     if (mounted) {
       NotificationService().show(
         context: context,
-        title: '🎁 Milestone Unlocked!',
-        message: milestone.title,
+        title: AppLocalizations.of(context).tr('chat.milestone_unlock_title'),
+        message: milestone.getTitle(context),
         icon: Text(
           milestone.icon,
           style: const TextStyle(fontSize: 32),
@@ -1422,42 +2135,15 @@ Widget _buildMessagesList() {
       );
     }
     
-    // Get partner's data for the milestone
-    String? partnerBio;
-    String? partnerSecretAudioUrl;
-    
-    if (_conversation != null) {
-      try {
-        final currentUserId = AuthService().currentUser?.id;
-        final partnerId = _conversation!.userAId == currentUserId
-            ? _conversation!.userBId
-            : _conversation!.userAId;
-        
-        debugPrint('📥 Fetching partner data for: $partnerId');
-        
-        final response = await Supabase.instance.client
-            .from('profiles')
-            .select('about, secret_audio_url')
-            .eq('id', partnerId)
-            .single();
-        
-        partnerBio = response['about'] as String?;
-        partnerSecretAudioUrl = response['secret_audio_url'] as String?;
-        
-        debugPrint('✅ Partner data fetched - bio: ${partnerBio != null}, audio: ${partnerSecretAudioUrl != null}');
-      } catch (e) {
-        debugPrint('❌ Error fetching partner data: $e');
-      }
-    } else {
-      debugPrint('⚠️ No conversation data available');
-    }
+    // Data is now passed in to avoid redundant fetching
+    debugPrint('✅ Milestone data - bio: ${partnerBio != null}, audio: ${partnerSecretAudioUrl != null}');
     
     if (!mounted) {
       debugPrint('⚠️ Widget not mounted, skipping modal');
       return;
     }
     
-    debugPrint('🎭 Showing dialog for ${milestone.title}');
+    debugPrint('🎭 Showing dialog for ${milestone.getTitle(context)}');
     
     await showDialog(
       context: context,
@@ -1466,13 +2152,20 @@ Widget _buildMessagesList() {
         milestone: milestone,
         partnerBio: partnerBio,
         partnerSecretAudioUrl: partnerSecretAudioUrl,
+        isPremium: _isPremium,
+        userGender: _userGender,
+        onPremiumRequested: () {
+          Navigator.pop(context);
+          _showPremiumPaywall();
+        },
         onContinue: () {
-          debugPrint('👆 Continue button pressed for ${milestone.title}');
-          Navigator.of(context).pop();
-          
-          // If 75% milestone, navigate to naughty questions screen
+          Navigator.pop(context);
+          // If 75% milestone, navigate to naughty questions screen if appropriate
           if (milestone == FeelingMilestone.gift) {
-            debugPrint('🎁 75% milestone - navigating to Naughty Questions');
+            final isFemale = _userGender?.toLowerCase() == 'female' || _userGender?.toLowerCase() == 'woman' || _userGender?.toLowerCase() == 'femme';
+            
+            if (isFemale || _isPremium) {
+              debugPrint('🎁 75% milestone - navigating to Naughty Questions');
             
             if (widget.conversationId == null) {
               debugPrint('❌ No conversation ID available!');
@@ -1486,10 +2179,17 @@ Widget _buildMessagesList() {
                   conversationId: widget.conversationId!,
                   onComplete: () {
                     debugPrint('✅ Naughty question answered');
+                    
+                    if (mounted) {
+                      setState(() {
+                       _hasAnsweredNaughty = true;
+                      });
+                    }
+                    
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Answer submitted!'),
+                      SnackBar(
+                        content: Text(AppLocalizations.of(context).tr('chat.answer_submitted')),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -1497,6 +2197,7 @@ Widget _buildMessagesList() {
                 ),
               ),
             );
+            }
           }
           // If 100% milestone, auto-trigger photo reveal dialog
           if (milestone == FeelingMilestone.heart) {
@@ -1512,6 +2213,34 @@ Widget _buildMessagesList() {
     );
     
     debugPrint('🎭 Dialog closed');
+  }
+  void _showPremiumPaywall() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PremiumScreen()),
+    ).then((_) async {
+      // Refresh status after returning from premium screen
+      await _checkPremiumStatus();
+      
+      // If user is still locked (didn't upgrade and is at 75%+ milestone), 
+      // redirect them to the home screen to avoid the "naughty question" trap.
+      if (mounted && _isPremiumLocked) {
+        debugPrint('🚪 User still locked at 75% - redirecting to Home');
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
+  }
+
+  Future<void> _checkPremiumStatus() async {
+    final userId = AuthService().currentUser?.id;
+    if (userId == null) return;
+    
+    final profile = await _db.getProfile(userId);
+    if (profile != null && mounted) {
+      setState(() {
+        _isPremium = profile['is_premium'] == true;
+      });
+    }
   }
 
 
@@ -1539,9 +2268,6 @@ Widget _buildMessagesList() {
       barrierColor: Colors.black.withValues(alpha: 0.2),
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
-          bool isRevealed = false; // Internal state for this dialog session if needed, or better use a local var
-          // Actually, let's use a local variable and update it.
-          
           return Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1551,8 +2277,8 @@ Widget _buildMessagesList() {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Photo Reveal',
+                    Text(
+                      AppLocalizations.of(context).tr('chat.photo_reveal.title'),
                       style: TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 20,
@@ -1565,7 +2291,14 @@ Widget _buildMessagesList() {
                     Stack(
                       alignment: Alignment.center,
                       children: [
-                        Container(
+                      GestureDetector(
+                        onTap: () {
+                          if (_isPhotoRevealed && partnerPhotoUrl != null) {
+                            Navigator.pop(context); // Close reveal dialog first
+                            _showFullScreenImage(partnerPhotoUrl);
+                          }
+                        },
+                        child: Container(
                           width: 240,
                           height: 240,
                           decoration: BoxDecoration(
@@ -1583,20 +2316,21 @@ Widget _buildMessagesList() {
                                   size: 120, color: Color(0xFF737373))
                               : null,
                         ),
+                      ),
                         if (!_isPhotoRevealed)
                           ClipOval(
                             child: Container(
                               width: 240,
                               height: 240,
                               color: Colors.black.withValues(alpha: 0.7),
-                              child: const Column(
+                              child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(Icons.lock_outline, color: Colors.white, size: 48),
                                   SizedBox(height: 8),
                                   Text(
-                                    '100% Feeling!',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    AppLocalizations.of(context).tr('chat.photo_reveal.feeling_overlay'),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
@@ -1607,8 +2341,8 @@ Widget _buildMessagesList() {
                     const SizedBox(height: 24),
                     Text(
                       _isPhotoRevealed 
-                        ? 'Here is your match! ✨'
-                        : 'You both reached 100% feeling level! Ready to reveal the mystery?',
+                        ? AppLocalizations.of(context).tr('chat.photo_reveal.match_found')
+                        : AppLocalizations.of(context).tr('chat.photo_reveal.desc'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
@@ -1620,7 +2354,7 @@ Widget _buildMessagesList() {
                     const SizedBox(height: 32),
                     if (!_isPhotoRevealed)
                       CustomButton(
-                        text: 'Reveal Photo',
+                        text: AppLocalizations.of(context).tr('chat.photo_reveal.button'),
                         onPressed: () async {
                           setState(() {
                             _isPhotoRevealed = true;
@@ -1644,7 +2378,7 @@ Widget _buildMessagesList() {
                       )
                     else
                       CustomButton(
-                        text: 'Close',
+                        text: AppLocalizations.of(context).tr('chat.photo_reveal.close'),
                         onPressed: () => Navigator.pop(dialogContext),
                       ),
                   ],
@@ -1658,10 +2392,14 @@ Widget _buildMessagesList() {
   }
 
   Future<void> _sendMessage() async {
+    if (_isPremiumLocked) return;
     if (_messageController.text.trim().isEmpty || _isSaving) return;
 
     final text = _messageController.text.trim();
-    _messageController.clear();
+    if (_editingMessage == null) {
+      _messageController.clear();
+    }
+    
     setState(() {
       _isTyping = false;
       _isSaving = true; // Show loading indicator
@@ -1670,40 +2408,55 @@ Widget _buildMessagesList() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (widget.conversationId != null && userId != null) {
       try {
-        // Query last message directly from messages table
-        final lastMessages = await Supabase.instance.client
-            .from('messages')
-            .select('sender_id, text, created_at')
-            .eq('conversation_id', widget.conversationId!)
-            .order('created_at', ascending: false)
-            .limit(1);
-        
-        debugPrint('🔍 Checking for exchange:');
-        debugPrint('  Last message query result: $lastMessages');
-        
-        final lastSenderId = lastMessages.isNotEmpty 
-            ? lastMessages[0]['sender_id'] as String?
-            : null;
-        final isExchange = lastSenderId != null && lastSenderId != userId;
-        
-        debugPrint('  📨 Last sender ID: $lastSenderId');
-        debugPrint('  📨 Current user ID: $userId');
-        debugPrint('  📨 Is exchange (different sender): $isExchange');
-        
-        
-        // Send message to database (will appear via realtime subscription)
-        await _db.sendMessage(
-          conversationId: widget.conversationId!,
-          senderId: userId,
-          type: 'text',
-          text: text,
-          mood: _currentMood,
-        );
+        if (_editingMessage != null) {
+          // UPDATE existing message
+          await _db.updateMessage(_editingMessage!.id, text);
+          _messageController.clear();
+          setState(() {
+            _editingMessage = null;
+          });
+        } else {
+          // Query last message directly from messages table
+          final lastMessages = await Supabase.instance.client
+              .from('messages')
+              .select('sender_id, text, created_at')
+              .eq('conversation_id', widget.conversationId!)
+              .order('created_at', ascending: false)
+              .limit(1);
+          
+          debugPrint('🔍 Checking for exchange:');
+          debugPrint('  Last message query result: $lastMessages');
+          
+          final lastSenderId = lastMessages.isNotEmpty 
+              ? lastMessages[0]['sender_id'] as String?
+              : null;
+          final isExchange = lastSenderId != null && lastSenderId != userId;
+          
+          debugPrint('  📨 Last sender ID: $lastSenderId');
+          debugPrint('  📨 Current user ID: $userId');
+          debugPrint('  📨 Is exchange (different sender): $isExchange');
+          
+          // SEND new message
+          await _db.sendMessage(
+            conversationId: widget.conversationId!,
+            senderId: userId,
+            type: 'text',
+            text: text,
+            mood: _currentMood,
+            feelingDelta: _db.calculateFeelingPoints(
+              type: 'text',
+              text: text,
+            ),
+            replyToId: _replyingTo?.id,
+          );
+
+          setState(() {
+            _replyingTo = null;
+          });
+        }
         
         // Database trigger handles feeling increment automatically
-        // Realtime subscription SHOULD update _feelingPercent, but we force a refresh
-        // here to be completely sure the sender sees the update immediately.
-        debugPrint('✅ Message sent. Forcing state refresh...');
+        debugPrint('✅ Message sent/updated. Forcing state refresh...');
         if (mounted) {
            Future.delayed(const Duration(milliseconds: 300), () {
              if (mounted) _loadConversation();
@@ -1711,8 +2464,10 @@ Widget _buildMessagesList() {
         }
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       } finally {
-        // Always reset sending state
         if (mounted) {
           setState(() {
             _isSaving = false;
@@ -1873,6 +2628,8 @@ Widget _buildMessagesList() {
   }
 
   Future<void> _takePhoto() async {
+    if (_isPremiumLocked) return;
+    if (!_isPremium && _feelingPercent < 100) return;
     try {
       final XFile? photo = await _imagePicker.pickImage(
         source: ImageSource.camera,
@@ -1909,6 +2666,7 @@ Widget _buildMessagesList() {
               type: 'image',
               mediaUrl: mediaUrl,
               mood: _currentMood,
+              feelingDelta: 5,
             );
             
             // Insert image metadata
@@ -1955,6 +2713,8 @@ Widget _buildMessagesList() {
   }
 
   Future<void> _chooseFromGallery() async {
+    if (_isPremiumLocked) return;
+    if (!_isPremium && _feelingPercent < 100) return;
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1991,6 +2751,7 @@ Widget _buildMessagesList() {
               type: 'image',
               mediaUrl: mediaUrl,
               mood: _currentMood,
+              feelingDelta: 5,
             );
             
             // Insert image metadata
@@ -2030,18 +2791,20 @@ Widget _buildMessagesList() {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error selecting image: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).tr('errors.image_selection')}: $e')),
         );
       }
     }
   }
 
   Future<void> _showVoiceRecorder() async {
+    if (_isPremiumLocked) return;
+    if (!_isPremium && _feelingPercent < 50) return;
     final hasPermission = await _requestMicrophonePermission();
     if (!hasPermission) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission required')),
+          SnackBar(content: Text(AppLocalizations.of(context).tr('permissions.microphone'))),
         );
       }
       return;
@@ -2322,6 +3085,7 @@ Widget _buildMessagesList() {
                 mediaUrl: url,
                 duration: duration,
                 mood: _currentMood,
+                feelingDelta: 5,
             );
             // Database trigger will handle feeling increment automatically
         }
@@ -2370,6 +3134,45 @@ Widget _buildMessagesList() {
     );
   }
 
+  void _showFullScreenImage(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _getCurrentTime() {
     final now = DateTime.now();
     final hour = now.hour > 12 ? now.hour - 12 : now.hour;
@@ -2382,6 +3185,7 @@ Widget _buildMessagesList() {
   @override
   void dispose() {
     _msgSub?.cancel();
+    _partnerProfileSub?.cancel();
     _feelingController.dispose();
     _messageController.dispose();
     _scrollController.dispose();

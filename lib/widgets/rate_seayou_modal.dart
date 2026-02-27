@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import 'custom_button.dart';
+import '../i18n/app_localizations.dart';
 
 /// Rate SeaYou Modal - Allows users to rate the app
 class RateSeaYouModal extends StatefulWidget {
@@ -41,23 +42,23 @@ class _RateSeaYouModalState extends State<RateSeaYouModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Rate SeaYou',
-                        style: TextStyle(
+                        AppLocalizations.of(context).tr('rating.title'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF363636),
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'Rate your experience with SeaYou.',
-                        style: TextStyle(
+                        AppLocalizations.of(context).tr('rating.subtitle'),
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
@@ -121,7 +122,7 @@ class _RateSeaYouModalState extends State<RateSeaYouModal> {
                     : AppColors.grey,
               ),
               decoration: InputDecoration(
-                hintText: 'Describe your experience with SeaYou',
+                hintText: AppLocalizations.of(context).tr('rating.hint'),
                 hintStyle: AppTextStyles.bodyText,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -155,14 +156,14 @@ class _RateSeaYouModalState extends State<RateSeaYouModal> {
 
             // Rate Button
             CustomButton(
-              text: 'Confirm & Send',
+              text: AppLocalizations.of(context).tr('rating.confirm'),
               isActive: isFormValid,
               onPressed: isFormValid
                   ? () {
                       // Submit rating
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Thank you for your feedback!'),
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context).tr('rating.success')),
                         ),
                       );
                       Navigator.pop(context);

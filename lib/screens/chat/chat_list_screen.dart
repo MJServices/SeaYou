@@ -11,6 +11,7 @@ import 'archived_chats_screen.dart';
 import '../../widgets/feeling_progress.dart';
 import '../../services/database_service.dart';
 import '../../models/conversation.dart';
+import '../../i18n/app_localizations.dart';
 
 
 /// Chat List Screen - Shows all conversations with full functionality
@@ -66,19 +67,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final convs = await _db.getUserConversations(_currentUserId!);
   debugPrint('✅ Loaded ${convs.length} conversations');
   
-  // Get blocked user IDs
-  final blockedUserIds = await _db.getBlockedUserIds(_currentUserId!);
-  debugPrint('🚫 Blocked users: ${blockedUserIds.length}');
+  // Get blocked user IDs (Users I blocked)
+  final blockedByMe = await _db.getBlockedUserIds(_currentUserId!);
+  // Get blockers (Users who blocked me)
+  final blockingMe = await _db.getBlockers(_currentUserId!);
   
-  // Filter out conversations with blocked users
-  final filteredConvs = convs.where((conv) {
+  final allBlocked = {...blockedByMe, ...blockingMe};
+  
+  debugPrint('🚫 Blocked contexts: ByMe=${blockedByMe.length}, BlockingMe=${blockingMe.length}');
+  
+  // Filter out conversations with blocked users (bidirectional)
+  final List<Conversation> filteredConvs = [];
+  for (var conv in convs) {
     final partnerId = conv.userAId == _currentUserId ? conv.userBId : conv.userAId;
-    final isBlocked = blockedUserIds.contains(partnerId);
-    if (isBlocked) {
+    
+    if (!allBlocked.contains(partnerId)) {
+      filteredConvs.add(conv);
+    } else {
       debugPrint('  - Filtering out conversation with blocked user: $partnerId');
     }
-    return !isBlocked;
-  }).toList();
+  }
   
   debugPrint('✅ Showing ${filteredConvs.length} conversations (${convs.length - filteredConvs.length} blocked)');
   
@@ -169,15 +177,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Connections',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF151515),
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context).tr('chat.connections_title'),
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF151515),
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _showSearchDialog,
             child: const Icon(Icons.search, size: 24, color: Color(0xFF151515)),
@@ -201,7 +212,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: 'Search conversations...',
+                  hintText: AppLocalizations.of(context).tr('chat.search_placeholder'),
                   hintStyle: const TextStyle(
                     fontFamily: 'Montserrat',
                     color: Color(0xFF737373),
@@ -235,9 +246,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       });
                       Navigator.pop(context);
                     },
-                    child: const Text(
-                      'Clear',
-                      style: TextStyle(
+                    child: Text(
+                      AppLocalizations.of(context).tr('chat.search_clear'),
+                      style: const TextStyle(
                         fontFamily: 'Montserrat',
                         color: Color(0xFF737373),
                       ),
@@ -245,9 +256,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Done',
-                      style: TextStyle(
+                    child: Text(
+                      AppLocalizations.of(context).tr('chat.search_done'),
+                      style: const TextStyle(
                         fontFamily: 'Montserrat',
                         color: Color(0xFF0AC5C5),
                       ),
@@ -287,20 +298,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _buildTab('All'),
+          _buildTab('All', AppLocalizations.of(context).tr('chat.filter_all')),
           const SizedBox(width: 10),
-          _buildTab('Unlocked'),
+          _buildTab('Unlocked', AppLocalizations.of(context).tr('chat.filter_unlocked')),
           const SizedBox(width: 10),
-          _buildTab('Anon'),
+          _buildTab('Anon', AppLocalizations.of(context).tr('chat.filter_anon')),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String label) {
-    bool isSelected = _selectedFilter == label;
+  Widget _buildTab(String filter, String label) {
+    bool isSelected = _selectedFilter == filter;
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
+      onTap: () => setState(() => _selectedFilter = filter),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -359,10 +370,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Widget _buildEmptyState() {
     String emptyMessage = _selectedFilter == 'Anon'
-        ? 'You do not have any locked conversations here'
+        ? AppLocalizations.of(context).tr('chat.empty_no_locked')
         : _selectedFilter == 'Unlocked'
-            ? 'Keep the conversations going to unlock a connection'
-            : 'You have not established a connection yet. Retrieve a bottle or wait for your bottle to be retrieved.';
+            ? AppLocalizations.of(context).tr('chat.empty_no_unlocked')
+            : AppLocalizations.of(context).tr('chat.empty_no_connections');
 
     return Center(
       child: Padding(
@@ -440,17 +451,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
         // And prioritize conversation.title if set (nickname)
         final profileName = (profile['username'] != null && profile['username'].toString().isNotEmpty)
             ? profile['username']
-            : (profile['full_name'] ?? 'Someone');
+            : (profile['full_name'] != null && profile['full_name'].toString().isNotEmpty)
+                ? profile['full_name']
+                : AppLocalizations.of(context).tr('chat.anonymous');
             
-        final name = (conversation.title != null && conversation.title!.isNotEmpty)
-            ? conversation.title!
-            : (conversation.feelingPercent >= 100 
+        final name = conversation.feelingPercent >= 100 
                 ? profileName 
-                : (conversation.getPartnerMask(_currentUserId!) ?? profileName));
+                : (conversation.getPartnerMask(_currentUserId!) ?? profileName);
 
-        final mood = 'Curious'; 
+        final age = profile['age'];
+        final department = profile['department'];
+        final partnerInfo = (age != null && department != null)
+            ? AppLocalizations.of(context).tr('chat.partner_info', params: {'age': age.toString(), 'department': department.toString()})
+            : '';
+
         final isUnlocked = conversation.feelingPercent >= 100;
-        final lastMessage = conversation.lastMessage ?? 'Start chatting...';
+        final lastMessage = conversation.lastMessage ?? AppLocalizations.of(context).tr('chat.start_chatting_hint');
         final time = _formatTime(conversation.lastMessageTime);
         final hasUnread = conversation.unreadCount > 0;
 
@@ -461,7 +477,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               MaterialPageRoute(
                 builder: (context) => ChatConversationScreen(
                   contactName: name,
-                  mood: mood,
+                  mood: null, // Removed hardcoded 'Curious'
                   isUnlocked: isUnlocked,
                   conversationId: conversation.id,
                 ),
@@ -474,7 +490,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center, // Center align
               children: [
-                _buildAvatar(isUnlocked, mood, profile['avatar_url'], hasUnread),
+                _buildAvatar(isUnlocked, hasUnread),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -492,6 +508,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               color: const Color(0xFF151515),
                             ),
                           ),
+                          if (partnerInfo.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                partnerInfo,
+                                style: const TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF737373),
+                                ),
+                              ),
+                            ),
                           Text(
                             time,
                             style: const TextStyle(
@@ -536,19 +565,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final now = DateTime.now();
     final diff = now.difference(time);
     
+    // Today: show time
     if (diff.inDays == 0) {
       final h = time.hour % 12 == 0 ? 12 : time.hour % 12;
       final m = time.minute.toString().padLeft(2, '0');
       final ampm = time.hour >= 12 ? 'pm' : 'am';
       return '$h:$m $ampm';
-    } else if (diff.inDays == 1) {
-      return 'Yesterday';
-    } else {
-      return '${diff.inDays} days ago';
+    } 
+    // Yesterday
+    else if (diff.inDays == 1) {
+      return AppLocalizations.of(context).tr('chat.time_yesterday');
+    } 
+    // Within the current week: show day name
+    else if (diff.inDays < 7) {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      return days[time.weekday % 7];
+    } 
+    // Older: show month and day
+    else {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[time.month - 1]} ${time.day}';
     }
   }
 
-  Widget _buildAvatar(bool isUnlocked, String mood, String? avatarUrl, bool hasUnread) {
+  Widget _buildAvatar(bool isUnlocked, bool hasUnread) {
     // Request: Reduce size drastically, Solid Orange (Unread) vs Solid White (Read).
     // Effectively a status dot, removing the image.
     return Container(

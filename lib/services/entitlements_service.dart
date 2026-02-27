@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart' as sf;
+import 'package:flutter/foundation.dart';
 
 class EntitlementsService {
   final sf.SupabaseClient _supabase;
@@ -16,7 +17,7 @@ class EntitlementsService {
       
       if (profJson != null) {
         final gender = (profJson['gender'] as String?)?.toLowerCase() ?? '';
-        if (gender == 'woman' || gender == 'female') {
+        if (gender == 'woman' || gender == 'female' || gender == 'femme') {
           return 'premium';
         }
       }
@@ -67,12 +68,39 @@ class EntitlementsService {
       
       if (prof != null) {
         final gender = (prof['gender'] as String?)?.toLowerCase() ?? '';
-        return gender == 'woman' || gender == 'female';
+        return gender == 'woman' || gender == 'female' || gender == 'femme';
       }
       
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<void> grantEntitlement(String userId, String tier, String? purchaseToken) async {
+    try {
+      // 1. Update profiles table tier
+      await _supabase
+          .from('profiles')
+          .update({'tier': tier, 'is_premium': tier == 'premium' || tier == 'elite'})
+          .eq('id', userId);
+
+      // 2. Upsert into entitlements table
+      final now = DateTime.now();
+      final expiresAt = now.add(const Duration(days: 30)).toIso8601String(); // Standard 30 days for testing
+
+      await _supabase.from('entitlements').upsert({
+        'user_id': userId,
+        'tier': tier,
+        'expires_at': expiresAt,
+        'updated_at': now.toIso8601String(),
+        'metadata': {'purchase_token': purchaseToken},
+      });
+      
+      debugPrint('✅ Entitlement granted: $tier for user $userId');
+    } catch (e) {
+      debugPrint('❌ Error granting entitlement: $e');
+      rethrow;
     }
   }
 }

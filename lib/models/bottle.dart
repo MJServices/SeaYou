@@ -58,6 +58,12 @@ class ReceivedBottle extends Bottle {
   final int matchScore; // Compatibility score from matching algorithm
   final DateTime? matchedAt; // When the match was made
   final String? senderNickname;
+  final int? senderAge;
+  final String? senderDepartment;
+  final String? senderCity;
+  final String? replyToBottleId;
+  final String? replyToContentType;
+  final String? replyToContent;
 
   ReceivedBottle({
     required super.id,
@@ -76,6 +82,12 @@ class ReceivedBottle extends Bottle {
     this.matchScore = 0,
     this.matchedAt,
     this.senderNickname,
+    this.senderAge,
+    this.senderDepartment,
+    this.senderCity,
+    this.replyToBottleId,
+    this.replyToContentType,
+    this.replyToContent,
   });
 
   factory ReceivedBottle.fromJson(Map<String, dynamic> json) {
@@ -98,6 +110,12 @@ class ReceivedBottle extends Bottle {
           ? DateTime.parse(json['matched_at'] as String)
           : null,
       senderNickname: json['sender_nickname'] as String?,
+      senderAge: json['sender_age'] as int?,
+      senderDepartment: json['sender_department'] as String?,
+      senderCity: json['sender_city'] as String?,
+      replyToBottleId: json['reply_to_bottle_id'] as String?,
+      replyToContentType: json['reply_to_content_type'] as String?,
+      replyToContent: json['reply_to_content'] as String?,
     );
   }
 
@@ -119,6 +137,12 @@ class ReceivedBottle extends Bottle {
     int? matchScore,
     DateTime? matchedAt,
     String? senderNickname,
+    int? senderAge,
+    String? senderDepartment,
+    String? senderCity,
+    String? replyToBottleId,
+    String? replyToContentType,
+    String? replyToContent,
   }) {
     return ReceivedBottle(
       id: id ?? this.id,
@@ -137,6 +161,12 @@ class ReceivedBottle extends Bottle {
       matchScore: matchScore ?? this.matchScore,
       matchedAt: matchedAt ?? this.matchedAt,
       senderNickname: senderNickname ?? this.senderNickname,
+      senderAge: senderAge ?? this.senderAge,
+      senderDepartment: senderDepartment ?? this.senderDepartment,
+      senderCity: senderCity ?? this.senderCity,
+      replyToBottleId: replyToBottleId ?? this.replyToBottleId,
+      replyToContentType: replyToContentType ?? this.replyToContentType,
+      replyToContent: replyToContent ?? this.replyToContent,
     );
   }
 
@@ -151,6 +181,12 @@ class ReceivedBottle extends Bottle {
       'match_score': matchScore,
       'matched_at': matchedAt?.toIso8601String(),
       'sender_nickname': senderNickname,
+      'sender_age': senderAge,
+      'sender_department': senderDepartment,
+      'sender_city': senderCity,
+      'reply_to_bottle_id': replyToBottleId,
+      'reply_to_content_type': replyToContentType,
+      'reply_to_content': replyToContent,
     });
     return json;
   }

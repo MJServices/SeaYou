@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/audio_service.dart';
+import 'services/iap_service.dart';
 import 'services/localization_service.dart';
 import 'i18n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -27,6 +28,7 @@ void main() async {
   ]);
   await GlobalAudioController.instance.init();
   await LocalizationService.instance.init();
+  await IapService().initialize();
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     if (data.event == AuthChangeEvent.passwordRecovery) {
       final email = data.session?.user.email ?? '';

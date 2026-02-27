@@ -8,6 +8,8 @@ class PhotoStampModal extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
+  final int? senderAge;
+  final String? senderDepartment;
 
   const PhotoStampModal({
     super.key,
@@ -17,6 +19,8 @@ class PhotoStampModal extends StatelessWidget {
     this.onReply,
     this.onPrevious,
     this.onNext,
+    this.senderAge,
+    this.senderDepartment,
   });
 
   @override
@@ -40,11 +44,13 @@ class PhotoStampModal extends StatelessWidget {
             child: Center(
               child: Opacity(
                 opacity: 0.15,
-                child: Image.asset(
-                  'assets/images/fill bottle.png',
-                  width: 200,
-                  height: 400,
-                  fit: BoxFit.contain,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/fill bottle.png',
+                    width: 200,
+                    height: 200,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -113,6 +119,23 @@ class PhotoStampModal extends StatelessWidget {
                           color: Color(0xFF151515),
                         ),
                       ),
+                      if (isReceived && (senderAge != null || senderDepartment != null)) ...[
+                        const SizedBox(width: 4),
+                        const Text(
+                          '•',
+                          style: TextStyle(color: Color(0xFF737373), fontSize: 12),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${senderAge ?? ""} ${senderDepartment != null ? "• $senderDepartment" : ""}'.trim(),
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF737373),
+                          ),
+                        ),
+                      ],
                       const Spacer(),
                       // Right arrow
                       GestureDetector(

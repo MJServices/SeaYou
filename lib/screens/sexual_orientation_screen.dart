@@ -102,7 +102,7 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                           ),
                           if (!widget.isEditMode)
                             const Text(
-                              '2/6',
+                              '3/6',
                               style: AppTextStyles.bodyText,
                             ),
                         ],
@@ -115,23 +115,6 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                       const SizedBox(height: 24),
                       ...orientations
                           .map((orientation) => _buildOption(orientation)),
-                      const SizedBox(height: 16),
-                      Text(
-                        AppLocalizations.of(context).tr('onboarding.sexual_orientation.not_listed'),
-                        style: AppTextStyles.bodyText,
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.grey, width: 0.8),
-                        ),
-                        child: Text(
-                          AppLocalizations.of(context).tr('onboarding.sexual_orientation.input_placeholder'),
-                          style: AppTextStyles.bodyText,
-                        ),
-                      ),
                       const SizedBox(height: 24),
                     ],
                   ),
