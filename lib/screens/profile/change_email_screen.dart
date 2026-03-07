@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../verification_screen.dart';
 import '../../i18n/app_localizations.dart';
@@ -20,7 +19,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   final TextEditingController _newEmailController = TextEditingController();
   final AuthService _authService = AuthService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isButtonEnabled = false;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -63,7 +62,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   Future<void> _showPasswordDialog() async {
     final passwordController = TextEditingController();
     bool obscurePassword = true;
-    
+
     return showDialog(
       context: context,
       barrierDismissible: false,
@@ -81,8 +80,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                AppLocalizations.of(context).tr('errors.enter_password_to_change_email'),
-                style: TextStyle(
+                AppLocalizations.of(context)
+                    .tr('errors.enter_password_to_change_email'),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                 ),
@@ -140,7 +140,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     try {
       final newEmail = _newEmailController.text.trim();
       debugPrint('📧 New email target: $newEmail');
-      
+
       // Verify current password first
       debugPrint('🔐 Verifying current password...');
       final currentEmail = _currentEmailController.text.trim();
@@ -159,7 +159,8 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('This email is already associated with another account.'),
+            content:
+                Text('This email is already associated with another account.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -179,12 +180,13 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
       // FORCE resend to ensure OTP delivery (crucial for "functionality not working" fix)
       try {
         debugPrint('🔄 Attempting forced resend of verification code...');
-        await _authService.resendVerificationCode(newEmail, OtpType.emailChange);
+        await _authService.resendVerificationCode(
+            newEmail, OtpType.emailChange);
         debugPrint('✅ Forced resend successful');
       } catch (e) {
         debugPrint('⚠️ Resend attempt failed (might have sent already): $e');
       }
-      
+
       if (!mounted) {
         debugPrint('❌ Context unmounted, aborting navigation');
         return;
@@ -220,10 +222,12 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
       debugPrint('❌ Error changing email: $e');
       if (mounted) {
         setState(() => _isSaving = false);
-        
-        String errorMessage = AppLocalizations.of(context).tr('errors.change_email_failed');
+
+        String errorMessage =
+            AppLocalizations.of(context).tr('errors.change_email_failed');
         if (e.toString().contains('Invalid login credentials')) {
-          errorMessage = AppLocalizations.of(context).tr('errors.incorrect_password');
+          errorMessage =
+              AppLocalizations.of(context).tr('errors.incorrect_password');
         } else if (e.toString().contains('already registered')) {
           errorMessage = 'This email is already in use.';
         }

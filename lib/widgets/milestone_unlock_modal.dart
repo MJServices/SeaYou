@@ -82,7 +82,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
                 style: const TextStyle(fontSize: 60),
               ),
               const SizedBox(height: 16),
-              
+
               // Title
               if (widget.milestone.percentage != 75) ...[
                 Text(
@@ -95,7 +95,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
                 ),
                 const SizedBox(height: 8),
               ],
-              
+
               // Description
               Text(
                 widget.milestone.getDescription(context),
@@ -105,12 +105,12 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              
+
               // Content based on milestone
               _buildMilestoneContent(),
-              
+
               const SizedBox(height: 24),
-              
+
               // Continue or Premium Button
               _buildActionButton(context),
             ],
@@ -130,19 +130,22 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
     }
 
     final gender = widget.userGender?.toLowerCase();
-    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+    final isFemale =
+        gender == 'female' || gender == 'woman' || gender == 'femme';
 
     if (isFemale || widget.isPremium) {
-      // Female or Premium Male -> Go to Intimacy Question
+      // Premium male or female → can answer naughty questions
       return CustomButton(
-        text: AppLocalizations.of(context).tr('chat.milestone_75_button_naughty'),
+        text:
+            AppLocalizations.of(context).tr('chat.milestone_75_button_naughty'),
         onPressed: widget.onContinue,
         isActive: true,
       );
     } else {
-      // Non-Premium Male -> Upgrade
+      // Non-premium male → paywall only, no access to naughty questions
       return CustomButton(
-        text: AppLocalizations.of(context).tr('chat.milestone_75_button_unlock'),
+        text:
+            AppLocalizations.of(context).tr('chat.milestone_75_button_unlock'),
         onPressed: widget.onPremiumRequested,
         isActive: true,
       );
@@ -160,7 +163,8 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            widget.partnerBio ?? AppLocalizations.of(context).tr('chat.milestone_no_bio'),
+            widget.partnerBio ??
+                AppLocalizations.of(context).tr('chat.milestone_no_bio'),
             style: AppTextStyles.bodyText.copyWith(
               color: AppColors.white,
               fontStyle: FontStyle.italic,
@@ -191,8 +195,8 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
             ),
             const SizedBox(height: 12),
             Text(
-              _isPlaying 
-                  ? AppLocalizations.of(context).tr('chat.milestone_playing') 
+              _isPlaying
+                  ? AppLocalizations.of(context).tr('chat.milestone_playing')
                   : AppLocalizations.of(context).tr('chat.milestone_tap_play'),
               style: AppTextStyles.bodyText.copyWith(
                 color: AppColors.white,
@@ -262,7 +266,8 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
 
   String _getGiftMilestoneDescription(BuildContext context) {
     final gender = widget.userGender?.toLowerCase();
-    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+    final isFemale =
+        gender == 'female' || gender == 'woman' || gender == 'femme';
 
     if (isFemale || widget.isPremium) {
       return AppLocalizations.of(context).tr('chat.milestone_75_desc_naughty');

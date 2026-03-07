@@ -25,9 +25,7 @@ class EmptyBottlesState extends StatelessWidget {
         const SizedBox(height: 24),
         // Message
         Text(
-          isReceived
-              ? 'No bottles received yet'
-              : 'No bottles sent yet',
+          isReceived ? 'No bottles received yet' : 'No bottles sent yet',
           style: const TextStyle(
             fontFamily: 'Montserrat',
             fontSize: 18,

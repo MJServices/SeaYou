@@ -1,4 +1,3 @@
-
 /// User block model - represents a user blocking another user
 class UserBlock {
   final String id;
@@ -66,7 +65,8 @@ class UserPreferences {
       acceptFromAgeMin: json['accept_from_age_min'] as int? ?? 18,
       acceptFromAgeMax: json['accept_from_age_max'] as int? ?? 100,
       maxBottlesPerDay: json['max_bottles_per_day'] as int? ?? 5,
-      notifyOnBottleReceived: json['notify_on_bottle_received'] as bool? ?? true,
+      notifyOnBottleReceived:
+          json['notify_on_bottle_received'] as bool? ?? true,
       notifyOnBottleRead: json['notify_on_bottle_read'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -107,7 +107,8 @@ class UserPreferences {
       acceptFromAgeMin: acceptFromAgeMin ?? this.acceptFromAgeMin,
       acceptFromAgeMax: acceptFromAgeMax ?? this.acceptFromAgeMax,
       maxBottlesPerDay: maxBottlesPerDay ?? this.maxBottlesPerDay,
-      notifyOnBottleReceived: notifyOnBottleReceived ?? this.notifyOnBottleReceived,
+      notifyOnBottleReceived:
+          notifyOnBottleReceived ?? this.notifyOnBottleReceived,
       notifyOnBottleRead: notifyOnBottleRead ?? this.notifyOnBottleRead,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -143,9 +144,10 @@ class BottleDeliveryQueue {
       sentBottleId: json['sent_bottle_id'] as String,
       senderId: json['sender_id'] as String,
       recipientId: json['recipient_id'] as String,
-      scheduledDeliveryAt: DateTime.parse(json['scheduled_delivery_at'] as String),
+      scheduledDeliveryAt:
+          DateTime.parse(json['scheduled_delivery_at'] as String),
       delivered: json['delivered'] as bool? ?? false,
-      deliveredAt: json['delivered_at'] != null 
+      deliveredAt: json['delivered_at'] != null
           ? DateTime.parse(json['delivered_at'] as String)
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),

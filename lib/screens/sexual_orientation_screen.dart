@@ -14,9 +14,9 @@ import 'expectations_screen.dart';
 class SexualOrientationScreen extends StatefulWidget {
   final UserProfile userProfile;
   final bool isEditMode;
-  
+
   const SexualOrientationScreen({
-    super.key, 
+    super.key,
     required this.userProfile,
     this.isEditMode = false,
   });
@@ -45,7 +45,7 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
     super.initState();
     if (widget.userProfile.sexualOrientation != null) {
       _selectedOrientations.addAll(widget.userProfile.sexualOrientation!);
-      
+
       // Add any custom orientations from profile that aren't in the default list
       for (final orientation in _selectedOrientations) {
         if (!orientations.contains(orientation)) {
@@ -94,9 +94,11 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              widget.isEditMode 
-                                  ? AppLocalizations.of(context).tr('onboarding.sexual_orientation.title_edit') 
-                                  : AppLocalizations.of(context).tr('onboarding.sexual_orientation.title'),
+                              widget.isEditMode
+                                  ? AppLocalizations.of(context).tr(
+                                      'onboarding.sexual_orientation.title_edit')
+                                  : AppLocalizations.of(context).tr(
+                                      'onboarding.sexual_orientation.title'),
                               style: AppTextStyles.displayText,
                             ),
                           ),
@@ -109,7 +111,8 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.sexual_orientation.subtitle'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.sexual_orientation.subtitle'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 24),
@@ -123,15 +126,18 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: CustomButton(
-                  text: widget.isEditMode 
-                      ? (_isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm')) 
+                  text: widget.isEditMode
+                      ? (_isSaving
+                          ? AppLocalizations.of(context).tr('common.saving')
+                          : AppLocalizations.of(context).tr('common.confirm'))
                       : AppLocalizations.of(context).tr('common.next'),
                   isActive: _selectedOrientations.isNotEmpty,
                   onPressed: () async {
                     if (_isSaving) return;
-                    widget.userProfile.sexualOrientation = _selectedOrientations;
+                    widget.userProfile.sexualOrientation =
+                        _selectedOrientations;
                     widget.userProfile.showOrientation = true;
-                    
+
                     if (widget.isEditMode) {
                       setState(() => _isSaving = true);
                       // Update DB
@@ -147,17 +153,19 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                           }
                         }
                       } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
-                            );
-                          }
-                        } finally {
-                          if (mounted) {
-                            setState(() => _isSaving = false);
-                          }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(
+                                    '${AppLocalizations.of(context).tr('notification.error')}: $e')),
+                          );
                         }
-                      } else {
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isSaving = false);
+                        }
+                      }
+                    } else {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -201,8 +209,9 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
           ),
         ),
         child: Text(
-          orientations.contains(text) 
-              ? AppLocalizations.of(context).tr('onboarding.sexual_orientation.options.${text.toLowerCase()}') 
+          orientations.contains(text)
+              ? AppLocalizations.of(context).tr(
+                  'onboarding.sexual_orientation.options.${text.toLowerCase()}')
               : text,
           style: AppTextStyles.bodyText.copyWith(
             color: isSelected ? AppColors.darkGrey : AppColors.grey,

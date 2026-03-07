@@ -87,10 +87,14 @@ serve(async (req: Request) => {
         // Upgrade to Premium
         const { error: profileError } = await supabaseClient
           .from("profiles")
-          .update({ is_premium: true })
+          .update({ is_premium: true, tier: "premium" })
           .eq("id", userId);
 
         if (profileError) throw profileError;
+
+        const now = new Date();
+        const expiresAt = new Date();
+        expiresAt.setDate(now.getDate() + 30);
 
         const { error: entitlementError } = await supabaseClient
           .from("entitlements")
@@ -98,7 +102,8 @@ serve(async (req: Request) => {
             user_id: userId,
             tier: "premium",
             source: "stripe",
-            updated_at: new Date().toISOString(),
+            expires_at: expiresAt.toISOString(),
+            updated_at: now.toISOString(),
           });
 
         if (entitlementError) throw entitlementError;

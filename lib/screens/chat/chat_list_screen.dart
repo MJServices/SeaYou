@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../widgets/bottom_nav_bar.dart';
-import '../profile_screen.dart';
-import '../door_of_desires_screen.dart';
 import 'chat_conversation_screen.dart';
-import 'archived_chats_screen.dart';
 import '../../widgets/feeling_progress.dart';
 import '../../services/database_service.dart';
 import '../../models/conversation.dart';
 import '../../i18n/app_localizations.dart';
-
 
 /// Chat List Screen - Shows all conversations with full functionality
 class ChatListScreen extends StatefulWidget {
@@ -45,7 +40,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _loadUserAvatar() async {
     if (_currentUserId == null) return;
     try {
-      final profile = await _db.getProfile(_currentUserId!);
+      final profile = await _db.getProfile(_currentUserId);
       if (profile != null && mounted) {
         setState(() {
           _avatarUrl = profile['avatar_url'];
@@ -57,50 +52,55 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _loadConversations() async {
-  if (_currentUserId == null) {
-    debugPrint('❌ Cannot load conversations: user not logged in');
-    return;
-  }
-  debugPrint('🔄 Loading conversations for user: $_currentUserId');
-  
-  // Get all conversations
-  final convs = await _db.getUserConversations(_currentUserId!);
-  debugPrint('✅ Loaded ${convs.length} conversations');
-  
-  // Get blocked user IDs (Users I blocked)
-  final blockedByMe = await _db.getBlockedUserIds(_currentUserId!);
-  // Get blockers (Users who blocked me)
-  final blockingMe = await _db.getBlockers(_currentUserId!);
-  
-  final allBlocked = {...blockedByMe, ...blockingMe};
-  
-  debugPrint('🚫 Blocked contexts: ByMe=${blockedByMe.length}, BlockingMe=${blockingMe.length}');
-  
-  // Filter out conversations with blocked users (bidirectional)
-  final List<Conversation> filteredConvs = [];
-  for (var conv in convs) {
-    final partnerId = conv.userAId == _currentUserId ? conv.userBId : conv.userAId;
-    
-    if (!allBlocked.contains(partnerId)) {
-      filteredConvs.add(conv);
-    } else {
-      debugPrint('  - Filtering out conversation with blocked user: $partnerId');
+    if (_currentUserId == null) {
+      debugPrint('❌ Cannot load conversations: user not logged in');
+      return;
+    }
+    debugPrint('🔄 Loading conversations for user: $_currentUserId');
+
+    // Get all conversations
+    final convs = await _db.getUserConversations(_currentUserId);
+    debugPrint('✅ Loaded ${convs.length} conversations');
+
+    // Get blocked user IDs (Users I blocked)
+    final blockedByMe = await _db.getBlockedUserIds(_currentUserId);
+    // Get blockers (Users who blocked me)
+    final blockingMe = await _db.getBlockers(_currentUserId);
+
+    final allBlocked = {...blockedByMe, ...blockingMe};
+
+    debugPrint(
+        '🚫 Blocked contexts: ByMe=${blockedByMe.length}, BlockingMe=${blockingMe.length}');
+
+    // Filter out conversations with blocked users (bidirectional)
+    final List<Conversation> filteredConvs = [];
+    for (var conv in convs) {
+      final partnerId =
+          conv.userAId == _currentUserId ? conv.userBId : conv.userAId;
+
+      if (!allBlocked.contains(partnerId)) {
+        filteredConvs.add(conv);
+      } else {
+        debugPrint(
+            '  - Filtering out conversation with blocked user: $partnerId');
+      }
+    }
+
+    debugPrint(
+        '✅ Showing ${filteredConvs.length} conversations (${convs.length - filteredConvs.length} blocked)');
+
+    for (var conv in filteredConvs) {
+      debugPrint(
+          '  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
+    }
+
+    if (mounted) {
+      setState(() {
+        _conversations = filteredConvs;
+      });
+      _loadArchivedCount(); // Refresh archived count when conversations change
     }
   }
-  
-  debugPrint('✅ Showing ${filteredConvs.length} conversations (${convs.length - filteredConvs.length} blocked)');
-  
-  for (var conv in filteredConvs) {
-    debugPrint('  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
-  }
-  
-  if (mounted) {
-    setState(() {
-      _conversations = filteredConvs;
-    });
-    _loadArchivedCount(); // Refresh archived count when conversations change
-  }
-}
 
   Future<void> _loadArchivedCount() async {
     if (_currentUserId == null) return;
@@ -108,7 +108,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
     // For now, set to 0 since we need to check if archived field exists
     // This will be updated when database has archived conversations
     setState(() {
-      _archivedCount = 0; // TODO: Fetch from database when archived feature is implemented
+      _archivedCount =
+          0; // TODO: Fetch from database when archived feature is implemented
     });
   }
 
@@ -159,11 +160,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
               ),
             ),
-            
+
             // Bottom Navigation
             BottomNavBar(
               activeScreen: 'chat',
-              userProfile: _avatarUrl != null ? {'avatar_url': _avatarUrl} : null,
+              userProfile:
+                  _avatarUrl != null ? {'avatar_url': _avatarUrl} : null,
             ),
           ],
         ),
@@ -212,7 +214,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: AppLocalizations.of(context).tr('chat.search_placeholder'),
+                  hintText: AppLocalizations.of(context)
+                      .tr('chat.search_placeholder'),
                   hintStyle: const TextStyle(
                     fontFamily: 'Montserrat',
                     color: Color(0xFF737373),
@@ -284,7 +287,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (_currentUserId == null) return;
 
     _profileSub?.cancel();
-    _profileSub = _db.profileStream(_currentUserId!).listen((profile) {
+    _profileSub = _db.profileStream(_currentUserId).listen((profile) {
       if (profile != null && mounted) {
         setState(() {
           _avatarUrl = profile['avatar_url'];
@@ -300,9 +303,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
         children: [
           _buildTab('All', AppLocalizations.of(context).tr('chat.filter_all')),
           const SizedBox(width: 10),
-          _buildTab('Unlocked', AppLocalizations.of(context).tr('chat.filter_unlocked')),
+          _buildTab('Unlocked',
+              AppLocalizations.of(context).tr('chat.filter_unlocked')),
           const SizedBox(width: 10),
-          _buildTab('Anon', AppLocalizations.of(context).tr('chat.filter_anon')),
+          _buildTab(
+              'Anon', AppLocalizations.of(context).tr('chat.filter_anon')),
         ],
       ),
     );
@@ -338,7 +343,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Widget _buildConversationsList() {
     final conversations = _filteredConversations;
-    debugPrint('📋 _buildConversationsList called with ${conversations.length} conversations');
+    debugPrint(
+        '📋 _buildConversationsList called with ${conversations.length} conversations');
 
     if (conversations.isEmpty) {
       debugPrint('⚠️ Conversations list is empty, showing empty state');
@@ -354,14 +360,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
       );
     }
 
-    debugPrint('✅ Building ListView with ${conversations.length} conversations');
+    debugPrint(
+        '✅ Building ListView with ${conversations.length} conversations');
     return RefreshIndicator(
       onRefresh: _loadConversations,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: conversations.length,
         itemBuilder: (context, index) {
-          debugPrint('  Building conversation item $index: ${conversations[index].id}');
+          debugPrint(
+              '  Building conversation item $index: ${conversations[index].id}');
           return _buildConversationItem(conversations[index]);
         },
       ),
@@ -408,9 +416,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Widget _buildConversationItem(Conversation conversation) {
     if (_currentUserId == null) return const SizedBox.shrink();
-    
-    final otherUserId = conversation.getOtherUserId(_currentUserId!);
-    
+
+    final otherUserId = conversation.getOtherUserId(_currentUserId);
+
     return FutureBuilder<Map<String, dynamic>?>(
       future: _db.getProfile(otherUserId),
       builder: (context, snapshot) {
@@ -433,7 +441,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(width: 100, height: 16, color: const Color(0xFFE3E3E3)),
+                      Container(
+                          width: 100,
+                          height: 16,
+                          color: const Color(0xFFE3E3E3)),
                     ],
                   ),
                 ),
@@ -449,24 +460,50 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
         // Request: Display actual usernames/full names instead of "anonymous"
         // And prioritize conversation.title if set (nickname)
-        final profileName = (profile['username'] != null && profile['username'].toString().isNotEmpty)
+        final profileName = (profile['username'] != null &&
+                profile['username'].toString().isNotEmpty)
             ? profile['username']
-            : (profile['full_name'] != null && profile['full_name'].toString().isNotEmpty)
+            : (profile['full_name'] != null &&
+                    profile['full_name'].toString().isNotEmpty)
                 ? profile['full_name']
                 : AppLocalizations.of(context).tr('chat.anonymous');
-            
-        final name = conversation.feelingPercent >= 100 
-                ? profileName 
-                : (conversation.getPartnerMask(_currentUserId!) ?? profileName);
+
+        final rawMask = conversation.getPartnerMask(_currentUserId);
+        String? translatedMask;
+        if (rawMask != null) {
+          final m = rawMask.toLowerCase();
+          if (m == 'secret' || m == 'soul' || m == 'secret soul') {
+            translatedMask =
+                AppLocalizations.of(context).tr('common.secret_soul');
+          } else if (m == 'desire' ||
+              m == 'fantasy' ||
+              m == 'door of desires') {
+            translatedMask =
+                AppLocalizations.of(context).tr('common.door_of_desires');
+          } else if (m == 'anonymous' || m == 'anonymous soul') {
+            translatedMask =
+                AppLocalizations.of(context).tr('common.anonymous_soul');
+          } else {
+            translatedMask = rawMask;
+          }
+        }
+
+        final name = conversation.feelingPercent >= 100
+            ? profileName
+            : (translatedMask ?? profileName);
 
         final age = profile['age'];
         final department = profile['department'];
         final partnerInfo = (age != null && department != null)
-            ? AppLocalizations.of(context).tr('chat.partner_info', params: {'age': age.toString(), 'department': department.toString()})
+            ? AppLocalizations.of(context).tr('chat.partner_info', params: {
+                'age': age.toString(),
+                'department': department.toString()
+              })
             : '';
 
         final isUnlocked = conversation.feelingPercent >= 100;
-        final lastMessage = conversation.lastMessage ?? AppLocalizations.of(context).tr('chat.start_chatting_hint');
+        final lastMessage = conversation.lastMessage ??
+            AppLocalizations.of(context).tr('chat.start_chatting_hint');
         final time = _formatTime(conversation.lastMessageTime);
         final hasUnread = conversation.unreadCount > 0;
 
@@ -504,7 +541,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             style: TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
-                              fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight:
+                                  hasUnread ? FontWeight.w700 : FontWeight.w500,
                               color: const Color(0xFF151515),
                             ),
                           ),
@@ -543,8 +581,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         style: TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 12,
-                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
-                          color: hasUnread ? const Color(0xFF151515) : const Color(0xFF363636),
+                          fontWeight:
+                              hasUnread ? FontWeight.w600 : FontWeight.w400,
+                          color: hasUnread
+                              ? const Color(0xFF151515)
+                              : const Color(0xFF363636),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -564,26 +605,47 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (time == null) return '';
     final now = DateTime.now();
     final diff = now.difference(time);
-    
+
     // Today: show time
     if (diff.inDays == 0) {
       final h = time.hour % 12 == 0 ? 12 : time.hour % 12;
       final m = time.minute.toString().padLeft(2, '0');
       final ampm = time.hour >= 12 ? 'pm' : 'am';
       return '$h:$m $ampm';
-    } 
+    }
     // Yesterday
     else if (diff.inDays == 1) {
       return AppLocalizations.of(context).tr('chat.time_yesterday');
-    } 
+    }
     // Within the current week: show day name
     else if (diff.inDays < 7) {
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const days = [
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday'
+      ];
       return days[time.weekday % 7];
-    } 
+    }
     // Older: show month and day
     else {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
       return '${months[time.month - 1]} ${time.day}';
     }
   }
@@ -600,7 +662,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         boxShadow: [
           if (!hasUnread) // Add subtle shadow to white dot to ensure visibility against light background
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -643,9 +705,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildArchiveButton() {
-     return const SizedBox.shrink(); // Hide archive for now or simplify
+    return const SizedBox.shrink(); // Hide archive for now or simplify
   }
-   
+
   // Removed _buildNavigationBar as it is inline replaced by BottomNavBar in build()
 }
-

@@ -27,7 +27,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Small delay to ensure navigator is ready if needed, 
+    // Small delay to ensure navigator is ready if needed,
     // though initState is usually fine for pushReplacement
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
@@ -68,8 +68,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              _buildLanguageOption(
-                  'English', true, const Locale('en')),
+              _buildLanguageOption('English', true, const Locale('en')),
               _buildLanguageOption('French', false, const Locale('fr')),
               _buildLanguageOption('German', false, const Locale('de')),
               _buildLanguageOption('Spanish', false, const Locale('es')),

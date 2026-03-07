@@ -14,7 +14,7 @@ class EntitlementsService {
           .select('gender, tier')
           .eq('id', userId)
           .maybeSingle();
-      
+
       if (profJson != null) {
         final gender = (profJson['gender'] as String?)?.toLowerCase() ?? '';
         if (gender == 'woman' || gender == 'female' || gender == 'femme') {
@@ -30,7 +30,8 @@ class EntitlementsService {
           .maybeSingle();
       if (rec != null) {
         final expires = rec['expires_at'] as String?;
-        if (expires != null && DateTime.tryParse(expires)?.isBefore(DateTime.now()) == true) {
+        if (expires != null &&
+            DateTime.tryParse(expires)?.isBefore(DateTime.now()) == true) {
           return 'free';
         }
         return rec['tier'] as String? ?? 'free';
@@ -65,29 +66,32 @@ class EntitlementsService {
           .select('gender')
           .eq('id', userId)
           .maybeSingle();
-      
+
       if (prof != null) {
         final gender = (prof['gender'] as String?)?.toLowerCase() ?? '';
         return gender == 'woman' || gender == 'female' || gender == 'femme';
       }
-      
+
       return false;
     } catch (_) {
       return false;
     }
   }
 
-  Future<void> grantEntitlement(String userId, String tier, String? purchaseToken) async {
+  Future<void> grantEntitlement(
+      String userId, String tier, String? purchaseToken) async {
     try {
       // 1. Update profiles table tier
-      await _supabase
-          .from('profiles')
-          .update({'tier': tier, 'is_premium': tier == 'premium' || tier == 'elite'})
-          .eq('id', userId);
+      await _supabase.from('profiles').update({
+        'tier': tier,
+        'is_premium': tier == 'premium' || tier == 'elite'
+      }).eq('id', userId);
 
       // 2. Upsert into entitlements table
       final now = DateTime.now();
-      final expiresAt = now.add(const Duration(days: 30)).toIso8601String(); // Standard 30 days for testing
+      final expiresAt = now
+          .add(const Duration(days: 30))
+          .toIso8601String(); // Standard 30 days for testing
 
       await _supabase.from('entitlements').upsert({
         'user_id': userId,
@@ -96,7 +100,7 @@ class EntitlementsService {
         'updated_at': now.toIso8601String(),
         'metadata': {'purchase_token': purchaseToken},
       });
-      
+
       debugPrint('✅ Entitlement granted: $tier for user $userId');
     } catch (e) {
       debugPrint('❌ Error granting entitlement: $e');
@@ -104,4 +108,3 @@ class EntitlementsService {
     }
   }
 }
-

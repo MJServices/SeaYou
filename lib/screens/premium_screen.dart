@@ -14,13 +14,18 @@ class PremiumScreen extends StatefulWidget {
   State<PremiumScreen> createState() => _PremiumScreenState();
 }
 
-class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserver {
-  static const String _subscriptionLink = 'https://buy.stripe.com/3cI28r0nAd3PdqwfKe2Nq02';
-  static const String _manageSubscriptionLink = 'https://billing.stripe.com/p/login/test_5kQ3cu4KmfhecVgctd4ko00'; // Placeholder, user should update
+class _PremiumScreenState extends State<PremiumScreen>
+    with WidgetsBindingObserver {
+  static const String _subscriptionLink =
+      'https://buy.stripe.com/3cI28r0nAd3PdqwfKe2Nq02';
+  static const String _manageSubscriptionLink =
+      'https://billing.stripe.com/p/login/9B66oHgmyaVH4U0dC62Nq00';
 
   bool _isPremium = false;
   String? _userGender;
   bool _isLoading = true;
+  bool _stripeOpened =
+      false; // tracks whether Stripe was opened to show refresh button
   StreamSubscription<PurchaseDetails>? _purchaseSubscription;
 
   @override
@@ -28,10 +33,10 @@ class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadPremiumStatus();
-    
+
     // Listen for purchase updates
     _purchaseSubscription = IapService().purchaseStream.listen((purchase) {
-      if (purchase.status == PurchaseStatus.purchased || 
+      if (purchase.status == PurchaseStatus.purchased ||
           purchase.status == PurchaseStatus.restored) {
         _loadPremiumStatus();
       }
@@ -59,20 +64,22 @@ class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserv
       if (userId != null) {
         final profile = await Supabase.instance.client
             .from('profiles')
-            .select('is_premium, gender')
+            .select('tier, gender')
             .eq('id', userId)
             .single();
-            
+
         if (mounted) {
           setState(() {
-            _isPremium = profile['is_premium'] as bool? ?? false;
+            final tier = profile['tier'] as String? ?? 'free';
+            _isPremium = tier == 'premium' || tier == 'elite';
             _userGender = profile['gender'] as String?;
             _isLoading = false;
           });
-          
+
           // CRITICAL: If female, they shouldn't be here. Pop back.
           final gender = _userGender?.toLowerCase();
-          final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+          final isFemale =
+              gender == 'female' || gender == 'woman' || gender == 'femme';
           if (isFemale) {
             debugPrint('🚫 Female user reached PremiumScreen - redirecting');
             Navigator.of(context).pop();
@@ -100,6 +107,7 @@ class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserv
     }
 
     final Uri url = Uri.parse(enrichedUrl);
+    // User requested to keep it running in-app.
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
       throw Exception('Could not launch $enrichedUrl');
     }
@@ -108,10 +116,10 @@ class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     final tr = AppLocalizations.of(context);
-    
+
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -132,386 +140,465 @@ class _PremiumScreenState extends State<PremiumScreen> with WidgetsBindingObserv
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white, size: 22),
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 22),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),
                   ],
                 ),
               ),
-              
+
               Expanded(
-                child: _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 5),
-                        
-                        // Title
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontFamily: 'PlayfairDisplay',
-                              color: Color(0xFF7B68EE),
-                              height: 1.2,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Colors.white))
+                    : SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Column(
                             children: [
-                              TextSpan(
-                                text: _isPremium ? 'SeaYou\n' : 'Passez à SeaYou\n',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w500,
+                              const SizedBox(height: 5),
+
+                              // Title
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontFamily: 'PlayfairDisplay',
+                                    color: Color(0xFF7B68EE),
+                                    height: 1.2,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black12,
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: _isPremium
+                                          ? 'SeaYou\n'
+                                          : 'Passez à SeaYou\n',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const TextSpan(
+                                      text: 'PREMIUM',
+                                      style: TextStyle(
+                                        fontSize: 42,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const TextSpan(
-                                text: 'PREMIUM',
-                                style: TextStyle(
-                                  fontSize: 42,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.5,
+
+                              const SizedBox(height: 24),
+
+                              if (_isPremium) ...[
+                                // Premium Status Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 24, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    borderRadius: BorderRadius.circular(30),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.1),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text('👑',
+                                          style: TextStyle(fontSize: 24)),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        tr.tr('premium.upgrade.status_active'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF7B68EE),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
+
+                                // Manage Button
+                                Container(
+                                  width: double.infinity,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(26),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.1),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        _launchUrl(_manageSubscriptionLink),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(26)),
+                                    ),
+                                    child: Text(
+                                      tr.tr('profile.manage_subscription'),
+                                      style: const TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF7B68EE),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                // Cards Row
+                                IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Classique
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.7),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Flexible(
+                                                child: Text(
+                                                  'Classique',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Montserrat',
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Color(0xFF666666),
+                                                    height: 1.1,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                              _buildFeature(
+                                                icon: Icons.fiber_manual_record,
+                                                iconColor:
+                                                    const Color(0xFFFF9800),
+                                                text: tr.tr(
+                                                    'premium.classique.bottles_limit'),
+                                                textColor:
+                                                    const Color(0xFF666666),
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.cancel,
+                                                iconColor:
+                                                    const Color(0xFFFF6B6B),
+                                                text: tr.tr(
+                                                    'premium.classique.bottles_locked'),
+                                                textColor:
+                                                    const Color(0xFF666666),
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.fiber_manual_record,
+                                                iconColor:
+                                                    const Color(0xFFFF9800),
+                                                text: tr.tr(
+                                                    'premium.classique.distance_limit'),
+                                                textColor:
+                                                    const Color(0xFF666666),
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.cancel,
+                                                iconColor:
+                                                    const Color(0xFFFF6B6B),
+                                                text: tr.tr(
+                                                    'premium.classique.souls_locked'),
+                                                textColor:
+                                                    const Color(0xFF666666),
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.cancel,
+                                                iconColor:
+                                                    const Color(0xFFFF6B6B),
+                                                text: tr.tr(
+                                                    'premium.classique.desires_locked'),
+                                                textColor:
+                                                    const Color(0xFF666666),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 8),
+
+                                      // Premium
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [
+                                                Color(0xFF9B7FED),
+                                                Color(0xFF7B68EE)
+                                              ],
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF7B68EE)
+                                                    .withValues(alpha: 0.4),
+                                                blurRadius: 15,
+                                                offset: const Offset(0, 8),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      'SeaYou PREMIUM',
+                                                      style: TextStyle(
+                                                        fontFamily:
+                                                            'Montserrat',
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        color: Colors.white,
+                                                        height: 1.1,
+                                                        letterSpacing: 0.2,
+                                                      ),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 12),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.bottles_unlimited'),
+                                                textColor: Colors.white,
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.bottles_open_unlimited'),
+                                                textColor: Colors.white,
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.distance_flexible'),
+                                                textColor: Colors.white,
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.souls_access'),
+                                                textColor: Colors.white,
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.desires_access'),
+                                                textColor: Colors.white,
+                                              ),
+                                              _buildFeature(
+                                                icon: Icons.check_circle,
+                                                iconColor: Colors.white,
+                                                text: tr.tr(
+                                                    'premium.premium.direct_message'),
+                                                textColor: Colors.white,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Price
+                                Text(
+                                  tr.tr('premium.upgrade.price'),
+                                  style: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                    letterSpacing: 0,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // Subscribe Button
+                                Container(
+                                  width: double.infinity,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF9B7FED),
+                                        Color(0xFF7B68EE)
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(26),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF7B68EE)
+                                            .withValues(alpha: 0.4),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      await _launchUrl(_subscriptionLink);
+                                      if (mounted) {
+                                        setState(() => _stripeOpened = true);
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF8A2BE2),
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(26)),
+                                    ),
+                                    child: Text(
+                                      tr.tr('premium.upgrade.continue'),
+                                      style: const TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // After Stripe opened: show a refresh button
+                                if (_stripeOpened) ...[
+                                  const SizedBox(height: 12),
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      setState(() => _isLoading = true);
+                                      await _loadPremiumStatus();
+                                    },
+                                    icon: const Icon(Icons.refresh,
+                                        color: Color(0xFF7B68EE)),
+                                    label: const Text(
+                                      'J\'ai payé – Actualiser mon statut',
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF7B68EE),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+
+                              const SizedBox(height: 20),
+
+                              // Get Scrolls Button
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const PurchaseScrollsScreen()),
+                                  );
+                                },
+                                child: Text(
+                                  tr.tr('purchase_scrolls.title'),
+                                  style: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF7B68EE),
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                               ),
+
+                              const SizedBox(height: 10),
+
+                              // Manage Subscription (Always Visible)
+                              TextButton(
+                                onPressed: () =>
+                                    _launchUrl(_manageSubscriptionLink),
+                                child: Text(
+                                  tr.tr('profile.manage_subscription'),
+                                  style: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF666666),
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 30),
                             ],
                           ),
                         ),
-                        
-                        const SizedBox(height: 24),
-
-                        if (_isPremium) ...[
-                          // Premium Status Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(30),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('👑', style: TextStyle(fontSize: 24)),
-                                const SizedBox(width: 12),
-                                Text(
-                                  tr.tr('premium.upgrade.status_active'),
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF7B68EE),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 40),
-                          
-                          // Manage Button
-                          Container(
-                            width: double.infinity,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(26),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: () => _launchUrl(_manageSubscriptionLink),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-                              ),
-                              child: Text(
-                                tr.tr('profile.manage_subscription'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF7B68EE),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          // Cards Row
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Classique
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.7),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            'Classique',
-                                            style: const TextStyle(
-                                              fontFamily: 'Montserrat',
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w800,
-                                              color: Color(0xFF666666),
-                                              height: 1.1,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildFeature(
-                                          icon: Icons.fiber_manual_record,
-                                          iconColor: Color(0xFFFF9800),
-                                          text: tr.tr('premium.classique.bottles_limit'),
-                                          textColor: Color(0xFF666666),
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.cancel,
-                                          iconColor: Color(0xFFFF6B6B),
-                                          text: tr.tr('premium.classique.bottles_locked'),
-                                          textColor: Color(0xFF666666),
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.fiber_manual_record,
-                                          iconColor: Color(0xFFFF9800),
-                                          text: tr.tr('premium.classique.distance_limit'),
-                                          textColor: Color(0xFF666666),
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.cancel,
-                                          iconColor: Color(0xFFFF6B6B),
-                                          text: tr.tr('premium.classique.souls_locked'),
-                                          textColor: Color(0xFF666666),
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.cancel,
-                                          iconColor: Color(0xFFFF6B6B),
-                                          text: tr.tr('premium.classique.desires_locked'),
-                                          textColor: Color(0xFF666666),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                
-                                const SizedBox(width: 8),
-                                
-                                // Premium
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [Color(0xFF9B7FED), Color(0xFF7B68EE)],
-                                      ),
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Color(0xFF7B68EE).withOpacity(0.4),
-                                          blurRadius: 15,
-                                          offset: const Offset(0, 8),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                'SeaYou PREMIUM',
-                                                style: const TextStyle(
-                                                  fontFamily: 'Montserrat',
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: Colors.white,
-                                                  height: 1.1,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.bottles_unlimited'),
-                                          textColor: Colors.white,
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.bottles_open_unlimited'),
-                                          textColor: Colors.white,
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.distance_flexible'),
-                                          textColor: Colors.white,
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.souls_access'),
-                                          textColor: Colors.white,
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.desires_access'),
-                                          textColor: Colors.white,
-                                        ),
-                                        _buildFeature(
-                                          icon: Icons.check_circle,
-                                          iconColor: Colors.white,
-                                          text: tr.tr('premium.premium.direct_message'),
-                                          textColor: Colors.white,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          
-                          const SizedBox(height: 24),
-                          
-                          // Price
-                          Text(
-                            tr.tr('premium.upgrade.price'),
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                              letterSpacing: 0,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          
-                          const SizedBox(height: 20),
-                          
-                          // Subscribe Button
-                          Container(
-                            width: double.infinity,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF9B7FED), Color(0xFF7B68EE)],
-                              ),
-                              borderRadius: BorderRadius.circular(26),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0xFF7B68EE).withOpacity(0.4),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: () => _launchUrl(_subscriptionLink),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF8A2BE2),
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-                              ),
-                              child: Text(
-                                tr.tr('premium.upgrade.continue'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Get Scrolls Button
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const PurchaseScrollsScreen()),
-                            );
-                          },
-                          child: Text(
-                            tr.tr('purchase_scrolls.title'),
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF7B68EE),
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 10),
-                        
-                        // Manage Subscription (Always Visible)
-                        TextButton(
-                          onPressed: () => _launchUrl(_manageSubscriptionLink),
-                          child: Text(
-                            tr.tr('profile.manage_subscription'),
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF666666),
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 30),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             ],
           ),

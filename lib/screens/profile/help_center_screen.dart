@@ -31,7 +31,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    
+
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(
@@ -109,7 +109,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: l10n.tr('profile.help_center_email_hint'),
+                              hintText:
+                                  l10n.tr('profile.help_center_email_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -160,7 +161,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: l10n.tr('profile.help_center_issue_hint'),
+                              hintText:
+                                  l10n.tr('profile.help_center_issue_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -205,7 +207,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                               // Send help request
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(l10n.tr('profile.help_center_success')),
+                                  content: Text(
+                                      l10n.tr('profile.help_center_success')),
                                 ),
                               );
                               Navigator.pop(context);
@@ -222,4 +225,3 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     );
   }
 }
-

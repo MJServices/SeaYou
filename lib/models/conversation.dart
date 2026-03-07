@@ -1,4 +1,3 @@
-
 class Conversation {
   final String id;
   final String userAId;
@@ -7,7 +6,7 @@ class Conversation {
   final String? maskA;
   final String? maskB;
   final int feelingPercent;
-  final int unlockState;  // Changed from Map to int to match DB schema
+  final int unlockState; // Changed from Map to int to match DB schema
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? lastMessage;
@@ -57,11 +56,11 @@ class Conversation {
       unreadCount: json['unread_count'] as int? ?? 0,
       user1NaughtyAnswer: json['user1_naughty_answer'] as String?,
       user2NaughtyAnswer: json['user2_naughty_answer'] as String?,
-      userASeenMilestones: json['user_a_seen_milestones'] != null 
-          ? (json['user_a_seen_milestones'] as List).cast<int>() 
+      userASeenMilestones: json['user_a_seen_milestones'] != null
+          ? (json['user_a_seen_milestones'] as List).cast<int>()
           : null,
-      userBSeenMilestones: json['user_b_seen_milestones'] != null 
-          ? (json['user_b_seen_milestones'] as List).cast<int>() 
+      userBSeenMilestones: json['user_b_seen_milestones'] != null
+          ? (json['user_b_seen_milestones'] as List).cast<int>()
           : null,
     );
   }
@@ -87,7 +86,7 @@ class Conversation {
       'user_b_seen_milestones': userBSeenMilestones,
     };
   }
-  
+
   Conversation copyWith({
     String? id,
     String? userAId,

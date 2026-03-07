@@ -9,7 +9,9 @@ class TargetingOptionsModal extends StatefulWidget {
   final RangeValues currentAgeRange;
   final List<String> currentGenders;
   final List<String> currentDepartments;
-  final Function(RangeValues ageRange, List<String> genders, List<String> departments) onApply;
+  final Function(
+          RangeValues ageRange, List<String> genders, List<String> departments)
+      onApply;
 
   const TargetingOptionsModal({
     super.key,
@@ -63,7 +65,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
     if (_isLoading) {
       return const SizedBox(
         height: 300,
-        child: Center(child: CircularProgressIndicator(color: Color(0xFF0AC5C5))),
+        child:
+            Center(child: CircularProgressIndicator(color: Color(0xFF0AC5C5))),
       );
     }
 
@@ -92,7 +95,7 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Title
           Text(
             AppLocalizations.of(context).tr('targeting.title'),
@@ -131,7 +134,7 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
               });
             },
           ),
-          
+
           const SizedBox(height: 24),
 
           // Gender
@@ -154,7 +157,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
             ].map((gender) {
               final isSelected = _selectedGenders.contains(gender);
               return FilterChip(
-                label: Text(AppLocalizations.of(context).tr('targeting.gender_${gender.toLowerCase().replaceAll('-', '')}')),
+                label: Text(AppLocalizations.of(context).tr(
+                    'targeting.gender_${gender.toLowerCase().replaceAll('-', '')}')),
                 selected: isSelected,
                 onSelected: (selected) {
                   setState(() {
@@ -172,12 +176,16 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: isSelected ? const Color(0xFF0AC5C5) : const Color(0xFF5D5D5D),
+                  color: isSelected
+                      ? const Color(0xFF0AC5C5)
+                      : const Color(0xFF5D5D5D),
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected ? const Color(0xFF0AC5C5) : const Color(0xFFE0E0E0),
+                    color: isSelected
+                        ? const Color(0xFF0AC5C5)
+                        : const Color(0xFFE0E0E0),
                   ),
                 ),
               );
@@ -204,11 +212,13 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const PremiumScreen()),
                     );
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFC107).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
@@ -217,12 +227,13 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                         const Icon(Icons.lock, size: 12, color: Color(0xFFA07800)),
-                         const SizedBox(width: 4),
-                         Text(
+                        const Icon(Icons.lock,
+                            size: 12, color: Color(0xFFA07800)),
+                        const SizedBox(width: 4),
+                        Text(
                           AppLocalizations.of(context).tr('common.premium'),
                           style: const TextStyle(
-                            fontFamily: 'Montserrat', 
+                            fontFamily: 'Montserrat',
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                             color: Color(0xFFA07800),
@@ -235,7 +246,7 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           if (_isPremium)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +254,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                 InkWell(
                   onTap: _showDepartmentSelector,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(12),
@@ -253,11 +265,19 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                       children: [
                         Expanded(
                           child: Text(
-                            _selectedDepartments.isEmpty 
-                                ? AppLocalizations.of(context).tr('targeting.select_departments')
-                                : _selectedDepartments.length == frenchDepartments.length
-                                    ? AppLocalizations.of(context).tr('targeting.all_france')
-                                    : AppLocalizations.of(context).tr('targeting.departments_selected', params: {'count': _selectedDepartments.length.toString()}),
+                            _selectedDepartments.isEmpty
+                                ? AppLocalizations.of(context)
+                                    .tr('targeting.select_departments')
+                                : _selectedDepartments.length ==
+                                        frenchDepartments.length
+                                    ? AppLocalizations.of(context)
+                                        .tr('targeting.all_france')
+                                    : AppLocalizations.of(context).tr(
+                                        'targeting.departments_selected',
+                                        params: {
+                                            'count': _selectedDepartments.length
+                                                .toString()
+                                          }),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
@@ -266,7 +286,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF737373)),
+                        const Icon(Icons.arrow_forward_ios,
+                            size: 14, color: Color(0xFF737373)),
                       ],
                     ),
                   ),
@@ -275,7 +296,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      _selectedDepartments.take(3).join(', ') + (_selectedDepartments.length > 3 ? '...' : ''),
+                      _selectedDepartments.take(3).join(', ') +
+                          (_selectedDepartments.length > 3 ? '...' : ''),
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 12,
@@ -297,7 +319,8 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
                   const Icon(Icons.public, color: Color(0xFF0AC5C5), size: 20),
                   const SizedBox(width: 12),
                   Text(
-                    AppLocalizations.of(context).tr('targeting.all_france_random'),
+                    AppLocalizations.of(context)
+                        .tr('targeting.all_france_random'),
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
@@ -309,13 +332,14 @@ class _TargetingOptionsModalState extends State<TargetingOptionsModal> {
             ),
 
           const SizedBox(height: 32),
-          
+
           // Apply Button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                widget.onApply(_ageRange, _selectedGenders, _selectedDepartments);
+                widget.onApply(
+                    _ageRange, _selectedGenders, _selectedDepartments);
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
@@ -364,10 +388,12 @@ class _DepartmentSelectionDialog extends StatefulWidget {
   const _DepartmentSelectionDialog({required this.selectedDepartments});
 
   @override
-  State<_DepartmentSelectionDialog> createState() => _DepartmentSelectionDialogState();
+  State<_DepartmentSelectionDialog> createState() =>
+      _DepartmentSelectionDialogState();
 }
 
-class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> {
+class _DepartmentSelectionDialogState
+    extends State<_DepartmentSelectionDialog> {
   late List<String> _tempSelected;
 
   @override
@@ -390,7 +416,8 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  AppLocalizations.of(context).tr('targeting.select_departments'),
+                  AppLocalizations.of(context)
+                      .tr('targeting.select_departments'),
                   style: const TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 18,
@@ -399,17 +426,17 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
                 ),
                 TextButton(
                   onPressed: () {
-                     setState(() {
-                       if (_tempSelected.length == frenchDepartments.length) {
-                         _tempSelected.clear();
-                       } else {
-                         _tempSelected = List.from(frenchDepartments);
-                       }
-                     });
+                    setState(() {
+                      if (_tempSelected.length == frenchDepartments.length) {
+                        _tempSelected.clear();
+                      } else {
+                        _tempSelected = List.from(frenchDepartments);
+                      }
+                    });
                   },
                   child: Text(
-                    _tempSelected.length == frenchDepartments.length 
-                        ? AppLocalizations.of(context).tr('common.clear_all') 
+                    _tempSelected.length == frenchDepartments.length
+                        ? AppLocalizations.of(context).tr('common.clear_all')
                         : AppLocalizations.of(context).tr('common.select_all'),
                     style: const TextStyle(color: Color(0xFF0AC5C5)),
                   ),
@@ -426,7 +453,9 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
                 final dept = frenchDepartments[index];
                 final isSelected = _tempSelected.contains(dept);
                 return CheckboxListTile(
-                  title: Text(dept, style: const TextStyle(fontFamily: 'Montserrat', fontSize: 14)),
+                  title: Text(dept,
+                      style: const TextStyle(
+                          fontFamily: 'Montserrat', fontSize: 14)),
                   value: isSelected,
                   activeColor: const Color(0xFF0AC5C5),
                   onChanged: (val) {
@@ -450,16 +479,19 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(AppLocalizations.of(context).tr('common.cancel'), style: const TextStyle(color: Colors.grey)),
+                  child: Text(AppLocalizations.of(context).tr('common.cancel'),
+                      style: const TextStyle(color: Colors.grey)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context, _tempSelected),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0AC5C5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                   ),
-                  child: Text(AppLocalizations.of(context).tr('common.confirm'), style: const TextStyle(color: Colors.white)),
+                  child: Text(AppLocalizations.of(context).tr('common.confirm'),
+                      style: const TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -468,7 +500,4 @@ class _DepartmentSelectionDialogState extends State<_DepartmentSelectionDialog> 
       ),
     );
   }
-
-
 }
-

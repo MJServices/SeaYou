@@ -14,21 +14,23 @@ class AuthService {
   Future<String> signUpWithEmail(String email, {String? password}) async {
     try {
       await _log('🚀 signUpWithEmail called for: $email');
-      
-      // Use provided password or generate a temporary one
-      final finalPassword = password ?? "temp-${DateTime.now().millisecondsSinceEpoch}";
 
-      await _log('🔐 Sending OTP (signUp with temp password, redirect=seayou://login-callback) to: $email');
-      
+      // Use provided password or generate a temporary one
+      final finalPassword =
+          password ?? 'temp-${DateTime.now().millisecondsSinceEpoch}';
+
+      await _log(
+          '🔐 Sending OTP (signUp with temp password, redirect=seayou://login-callback) to: $email');
+
       // Use standard signUp instead of Magic Link to trigger "Confirm Signup" template
       await _supabase.auth.signUp(
         email: email,
         password: finalPassword,
       );
-      
+
       // CUSTOM OTP FLOW: Send OTP immediately after signup
       await sendCustomOtp(email);
-      
+
       await _log('✅ Signup confirmed - Custom OTP sent to: $email');
       await _log('✅ Signup confirmed - Verification email sent to: $email');
       return finalPassword;
@@ -47,17 +49,17 @@ class AuthService {
         'check-email',
         body: {'email': email},
       );
-      
+
       if (response.status != 200) {
         throw Exception('Failed to check email: ${response.data}');
       }
-      
+
       final exists = response.data['exists'] as bool;
       await _log('Search result for $email: ${exists ? "FOUND" : "NOT FOUND"}');
       return exists;
     } catch (e) {
       await _log('⚠️ Error checking email existence: $e');
-      // Fail safely: If we can't check, assume it exists to prevent overwrites? 
+      // Fail safely: If we can't check, assume it exists to prevent overwrites?
       // Or false to allow flow? Let's return false but log it.
       return false;
     }
@@ -70,13 +72,15 @@ class AuthService {
       await _log('🔍 Pre-check if email exists: $email');
       // First check if email exists in profiles table
       final emailExists = await checkEmailExists(email);
-      
+
       if (!emailExists) {
         await _log('❌ Email not found, aborting sign in: $email');
-        throw Exception('No account found with this email. Please sign up first.');
+        throw Exception(
+            'No account found with this email. Please sign up first.');
       }
 
-      await _log('🔐 Email exists, sending OTP (signInWithOtp, create=false, redirect=null) for: $email');
+      await _log(
+          '🔐 Email exists, sending OTP (signInWithOtp, create=false, redirect=null) for: $email');
       // Email exists, send OTP
       await _supabase.auth.signInWithOtp(
         email: email,
@@ -99,7 +103,8 @@ class AuthService {
   }
 
   // Verify OTP
-  Future<AuthResponse> verifyOtp(String email, String token, {OtpType type = OtpType.email}) async {
+  Future<AuthResponse> verifyOtp(String email, String token,
+      {OtpType type = OtpType.email}) async {
     await _log('🔐 Verifying OTP for: $email, Token: $token, Type: $type');
     final response = await _supabase.auth.verifyOTP(
       email: email,
@@ -127,7 +132,7 @@ class AuthService {
         'send-otp',
         body: {'email': email},
       );
-      
+
       if (response.status != 200) {
         throw Exception('Failed to send OTP: ${response.data}');
       }
@@ -147,31 +152,31 @@ class AuthService {
         'verify-otp',
         body: {'email': email, 'code': code},
       );
-      
+
       if (response.status != 200) {
         throw Exception('Invalid or expired code');
       }
-      
+
       await _log('✅ Custom OTP Verified Successfully');
-      
+
       // Check if function returned a session_token (magic link token) to log us in
       final data = response.data;
       if (data != null && data['session_token'] != null) {
-          final sessionToken = data['session_token'];
-          await _log('🎟️ Session Token received. Authenticating client...');
-          
-          // Verify the Magic Link token to establish session
-          await _supabase.auth.verifyOTP(
-            email: email,
-            token: sessionToken,
-            type: OtpType.magiclink,
-          );
-          
-          await _log('✅ Client Authenticated via Magic Link Token!');
+        final sessionToken = data['session_token'];
+        await _log('🎟️ Session Token received. Authenticating client...');
+
+        // Verify the Magic Link token to establish session
+        await _supabase.auth.verifyOTP(
+          email: email,
+          token: sessionToken,
+          type: OtpType.magiclink,
+        );
+
+        await _log('✅ Client Authenticated via Magic Link Token!');
       } else {
-          await _log('⚠️ Verified but no session token returned. User might not be logged in.');
+        await _log(
+            '⚠️ Verified but no session token returned. User might not be logged in.');
       }
-      
     } catch (e) {
       await _log('❌ Error verifying Custom OTP: $e');
       rethrow;
@@ -224,7 +229,8 @@ class AuthService {
   }
 
   // Change password (requires current password for security)
-  Future<UserResponse> changePassword(String currentPassword, String newPassword) async {
+  Future<UserResponse> changePassword(
+      String currentPassword, String newPassword) async {
     try {
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null || currentUser.email == null) {
@@ -237,13 +243,13 @@ class AuthService {
         email: currentUser.email!,
         password: currentPassword,
       );
-      
+
       print('✅ Current password verified, updating to new password...');
       // If sign-in succeeds, update to new password
       final response = await _supabase.auth.updateUser(
         UserAttributes(password: newPassword),
       );
-      
+
       print('✅ Password updated successfully');
       return response;
     } catch (e) {

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../services/audio_service.dart';
 
 class VoicePlayer extends StatefulWidget {
   final String? audioPath; // Local file path
-  final String? audioUrl;  // Network URL
+  final String? audioUrl; // Network URL
   final Color color;
   final bool isLocal; // Force local if needed, or inferred
 
@@ -34,6 +35,21 @@ class _VoicePlayerState extends State<VoicePlayer> {
 
   Future<void> _initAudio() async {
     try {
+      await _audioPlayer.setAudioContext(const AudioContext(
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: [AVAudioSessionOptions.defaultToSpeaker],
+        ),
+        android: AudioContextAndroid(
+          isSpeakerphoneOn: true,
+          stayAwake: true,
+          contentType: AndroidContentType.music,
+          usageType: AndroidUsageType.media,
+          audioFocus: AndroidAudioFocus.gain,
+        ),
+      ));
+      await _audioPlayer.setVolume(1.0);
+
       if (widget.audioPath != null) {
         debugPrint('🎙️ VoicePlayer loading file source: ${widget.audioPath}');
         await _audioPlayer.setSource(DeviceFileSource(widget.audioPath!));
@@ -116,11 +132,22 @@ class _VoicePlayerState extends State<VoicePlayer> {
             children: [
               // Play/Pause Button
               GestureDetector(
-                onTap: () {
+                onTap: () async {
                   if (_isPlaying) {
-                    _audioPlayer.pause();
+                    await _audioPlayer.pause();
                   } else {
-                    _audioPlayer.resume();
+                    await GlobalAudioController.instance.stopAmbient();
+                    await _audioPlayer.setVolume(1.0);
+                    if (_position == Duration.zero || _position >= _duration) {
+                      if (widget.audioPath != null) {
+                        await _audioPlayer
+                            .play(DeviceFileSource(widget.audioPath!));
+                      } else if (widget.audioUrl != null) {
+                        await _audioPlayer.play(UrlSource(widget.audioUrl!));
+                      }
+                    } else {
+                      await _audioPlayer.resume();
+                    }
                   }
                 },
                 child: Container(
@@ -145,7 +172,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
                 ),
               ),
               const SizedBox(width: 12),
-              
+
               // Slider
               Expanded(
                 child: Column(
@@ -154,21 +181,34 @@ class _VoicePlayerState extends State<VoicePlayer> {
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 4,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                        thumbShape:
+                            const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape:
+                            const RoundSliderOverlayShape(overlayRadius: 14),
                         activeTrackColor: widget.color,
                         inactiveTrackColor: widget.color.withValues(alpha: 0.3),
                         thumbColor: widget.color,
                         overlayColor: widget.color.withValues(alpha: 0.1),
                       ),
                       child: Slider(
-                        value: _position.inMilliseconds.toDouble().clamp(0.0, _duration.inMilliseconds.toDouble()),
+                        value: _position.inMilliseconds
+                            .toDouble()
+                            .clamp(0.0, _duration.inMilliseconds.toDouble()),
                         min: 0,
-                        max: _duration.inMilliseconds.toDouble() > 0 
-                            ? _duration.inMilliseconds.toDouble() 
+                        max: _duration.inMilliseconds.toDouble() > 0
+                            ? _duration.inMilliseconds.toDouble()
                             : 1.0,
                         onChanged: (value) {
-                          _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                          // Update UI without spamming native seek
+                          if (mounted) {
+                            setState(() => _position =
+                                Duration(milliseconds: value.toInt()));
+                          }
+                        },
+                        onChangeEnd: (value) {
+                          // Perform expensive seek ONLY when user releases drag
+                          _audioPlayer
+                              .seek(Duration(milliseconds: value.toInt()));
                         },
                       ),
                     ),
@@ -187,9 +227,11 @@ class _VoicePlayerState extends State<VoicePlayer> {
                             ),
                           ),
                           Text(
-                            _duration.inMilliseconds > 0 
-                                ? _formatDuration(_duration) 
-                                : (_isPlaying ? '...' : _formatDuration(Duration.zero)),
+                            _duration.inMilliseconds > 0
+                                ? _formatDuration(_duration)
+                                : (_isPlaying
+                                    ? '...'
+                                    : _formatDuration(Duration.zero)),
                             style: TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 10,

@@ -29,7 +29,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final email = _emailController.text.trim();
-    final emailValid = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+    final emailValid =
+        RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: WarmGradientBackground(
@@ -40,9 +41,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                Text('Login with OTP', style: AppTextStyles.displayText),
+                const Text('Login with OTP', style: AppTextStyles.displayText),
                 const SizedBox(height: 16),
-                Text('Enter your email to receive a verification code', style: AppTextStyles.bodyText),
+                const Text('Enter your email to receive a verification code',
+                    style: AppTextStyles.bodyText),
                 const SizedBox(height: 24),
                 CustomTextField(
                   hintText: AppLocalizations.of(context).tr('auth.email'),
@@ -60,43 +62,55 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 const SizedBox(height: 24),
                 CustomButton(
-                  text: isLoading ? AppLocalizations.of(context).tr('auth.continue') : AppLocalizations.of(context).tr('auth.continue'),
+                  text: isLoading
+                      ? AppLocalizations.of(context).tr('auth.continue')
+                      : AppLocalizations.of(context).tr('auth.continue'),
                   isActive: emailValid && !isLoading,
-                  onPressed: isLoading ? null : () async {
-                    final ctx = context;
-                    setState(() => isLoading = true);
-                    try {
-                      // Call custom send-otp Edge Function using Resend API
-                      final response = await Supabase.instance.client.functions.invoke(
-                        'send-otp',
-                        body: {'email': _emailController.text.trim()},
-                      );
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final ctx = context;
+                          setState(() => isLoading = true);
+                          try {
+                            // Call custom send-otp Edge Function using Resend API
+                            final response =
+                                await Supabase.instance.client.functions.invoke(
+                              'send-otp',
+                              body: {'email': _emailController.text.trim()},
+                            );
 
-                      if (response.status != 200) {
-                        throw Exception(response.data['error'] ?? 'Failed to send OTP');
-                      }
+                            if (response.status != 200) {
+                              throw Exception(response.data['error'] ??
+                                  'Failed to send OTP');
+                            }
 
-                      if (!ctx.mounted) return;
-                      Navigator.push(
-                        ctx,
-                        MaterialPageRoute(
-                          builder: (context) => VerificationScreen(
-                            email: _emailController.text.trim(),
-                            selectedLanguage: null,
-                            isSignIn: true,
-                            isRecovery: false, // OTP login, not password recovery
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!ctx.mounted) return;
-                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(ctx).tr('error.generic')}: $e')));
-                    } finally {
-                      if (mounted) setState(() => isLoading = false);
-                    }
-                  },
+                            if (!ctx.mounted) return;
+                            Navigator.push(
+                              ctx,
+                              MaterialPageRoute(
+                                builder: (context) => VerificationScreen(
+                                  email: _emailController.text.trim(),
+                                  selectedLanguage: null,
+                                  isSignIn: true,
+                                  isRecovery:
+                                      false, // OTP login, not password recovery
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!ctx.mounted) return;
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(
+                                    '${AppLocalizations.of(ctx).tr('error.generic')}: $e')));
+                          } finally {
+                            if (mounted) setState(() => isLoading = false);
+                          }
+                        },
                 ),
-                SizedBox(height: MediaQuery.of(context).viewInsets.bottom == 0 ? 24 : MediaQuery.of(context).viewInsets.bottom),
+                SizedBox(
+                    height: MediaQuery.of(context).viewInsets.bottom == 0
+                        ? 24
+                        : MediaQuery.of(context).viewInsets.bottom),
               ],
             ),
           ),

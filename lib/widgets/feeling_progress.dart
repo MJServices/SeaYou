@@ -73,65 +73,69 @@ class FeelingProgress extends StatelessWidget {
                         double w(double p) => constraints.maxWidth * (p / 100);
                         final iconSize = compact ? 14.0 : 18.0;
                         return Stack(
-                          clipBehavior: Clip.none, // Allow icons to overflow
-                          children: [
-                          // 25% - Quote
-                          Positioned(
-                            left: w(25) - iconSize / 2,
-                            top: -(compact ? 10.0 : 14.0),
-                            child: Semantics(
-                              label: '25% - Quote Unlocked',
-                              selected: value >= 25,
-                              child: Icon(
-                                Icons.format_quote,
-                                size: iconSize,
-                                color: const Color(0xFF9B7FED), // Always purple
+                            clipBehavior: Clip.none, // Allow icons to overflow
+                            children: [
+                              // 25% - Quote
+                              Positioned(
+                                left: w(25) - iconSize / 2,
+                                top: -(compact ? 10.0 : 14.0),
+                                child: Semantics(
+                                  label: '25% - Quote Unlocked',
+                                  selected: value >= 25,
+                                  child: Icon(
+                                    Icons.format_quote,
+                                    size: iconSize,
+                                    color: const Color(
+                                        0xFF9B7FED), // Always purple
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          // 50% - Music Note
-                          Positioned(
-                            left: w(50) - iconSize / 2,
-                            top: -(compact ? 10.0 : 14.0),
-                            child: Semantics(
-                              label: '50% - Voice Message Unlocked',
-                              selected: value >= 50,
-                              child: Icon(
-                                Icons.music_note,
-                                size: iconSize,
-                                color: const Color(0xFFFF6B9D), // Always pink
+                              // 50% - Music Note
+                              Positioned(
+                                left: w(50) - iconSize / 2,
+                                top: -(compact ? 10.0 : 14.0),
+                                child: Semantics(
+                                  label: '50% - Voice Message Unlocked',
+                                  selected: value >= 50,
+                                  child: Icon(
+                                    Icons.music_note,
+                                    size: iconSize,
+                                    color:
+                                        const Color(0xFFFF6B9D), // Always pink
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          // 75% - Gift
-                          Positioned(
-                            left: w(75) - iconSize / 2,
-                            top: -(compact ? 10.0 : 14.0),
-                            child: Semantics(
-                              label: '75% - Intimate Question Unlocked',
-                              selected: value >= 75,
-                              child: Icon(
-                                Icons.card_giftcard,
-                                size: iconSize,
-                                color: const Color(0xFFFF9800), // Always orange
+                              // 75% - Gift
+                              Positioned(
+                                left: w(75) - iconSize / 2,
+                                top: -(compact ? 10.0 : 14.0),
+                                child: Semantics(
+                                  label: '75% - Intimate Question Unlocked',
+                                  selected: value >= 75,
+                                  child: Icon(
+                                    Icons.card_giftcard,
+                                    size: iconSize,
+                                    color: const Color(
+                                        0xFFFF9800), // Always orange
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          // 100% - Heart
-                          Positioned(
-                            left: w(100) - iconSize / 2,
-                            top: -(compact ? 10.0 : 14.0),
-                            child: Semantics(
-                              label: '100% - Photo Reveal Available',
-                              selected: value >= 100,
-                              child: Icon(
-                                Icons.favorite,
-                                size: iconSize,
-                                color: const Color(0xFFFF1744), // Always red
+                              // 100% - Heart
+                              Positioned(
+                                left: w(100) - iconSize / 2,
+                                top: -(compact ? 10.0 : 14.0),
+                                child: Semantics(
+                                  label: '100% - Photo Reveal Available',
+                                  selected: value >= 100,
+                                  child: Icon(
+                                    Icons.favorite,
+                                    size: iconSize,
+                                    color:
+                                        const Color(0xFFFF1744), // Always red
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        ]);
+                            ]);
                       },
                     ),
                   ),

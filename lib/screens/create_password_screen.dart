@@ -15,9 +15,9 @@ class CreatePasswordScreen extends StatefulWidget {
   final String email;
   final String? selectedLanguage;
   final bool isRecovery;
-  
+
   const CreatePasswordScreen({
-    super.key, 
+    super.key,
     required this.email,
     this.selectedLanguage,
     this.isRecovery = false,
@@ -75,104 +75,125 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
       body: WarmGradientBackground(
         child: Stack(
           children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      alignment: Alignment.centerLeft,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      AppLocalizations.of(context).tr('auth.create_password_title'),
-                      style: AppTextStyles.displayText,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      AppLocalizations.of(context).tr('auth.password_requirement_subtitle'),
-                      style: AppTextStyles.bodyText,
-                    ),
-                    const SizedBox(height: 32),
-                    CustomTextField(
-                      hintText: AppLocalizations.of(context).tr('auth.enter_password_placeholder'),
-                      controller: _passwordController,
-                      isActive: _passwordController.text.isNotEmpty,
-                      obscureText: _obscureText,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureText
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: AppColors.primary,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
+            SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.min_characters'), hasMinLength),
-                    const SizedBox(height: 8),
-                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.at_least_symbol'), hasSymbol),
-                    const SizedBox(height: 8),
-                    _buildRequirement(context, AppLocalizations.of(context).tr('auth.at_least_number'), hasNumber),
-                    const SizedBox(height: 300),
-                    CustomButton(
-                      text: AppLocalizations.of(context).tr('auth.create_password_button'),
-                      isActive: isPasswordValid,
-                      onPressed: () async {
-                        try {
-                          // Check if we need to re-authenticate with temp password
-                          if (AuthService().currentUser == null && widget.tempPassword != null) {
-                            print('AUTH_DEBUG: Session missing, re-authenticating with temp password...');
-                            await AuthService().signInWithPassword(widget.email, widget.tempPassword!);
-                          }
+                      const SizedBox(height: 16),
+                      Text(
+                        AppLocalizations.of(context)
+                            .tr('auth.create_password_title'),
+                        style: AppTextStyles.displayText,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        AppLocalizations.of(context)
+                            .tr('auth.password_requirement_subtitle'),
+                        style: AppTextStyles.bodyText,
+                      ),
+                      const SizedBox(height: 32),
+                      CustomTextField(
+                        hintText: AppLocalizations.of(context)
+                            .tr('auth.enter_password_placeholder'),
+                        controller: _passwordController,
+                        isActive: _passwordController.text.isNotEmpty,
+                        obscureText: _obscureText,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureText
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: AppColors.primary,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureText = !_obscureText;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildRequirement(
+                          context,
+                          AppLocalizations.of(context)
+                              .tr('auth.min_characters'),
+                          hasMinLength),
+                      const SizedBox(height: 8),
+                      _buildRequirement(
+                          context,
+                          AppLocalizations.of(context)
+                              .tr('auth.at_least_symbol'),
+                          hasSymbol),
+                      const SizedBox(height: 8),
+                      _buildRequirement(
+                          context,
+                          AppLocalizations.of(context)
+                              .tr('auth.at_least_number'),
+                          hasNumber),
+                      const SizedBox(height: 300),
+                      CustomButton(
+                        text: AppLocalizations.of(context)
+                            .tr('auth.create_password_button'),
+                        isActive: isPasswordValid,
+                        onPressed: () async {
+                          try {
+                            // Check if we need to re-authenticate with temp password
+                            if (AuthService().currentUser == null &&
+                                widget.tempPassword != null) {
+                              print(
+                                  'AUTH_DEBUG: Session missing, re-authenticating with temp password...');
+                              await AuthService().signInWithPassword(
+                                  widget.email, widget.tempPassword!);
+                            }
 
-                          await AuthService().updatePassword(_passwordController.text);
-                          if (context.mounted) {
-                            if (widget.isRecovery) {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                                (route) => false,
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ProfileInfoScreen(
-                                    email: widget.email,
-                                    selectedLanguage: widget.selectedLanguage,
+                            await AuthService()
+                                .updatePassword(_passwordController.text);
+                            if (context.mounted) {
+                              if (widget.isRecovery) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => const HomeScreen()),
+                                  (route) => false,
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ProfileInfoScreen(
+                                      email: widget.email,
+                                      selectedLanguage: widget.selectedLanguage,
+                                    ),
                                   ),
-                                ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
                               );
                             }
                           }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                  ],
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 

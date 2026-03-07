@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,13 +57,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isTyping = false;
   bool _isSaving = false; // Track if message is being sent
   bool _isPhotoRevealed = false;
-  bool _hasAutoShownNaughty = false;
+  final bool _hasAutoShownNaughty = false;
   bool _isInitialLoad = true; // Prevents 75% lock flicker
-  
+
   // 🔒 Feeling Bar Limit State
   String? _userGender;
   bool _hasAnsweredNaughty = false;
-  
+
   bool _isRecording = false;
   String? _recordingPath;
   Timer? _recordingTimer;
@@ -79,7 +78,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   String? _partnerId;
   late final FeelingController _feelingController;
   // Milestone tracking
-  final Set<int> _shownMilestones = {}; // Track which milestones have been shown
+  final Set<int> _shownMilestones =
+      {}; // Track which milestones have been shown
   int _previousFeelingPercent = 0;
 
   List<ChatMessage> _messages = [];
@@ -87,7 +87,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   late final UploadController _uploadController;
   double _uploadProgress = 0.0;
   String _currentMood = 'Curieux';
-  
+
   // Store conversation data for feeling bar
   Conversation? _conversation;
   bool _isBlocked = false;
@@ -112,7 +112,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       _checkMilestones();
     });
     Future.microtask(_checkMilestones);
-    
+
     // Load all critical data in parallel to avoid flickers
     _initializeData();
   }
@@ -138,29 +138,32 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     if (widget.conversationId != null) {
       _feelingController.subscribe(widget.conversationId!);
-      
+
       // Get current user ID for message alignment
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
       if (currentUserId != null) {
         _db.markMessagesAsRead(widget.conversationId!, currentUserId);
       }
-      
+
       // Subscribe to new messages in realtime
       _db.subscribeMessages(widget.conversationId!).listen((messageData) {
         if (mounted) {
           final eventType = messageData['event_type'];
           final messageId = messageData['id'];
-          
-          debugPrint('📨 Received realtime event: $eventType for message ID: $messageId');
-          
+
+          debugPrint(
+              '📨 Received realtime event: $eventType for message ID: $messageId');
+
           setState(() {
             if (eventType == 'delete') {
               _messages.removeWhere((m) => m.id == messageId);
               debugPrint('✅ Deleted message from local list');
             } else {
-              final message = ChatMessage.fromJson(messageData, currentUserId: currentUserId);
-              final existingIndex = _messages.indexWhere((m) => m.id == message.id);
-              
+              final message = ChatMessage.fromJson(messageData,
+                  currentUserId: currentUserId);
+              final existingIndex =
+                  _messages.indexWhere((m) => m.id == message.id);
+
               if (eventType == 'insert' || eventType == 'INSERT') {
                 if (existingIndex == -1) {
                   _messages.add(message);
@@ -183,34 +186,39 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           if (eventType == 'insert' || eventType == 'INSERT') {
             _scrollToBottom();
           }
-          
+
           // Refresh conversation state (feeling percent)
           _loadConversation();
         }
       });
-      
+
       // Subscribe to conversation changes to update feeling bar
       _db.subscribeConversation(widget.conversationId!).listen((row) {
         if (mounted) {
-          debugPrint('📊 Received conversation update via realtime: feeling=${row['feeling_percent']}');
+          debugPrint(
+              '📊 Received conversation update via realtime: feeling=${row['feeling_percent']}');
           // Also check/mark read status if new messages came
           final currentUserId = Supabase.instance.client.auth.currentUser?.id;
           if (currentUserId != null) {
             _db.markMessagesAsRead(widget.conversationId!, currentUserId);
           }
-          
+
           setState(() {
             _conversation = Conversation.fromJson(row);
             _feelingPercent = _conversation!.feelingPercent;
             _threadTitle = _conversation!.title;
-            
+
             // 🛡️ Ensure naughty answer state is synced from RT update too
             final isUserA = _conversation!.userAId == currentUserId;
             final userAnswer = isUserA
                 ? _conversation!.user1NaughtyAnswer
                 : _conversation!.user2NaughtyAnswer;
-            _hasAnsweredNaughty = userAnswer != null;
+            _hasAnsweredNaughty =
+                userAnswer != null && userAnswer.trim().isNotEmpty;
           });
+          if (_partnerUsername == null && _conversation != null) {
+            _fetchPartnerProfile();
+          }
           _checkMilestones();
         }
       });
@@ -230,18 +238,20 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     try {
       final userId = AuthService().currentUser?.id;
       if (userId != null) {
-        // Fetch profile to get both tier and gender
+        // Fetch profile using tier (text) — NOT is_premium (boolean unreliable)
         final profile = await Supabase.instance.client
             .from('profiles')
-            .select('is_premium, gender')
+            .select('tier, gender')
             .eq('id', userId)
             .single();
-            
+
         if (mounted) {
           setState(() {
-            _isPremium = profile['is_premium'] as bool? ?? false;
+            final tier = profile['tier'] as String? ?? 'free';
+            _isPremium = tier == 'premium' || tier == 'elite';
             _userGender = profile['gender'] as String?;
-            debugPrint('👤 Loaded User: Gender=$_userGender, Premium=$_isPremium');
+            debugPrint(
+                '👤 Loaded User: Gender=$_userGender, Tier=$tier, Premium=$_isPremium');
           });
         }
       }
@@ -251,8 +261,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   bool get _isPartnerOnline {
-    if (_partnerProfile == null || _partnerProfile!['last_active'] == null)
+    if (_partnerProfile == null || _partnerProfile!['last_active'] == null) {
       return false;
+    }
     try {
       final lastActiveStr = _partnerProfile!['last_active'] as String;
       final lastActive = DateTime.parse(lastActiveStr).toUtc();
@@ -265,8 +276,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   String get _lastSeenText {
-    if (_partnerProfile == null || _partnerProfile!['last_active'] == null)
-      return "";
+    if (_partnerProfile == null || _partnerProfile!['last_active'] == null) {
+      return '';
+    }
     try {
       final lastActiveStr = _partnerProfile!['last_active'] as String;
       final lastActive = DateTime.parse(lastActiveStr).toUtc();
@@ -283,7 +295,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inDays}d ago";
       }
     } catch (e) {
-      return "";
+      return '';
     }
   }
 
@@ -291,24 +303,25 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool get _isPremiumLocked {
     // 1. If below 75%, never locked
     if (_feelingPercent < 75) return false;
-    
+
     // 2. Gender-specific logic
     final gender = _userGender?.toLowerCase();
-    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
-    
+    final isFemale =
+        gender == 'female' || gender == 'woman' || gender == 'femme';
+
     if (isFemale) {
       // Females are ONLY gated by the intimacy question (completely free otherwise)
       return !_hasAnsweredNaughty;
     }
-    
+
     // 3. Males (and other genders)
     if (_isPremium) {
       // Premium males are still gated by the intimacy question
       return !_hasAnsweredNaughty;
     }
-    
-    // Non-premium males are locked at 75% by the paywall
-    return true; 
+
+    // Non-premium males are locked at 75% by the paywall unconditionally
+    return true;
   }
 
   Future<void> _loadConversation() async {
@@ -319,7 +332,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _conversation = conversation;
         _feelingPercent = conversation.feelingPercent;
         _threadTitle = conversation.title;
-        _previousFeelingPercent = conversation.feelingPercent; // Set initial previous
+        _previousFeelingPercent =
+            conversation.feelingPercent; // Set initial previous
       });
 
       // Load photo reveal state from SharedPreferences
@@ -330,80 +344,37 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           _isPhotoRevealed = prefs.getBool(revealedKey) ?? false;
         });
       }
-      
-      // Load partner avatar URL for photo reveal
-      try {
-        final currentUserId = AuthService().currentUser?.id;
-        final partnerId = conversation.userAId == currentUserId
-            ? conversation.userBId
-            : conversation.userAId;
-        
-        // Safety check: if for some reason partnerId is still current user, 
-        // it means something is wrong with the conversation data or currentUserId
-        if (partnerId == currentUserId) {
-           debugPrint('⚠️ Warning: partnerId matches currentUserId');
-        }
 
-        final profileData = await _db.getProfile(partnerId);
-        
-        if (currentUserId == null) return;
-        
-        // Check if blocked (Bidirectional)
-        final blocked = await _db.isRelationBlocked(currentUserId, partnerId);
-        
-        if (mounted) {
-          setState(() {
-            _partnerId = partnerId;
-            _partnerAvatarUrl = profileData?['avatar_url'] as String?;
-            _partnerUsername = profileData?['username'] as String?;
-            _isBlocked = blocked;
-          });
-        }
-
-        // Subscribe to partner profile for realtime online status
-        _partnerProfileSub?.cancel();
-        _partnerProfileSub = _db.profileStream(partnerId).listen((profile) {
-          if (mounted) {
-            setState(() {
-              _partnerProfile = profile;
-              // Also update avatar/username if they changed
-              if (profile != null) {
-                _partnerAvatarUrl = profile['avatar_url'] as String?;
-                _partnerUsername = profile['username'] as String?;
-              }
-            });
-          }
-        });
-      } catch (e) {
-        debugPrint('Error pre-fetching partner avatar or block status: $e');
-      }
+      await _fetchPartnerProfile();
 
       // 🛡️ Consolidated: Extract naughty answer & milestones directly from Conversation model
       final currentUserId = AuthService().currentUser?.id;
       final isUserA = conversation.userAId == currentUserId;
-      
+
       // 1. Set seen milestones
-      final userMilestones = isUserA 
-          ? conversation.userASeenMilestones 
+      final userMilestones = isUserA
+          ? conversation.userASeenMilestones
           : conversation.userBSeenMilestones;
-          
+
       if (userMilestones != null) {
         _shownMilestones.addAll(userMilestones);
-        debugPrint('📚 Loaded milestones from Conversation model: $_shownMilestones');
+        debugPrint(
+            '📚 Loaded milestones from Conversation model: $_shownMilestones');
       }
 
       // 2. Set naughty answer status
       final userAnswer = isUserA
           ? conversation.user1NaughtyAnswer
           : conversation.user2NaughtyAnswer;
-          
+
       if (mounted) {
         setState(() {
-          _hasAnsweredNaughty = userAnswer != null;
+          _hasAnsweredNaughty =
+              userAnswer != null && userAnswer.trim().isNotEmpty;
           debugPrint('🔒 Naughty answer status: $_hasAnsweredNaughty');
         });
       }
-      
+
       _feelingController.setInitial(
         percent: conversation.feelingPercent,
         title: conversation.title,
@@ -411,40 +382,92 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  Future<void> _fetchPartnerProfile() async {
+    if (_conversation == null) return;
+    try {
+      final currentUserId = AuthService().currentUser?.id;
+      final partnerId = _conversation!.userAId == currentUserId
+          ? _conversation!.userBId
+          : _conversation!.userAId;
 
-Future<void> _loadInitialMessages() async {
-  if (widget.conversationId == null) return;
-  debugPrint('🔄 Loading initial messages for conversation: ${widget.conversationId}');
-  
-  final msgs = await _db.getMessages(widget.conversationId!);
-  debugPrint('📥 Loaded ${msgs.length} messages');
-  
-  // Debug: Print raw timestamps before sorting
-  debugPrint('🔍 Raw timestamps BEFORE sorting:');
-  for (var i = 0; i < msgs.length && i < 5; i++) {
-    debugPrint('  [$i] ${msgs[i].createdAt} | UTC: ${msgs[i].createdAt.toUtc()} | Millis: ${msgs[i].createdAt.millisecondsSinceEpoch} | Text: ${msgs[i].text?.substring(0, (msgs[i].text?.length ?? 0) > 10 ? 10 : (msgs[i].text?.length ?? 0))}');
-  }
-  
-  // CRITICAL: Sort by millisecondsSinceEpoch for timezone-independent comparison
-  // This is the STANDARD way to compare timestamps across timezones
-  msgs.sort((a, b) {
-    return a.createdAt.millisecondsSinceEpoch.compareTo(b.createdAt.millisecondsSinceEpoch);
-  });
-  
-  debugPrint('✅ Messages sorted by millisecondsSinceEpoch (timezone-independent)');
-  debugPrint('📝 Last 3 messages AFTER sorting:');
-  if (msgs.length >= 3) {
-    final last3 = msgs.sublist(msgs.length - 3);
-    for (var msg in last3) {
-      debugPrint('  ${msg.createdAt} | Millis: ${msg.createdAt.millisecondsSinceEpoch} | ${msg.text?.substring(0, (msg.text?.length ?? 0) > 15 ? 15 : (msg.text?.length ?? 0))}');
+      if (partnerId == currentUserId) {
+        debugPrint('⚠️ Warning: partnerId matches currentUserId');
+      }
+
+      final profileData = await _db.getProfile(partnerId);
+      debugPrint(
+          '🔍 ChatConversation: fetched profileData for $partnerId: $profileData');
+
+      if (currentUserId == null) return;
+
+      final blocked = await _db.isRelationBlocked(currentUserId, partnerId);
+
+      if (mounted) {
+        setState(() {
+          _partnerId = partnerId;
+          _partnerAvatarUrl = profileData?['avatar_url'] as String?;
+          _partnerUsername = profileData?['full_name'] as String?;
+          _isBlocked = blocked;
+          debugPrint(
+              '🔍 ChatConversation: set _partnerUsername to $_partnerUsername');
+        });
+      }
+
+      _partnerProfileSub?.cancel();
+      _partnerProfileSub = _db.profileStream(partnerId).listen((profile) {
+        if (mounted) {
+          setState(() {
+            _partnerProfile = profile;
+            if (profile != null) {
+              _partnerAvatarUrl = profile['avatar_url'] as String?;
+              _partnerUsername = profile['full_name'] as String?;
+            }
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error pre-fetching partner avatar or block status: $e');
     }
   }
-  
-  setState(() {
-    _messages = msgs;
-  });
-  _scrollToBottom();
-}
+
+  Future<void> _loadInitialMessages() async {
+    if (widget.conversationId == null) return;
+    debugPrint(
+        '🔄 Loading initial messages for conversation: ${widget.conversationId}');
+
+    final msgs = await _db.getMessages(widget.conversationId!);
+    debugPrint('📥 Loaded ${msgs.length} messages');
+
+    // Debug: Print raw timestamps before sorting
+    debugPrint('🔍 Raw timestamps BEFORE sorting:');
+    for (var i = 0; i < msgs.length && i < 5; i++) {
+      debugPrint(
+          '  [$i] ${msgs[i].createdAt} | UTC: ${msgs[i].createdAt.toUtc()} | Millis: ${msgs[i].createdAt.millisecondsSinceEpoch} | Text: ${msgs[i].text?.substring(0, (msgs[i].text?.length ?? 0) > 10 ? 10 : (msgs[i].text?.length ?? 0))}');
+    }
+
+    // CRITICAL: Sort by millisecondsSinceEpoch for timezone-independent comparison
+    // This is the STANDARD way to compare timestamps across timezones
+    msgs.sort((a, b) {
+      return a.createdAt.millisecondsSinceEpoch
+          .compareTo(b.createdAt.millisecondsSinceEpoch);
+    });
+
+    debugPrint(
+        '✅ Messages sorted by millisecondsSinceEpoch (timezone-independent)');
+    debugPrint('📝 Last 3 messages AFTER sorting:');
+    if (msgs.length >= 3) {
+      final last3 = msgs.sublist(msgs.length - 3);
+      for (var msg in last3) {
+        debugPrint(
+            '  ${msg.createdAt} | Millis: ${msg.createdAt.millisecondsSinceEpoch} | ${msg.text?.substring(0, (msg.text?.length ?? 0) > 15 ? 15 : (msg.text?.length ?? 0))}');
+      }
+    }
+
+    setState(() {
+      _messages = msgs;
+    });
+    _scrollToBottom();
+  }
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
@@ -461,20 +484,50 @@ Future<void> _loadInitialMessages() async {
   }
 
   String _formatTime(dynamic createdAt) {
-  try {
-    final dt = DateTime.parse(createdAt as String);
-    // Convert UTC to local time
-    final localTime = dt.toLocal();
-    final h = localTime.hour.toString().padLeft(2, '0');
-    final m = localTime.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  } catch (_) {
-    return _getCurrentTime();
+    try {
+      final dt = DateTime.parse(createdAt as String);
+      // Convert UTC to local time
+      final localTime = dt.toLocal();
+      final h = localTime.hour.toString().padLeft(2, '0');
+      final m = localTime.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    } catch (_) {
+      return _getCurrentTime();
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitialLoad) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0AC5C5)),
+          ),
+        ),
+      );
+    }
+
+    if (_isPremiumLocked) {
+      return Scaffold(
+        body: WarmGradientBackground(
+          child: SafeArea(
+            child: _buildLockedMilestoneView(),
+          ),
+        ),
+      );
+    }
+
+    if (_isBlocked) {
+      return Scaffold(
+        body: WarmGradientBackground(
+          child: SafeArea(
+            child: _buildBlockedView(),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: WarmGradientBackground(
         child: SafeArea(
@@ -489,6 +542,168 @@ Future<void> _loadInitialMessages() async {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLockedMilestoneView() {
+    final l10n = AppLocalizations.of(context);
+    final gender = _userGender?.toLowerCase();
+    final isFemale =
+        gender == 'female' || gender == 'woman' || gender == 'femme';
+
+    String title = l10n.tr('chat.milestone_75_reached_title');
+    String desc;
+    String buttonText;
+    VoidCallback onPressed;
+
+    if (_isPremium || isFemale) {
+      // Premium or female: locked because they haven't answered the naughty question
+      desc = l10n.tr('chat.milestone_75_desc_naughty');
+      buttonText = l10n.tr('chat.milestone_75_button_naughty');
+      onPressed = () {
+        if (widget.conversationId == null) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NaughtyQuestionsScreen(
+              conversationId: widget.conversationId!,
+              onComplete: () {
+                if (mounted) setState(() => _hasAnsweredNaughty = true);
+                Navigator.pop(context);
+              },
+            ),
+          ),
+        );
+      };
+    } else {
+      // Non-premium male: blocked by premium paywall — no access to naughty questions
+      desc = l10n.tr('chat.milestone_75_desc_premium');
+      buttonText = l10n.tr('chat.milestone_75_button_unlock');
+      onPressed = _showPremiumPaywall;
+    }
+
+    return Column(
+      children: [
+        // Small header with back button so they can exit the chat
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.arrow_back,
+                    size: 24, color: Color(0xFF151515)),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            children: [
+              const Icon(Icons.lock_outline,
+                  size: 80, color: Color(0xFF0AC5C5)),
+              const SizedBox(height: 32),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF151515),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                desc,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 16,
+                  color: Color(0xFF737373),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 48),
+              CustomButton(
+                text: buttonText,
+                onPressed: onPressed,
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  l10n.tr('common.back'),
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(flex: 2),
+      ],
+    );
+  }
+
+  Widget _buildBlockedView() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.arrow_back,
+                    size: 24, color: Color(0xFF151515)),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            children: [
+              const Icon(Icons.block, size: 80, color: Color(0xFFEF4444)),
+              const SizedBox(height: 32),
+              Text(
+                AppLocalizations.of(context).tr('chat.blocked_title') !=
+                        'chat.blocked_title'
+                    ? AppLocalizations.of(context).tr('chat.blocked_title')
+                    : 'Conversation bloquée',
+                style: const TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF151515),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                AppLocalizations.of(context).tr('chat.blocked_desc') !=
+                        'chat.blocked_desc'
+                    ? AppLocalizations.of(context).tr('chat.blocked_desc')
+                    : 'Vous ne pouvez plus accéder à cette conversation car cet utilisateur a été bloqué.',
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 16,
+                  color: Color(0xFF151515),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const Spacer(flex: 2),
+      ],
     );
   }
 
@@ -515,7 +730,8 @@ Future<void> _loadInitialMessages() async {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFFFFFBF0), // White/cream background
-                    border: Border.all(color: const Color(0xFFE8E8E8), width: 1.5),
+                    border:
+                        Border.all(color: const Color(0xFFE8E8E8), width: 1.5),
                   ),
                   child: Center(
                     child: Image.asset(
@@ -531,8 +747,10 @@ Future<void> _loadInitialMessages() async {
               // Profile Icon / Photo Reveal
               GestureDetector(
                 onTap: () {
-                  if (widget.conversationId == null || _conversation == null) return;
-                  
+                  if (widget.conversationId == null || _conversation == null) {
+                    return;
+                  }
+
                   if (_feelingPercent >= 100 && !_isPhotoRevealed) {
                     _showPhotoReveal();
                     return;
@@ -542,7 +760,7 @@ Future<void> _loadInitialMessages() async {
                   final partnerId = _conversation!.userAId == currentUserId
                       ? _conversation!.userBId
                       : _conversation!.userAId;
-                  
+
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -550,9 +768,10 @@ Future<void> _loadInitialMessages() async {
                         conversationId: widget.conversationId!,
                         partnerId: _partnerId ?? partnerId,
                         feelingPercent: _feelingPercent,
-                        contactName: (_feelingPercent >= 100 && _partnerUsername != null)
-                            ? _partnerUsername!
-                            : widget.contactName,
+                        contactName:
+                            (_feelingPercent >= 100 && _partnerUsername != null)
+                                ? _partnerUsername!
+                                : widget.contactName,
                         mood: widget.mood,
                       ),
                     ),
@@ -566,9 +785,12 @@ Future<void> _loadInitialMessages() async {
                     color: const Color(0xFFFFFBF0),
                     border: Border.all(
                       color: (_feelingPercent >= 100 && !_isPhotoRevealed)
-                          ? const Color(0xFF0AC5C5) // Highlight if ready to reveal
+                          ? const Color(
+                              0xFF0AC5C5) // Highlight if ready to reveal
                           : const Color(0xFFE8E8E8),
-                      width: (_feelingPercent >= 100 && !_isPhotoRevealed) ? 2.5 : 1.5,
+                      width: (_feelingPercent >= 100 && !_isPhotoRevealed)
+                          ? 2.5
+                          : 1.5,
                     ),
                   ),
                   child: Center(
@@ -580,17 +802,24 @@ Future<void> _loadInitialMessages() async {
                                     width: 40,
                                     height: 40,
                                     fit: BoxFit.cover,
-                                    loadingBuilder: (context, child, loadingProgress) {
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
-                                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                      return const Center(
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2));
                                     },
-                                    errorBuilder: (context, error, stackTrace) => 
-                                        const Icon(Icons.person, color: Color(0xFF0AC5C5)),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.person,
+                                                color: Color(0xFF0AC5C5)),
                                   )
-                                : const Icon(Icons.person, color: Color(0xFF0AC5C5)),
+                                : const Icon(Icons.person,
+                                    color: Color(0xFF0AC5C5)),
                           )
                         : (_feelingPercent >= 100)
-                            ? const Icon(Icons.card_giftcard, size: 22, color: Color(0xFF0AC5C5))
+                            ? const Icon(Icons.card_giftcard,
+                                size: 22, color: Color(0xFF0AC5C5))
                             : Image.asset(
                                 'assets/icons/profile.jpeg',
                                 width: 22,
@@ -609,12 +838,7 @@ Future<void> _loadInitialMessages() async {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _feelingPercent >= 100 
-                                ? (_partnerUsername ?? widget.contactName) 
-                                : (_conversation?.getPartnerMask(AuthService().currentUser?.id ?? '') ?? 
-                                   (widget.contactName == 'Curious' || widget.contactName == 'Curieux' 
-                                      ? AppLocalizations.of(context).tr('chat.anonymous') 
-                                      : widget.contactName)),
+                            _partnerUsername ?? widget.contactName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,
@@ -632,7 +856,9 @@ Future<void> _loadInitialMessages() async {
                                 fontFamily: 'Montserrat',
                                 fontSize: 12,
                                 fontWeight: FontWeight.w400,
-                                color: _isPartnerOnline ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
+                                color: _isPartnerOnline
+                                    ? const Color(0xFF0AC5C5)
+                                    : const Color(0xFF737373),
                               ),
                             ),
                         ],
@@ -662,7 +888,7 @@ Future<void> _loadInitialMessages() async {
   void _showConnectionLevel() {
     // Get unlocked milestones
     final unlockedMilestones = _shownMilestones.toList()..sort();
-    
+
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.2),
@@ -721,10 +947,18 @@ Future<void> _loadInitialMessages() async {
               ),
               const SizedBox(height: 24),
               // Dynamic milestone list
-              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_bio'), unlockedMilestones.contains(25)),
-              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_audio'), unlockedMilestones.contains(50)),
-              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_naughty'), unlockedMilestones.contains(75)),
-              _buildConnectionItem(AppLocalizations.of(context).tr('chat.milestone_photo'), _feelingPercent >= 100),
+              _buildConnectionItem(
+                  AppLocalizations.of(context).tr('chat.milestone_bio'),
+                  unlockedMilestones.contains(25)),
+              _buildConnectionItem(
+                  AppLocalizations.of(context).tr('chat.milestone_audio'),
+                  unlockedMilestones.contains(50)),
+              _buildConnectionItem(
+                  AppLocalizations.of(context).tr('chat.milestone_naughty'),
+                  unlockedMilestones.contains(75)),
+              _buildConnectionItem(
+                  AppLocalizations.of(context).tr('chat.milestone_photo'),
+                  _feelingPercent >= 100),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
@@ -742,7 +976,6 @@ Future<void> _loadInitialMessages() async {
       ),
     );
   }
-
 
   Widget _buildConnectionItem(String label, bool isUnlocked) {
     return Padding(
@@ -772,8 +1005,6 @@ Future<void> _loadInitialMessages() async {
       ),
     );
   }
-
-
 
   LinearGradient _getMoodGradient(String? mood) {
     switch (mood) {
@@ -806,7 +1037,10 @@ Future<void> _loadInitialMessages() async {
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFF9F9B), Color(0xFFFF6D68)], // Same as 'Taquin' (Naughty)
+          colors: [
+            Color(0xFFFF9F9B),
+            Color(0xFFFF6D68)
+          ], // Same as 'Taquin' (Naughty)
         );
       default:
         // Handle localized naughty questions (naughty_question_1, naughty_question_2, etc.)
@@ -853,9 +1087,12 @@ Future<void> _loadInitialMessages() async {
               if (!isMe) ...[
                 Expanded(
                   child: Text(
-                    _feelingPercent >= 100 
-                        ? (_partnerUsername ?? widget.contactName) 
-                        : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName),
+                    _feelingPercent >= 100
+                        ? (_partnerUsername ?? widget.contactName)
+                        : (_conversation?.getPartnerMask(
+                                Supabase.instance.client.auth.currentUser?.id ??
+                                    '') ??
+                            widget.contactName),
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 12,
@@ -921,7 +1158,8 @@ Future<void> _loadInitialMessages() async {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (message.replyToId != null) _buildRepliedMessageContext(message.replyToId!),
+                  if (message.replyToId != null)
+                    _buildRepliedMessageContext(message.replyToId!),
                   _buildMessageContent(message, isMe),
                 ],
               ),
@@ -1042,7 +1280,9 @@ Future<void> _loadInitialMessages() async {
           ),
         ],
       );
-    } else if (message.mood == 'naughty_question_intro' || (message.mood != null && message.mood!.startsWith('naughty_question'))) {
+    } else if (message.mood == 'naughty_question_intro' ||
+        (message.mood != null &&
+            message.mood!.startsWith('naughty_question'))) {
       // Determine if it's a specific question or the generic mood
       String questionText = message.text ?? '';
       if (message.mood!.startsWith('naughty_question_')) {
@@ -1059,7 +1299,9 @@ Future<void> _loadInitialMessages() async {
               const Icon(Icons.favorite, size: 14, color: Colors.white),
               const SizedBox(width: 6),
               Text(
-                AppLocalizations.of(context).tr('chat.naughty_question_main_title').toUpperCase(),
+                AppLocalizations.of(context)
+                    .tr('chat.naughty_question_main_title')
+                    .toUpperCase(),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 12,
@@ -1092,9 +1334,11 @@ Future<void> _loadInitialMessages() async {
               const Icon(Icons.forum, size: 14, color: Colors.white),
               const SizedBox(width: 6),
               Text(
-                isMe 
-                  ? AppLocalizations.of(context).tr('chat.naughty_question_your_answer')
-                  : AppLocalizations.of(context).tr('chat.naughty_question_partner_choice'),
+                isMe
+                    ? AppLocalizations.of(context)
+                        .tr('chat.naughty_question_your_answer')
+                    : AppLocalizations.of(context)
+                        .tr('chat.naughty_question_partner_choice'),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 11,
@@ -1151,7 +1395,7 @@ Future<void> _loadInitialMessages() async {
           ),
           const SizedBox(height: 6),
           // Only show title if there is no extra content and no audio for milestone 50
-          if ((extraContent == null || extraContent.isEmpty) && 
+          if ((extraContent == null || extraContent.isEmpty) &&
               !(hasAudio && message.mood == 'milestone_50'))
             Text(
               title,
@@ -1162,7 +1406,7 @@ Future<void> _loadInitialMessages() async {
                 color: Color(0xFF151515),
               ),
             ),
-          
+
           // Render extra content (Bio for 25%, Photo for 100%, etc.)
           if (extraContent != null && extraContent.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1172,7 +1416,8 @@ Future<void> _loadInitialMessages() async {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   extraContent,
@@ -1191,7 +1436,8 @@ Future<void> _loadInitialMessages() async {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   extraContent,
@@ -1214,9 +1460,11 @@ Future<void> _loadInitialMessages() async {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: (extraContent != null && extraContent.startsWith('http'))
-                    ? Image.network(extraContent, fit: BoxFit.cover)
-                    : const Center(child: Icon(Icons.person, size: 50, color: Colors.white)),
+                  child: (extraContent.startsWith('http'))
+                      ? Image.network(extraContent, fit: BoxFit.cover)
+                      : const Center(
+                          child: Icon(Icons.person,
+                              size: 50, color: Colors.white)),
                 ),
               ),
           ],
@@ -1238,12 +1486,12 @@ Future<void> _loadInitialMessages() async {
                         if (_isPlayingVoice) {
                           await _audioPlayer.stop();
                         }
-                        
+
                         setState(() {
                           _isPlayingVoice = true;
                           _playingVoiceId = voiceId;
                         });
-                        
+
                         await _audioPlayer.play(UrlSource(message.mediaUrl!));
                         _audioPlayer.onPlayerComplete.listen((event) {
                           if (mounted && _playingVoiceId == voiceId) {
@@ -1341,13 +1589,16 @@ Future<void> _loadInitialMessages() async {
 
   Widget _buildReplyPreview() {
     if (_replyingTo == null) return const SizedBox.shrink();
-    
-    final isMe = _replyingTo!.senderId == (Supabase.instance.client.auth.currentUser?.id);
-    final senderName = isMe 
-        ? 'You' 
-        : (_feelingPercent >= 100 
-            ? (_partnerUsername ?? widget.contactName) 
-            : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName));
+
+    final isMe = _replyingTo!.senderId ==
+        (Supabase.instance.client.auth.currentUser?.id);
+    final senderName = isMe
+        ? 'You'
+        : (_feelingPercent >= 100
+            ? (_partnerUsername ?? widget.contactName)
+            : (_conversation?.getPartnerMask(
+                    Supabase.instance.client.auth.currentUser?.id ?? '') ??
+                widget.contactName));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1356,7 +1607,9 @@ Future<void> _loadInitialMessages() async {
         color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(12),
         border: Border(
-          left: BorderSide(color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800), width: 4),
+          left: BorderSide(
+              color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800),
+              width: 4),
         ),
       ),
       child: Row(
@@ -1372,11 +1625,16 @@ Future<void> _loadInitialMessages() async {
                     fontFamily: 'Montserrat',
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800),
+                    color: isMe
+                        ? const Color(0xFF0AC5C5)
+                        : const Color(0xFFFF9800),
                   ),
                 ),
                 Text(
-                  _replyingTo!.text ?? (_replyingTo!.type == 'image' ? 'Picture' : 'Voice Message'),
+                  _replyingTo!.text ??
+                      (_replyingTo!.type == 'image'
+                          ? 'Picture'
+                          : 'Voice Message'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1461,8 +1719,9 @@ Future<void> _loadInitialMessages() async {
   }
 
   void _showMessageOptions(ChatMessage message) {
-    final isMe = message.senderId == (Supabase.instance.client.auth.currentUser?.id);
-    
+    final isMe =
+        message.senderId == (Supabase.instance.client.auth.currentUser?.id);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -1476,7 +1735,8 @@ Future<void> _loadInitialMessages() async {
           children: [
             ListTile(
               leading: const Icon(Icons.reply, color: Color(0xFF0AC5C5)),
-              title: const Text('Reply', style: TextStyle(fontFamily: 'Montserrat')),
+              title: const Text('Reply',
+                  style: TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
                 _onReply(message);
@@ -1485,7 +1745,8 @@ Future<void> _loadInitialMessages() async {
             if (isMe && message.type == 'text')
               ListTile(
                 leading: const Icon(Icons.edit, color: Color(0xFF0AC5C5)),
-                title: const Text('Edit', style: TextStyle(fontFamily: 'Montserrat')),
+                title: const Text('Edit',
+                    style: TextStyle(fontFamily: 'Montserrat')),
                 onTap: () {
                   Navigator.pop(context);
                   _editMessage(message);
@@ -1494,7 +1755,9 @@ Future<void> _loadInitialMessages() async {
             if (isMe)
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Delete', style: TextStyle(fontFamily: 'Montserrat', color: Colors.red)),
+                title: const Text('Delete',
+                    style:
+                        TextStyle(fontFamily: 'Montserrat', color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmDelete(message);
@@ -1502,7 +1765,8 @@ Future<void> _loadInitialMessages() async {
               ),
             ListTile(
               leading: const Icon(Icons.copy, color: Color(0xFF0AC5C5)),
-              title: const Text('Copy Text', style: TextStyle(fontFamily: 'Montserrat')),
+              title: const Text('Copy Text',
+                  style: TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
                 if (message.text != null) {
@@ -1532,7 +1796,8 @@ Future<void> _loadInitialMessages() async {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Message'),
-        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        content: const Text(
+            'Are you sure you want to delete this message? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1593,12 +1858,15 @@ Future<void> _loadInitialMessages() async {
       );
     }
 
-    final isMe = repliedMsg.senderId == (Supabase.instance.client.auth.currentUser?.id);
-    final senderName = isMe 
-        ? 'You' 
-        : (_feelingPercent >= 100 
-            ? (_partnerUsername ?? widget.contactName) 
-            : (_conversation?.getPartnerMask(Supabase.instance.client.auth.currentUser?.id ?? '') ?? widget.contactName));
+    final isMe =
+        repliedMsg.senderId == (Supabase.instance.client.auth.currentUser?.id);
+    final senderName = isMe
+        ? 'You'
+        : (_feelingPercent >= 100
+            ? (_partnerUsername ?? widget.contactName)
+            : (_conversation?.getPartnerMask(
+                    Supabase.instance.client.auth.currentUser?.id ?? '') ??
+                widget.contactName));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1607,7 +1875,9 @@ Future<void> _loadInitialMessages() async {
         color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
         border: Border(
-          left: BorderSide(color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800), width: 4),
+          left: BorderSide(
+              color: isMe ? const Color(0xFF0AC5C5) : const Color(0xFFFF9800),
+              width: 4),
         ),
       ),
       child: Column(
@@ -1623,7 +1893,8 @@ Future<void> _loadInitialMessages() async {
             ),
           ),
           Text(
-            repliedMsg.text ?? (repliedMsg.type == 'image' ? 'Picture' : 'Voice Message'),
+            repliedMsg.text ??
+                (repliedMsg.type == 'image' ? 'Picture' : 'Voice Message'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1638,7 +1909,7 @@ Future<void> _loadInitialMessages() async {
   }
 
   Widget _buildInputArea() {
-    // 🛡️ Prevent flicker: shows nothing or a basic loading state 
+    // 🛡️ Prevent flicker: shows nothing or a basic loading state
     // until we know for sure if we are locked or not.
     if (_isInitialLoad) {
       return const SizedBox(
@@ -1656,7 +1927,7 @@ Future<void> _loadInitialMessages() async {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           border: const Border(top: BorderSide(color: Color(0xFFE3E3E3))),
         ),
         child: const Center(
@@ -1680,7 +1951,7 @@ Future<void> _loadInitialMessages() async {
           top: BorderSide(color: Color(0xFFE3E3E3), width: 0.5),
         ),
       ),
-      child: _isPremiumLocked 
+      child: _isPremiumLocked
           ? _buildPremiumLockState()
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1699,12 +1970,12 @@ Future<void> _loadInitialMessages() async {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          border:
-                              Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
+                          border: Border.all(
+                              color: const Color(0xFFE3E3E3), width: 0.8),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -1741,8 +2012,8 @@ Future<void> _loadInitialMessages() async {
                                 ),
                               ),
                             ),
-                    // Voice and Image icons removed - text only per request
-                    const SizedBox(width: 8),
+                            // Voice and Image icons removed - text only per request
+                            const SizedBox(width: 8),
                           ],
                         ),
                       ),
@@ -1759,11 +2030,15 @@ Future<void> _loadInitialMessages() async {
                           height: 48,
                           decoration: BoxDecoration(
                             gradient: (_isTyping)
-                                ? const LinearGradient(
-                                    colors: [Color(0xFF0AC5C5), Color(0xFF08A3A3)])
+                                ? const LinearGradient(colors: [
+                                    Color(0xFF0AC5C5),
+                                    Color(0xFF08A3A3)
+                                  ])
                                 : LinearGradient(colors: [
-                                    const Color(0xFF0AC5C5).withValues(alpha: 0.5),
-                                    const Color(0xFF08A3A3).withValues(alpha: 0.5)
+                                    const Color(0xFF0AC5C5)
+                                        .withValues(alpha: 0.5),
+                                    const Color(0xFF08A3A3)
+                                        .withValues(alpha: 0.5)
                                   ]),
                             shape: BoxShape.circle,
                           ),
@@ -1773,10 +2048,16 @@ Future<void> _loadInitialMessages() async {
                                   height: 24,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
                                   ),
                                 )
-                              : Icon(_editingMessage != null ? Icons.edit : Icons.send, color: Colors.white, size: 24),
+                              : Icon(
+                                  _editingMessage != null
+                                      ? Icons.edit
+                                      : Icons.send,
+                                  color: Colors.white,
+                                  size: 24),
                         ),
                       ),
                     ),
@@ -1790,24 +2071,24 @@ Future<void> _loadInitialMessages() async {
   Widget _buildPremiumLockState() {
     // Determine the primary reason for the lock
     final gender = _userGender?.toLowerCase();
-    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
-    
-    // Females only see the question flow. 
+    final isFemale =
+        gender == 'female' || gender == 'woman' || gender == 'femme';
+
+    // Females only see the question flow.
     // Males see premium flow if not premium, else question flow.
-    final needsNaughtyQuestion = isFemale 
-        ? !_hasAnsweredNaughty 
-        : (_isPremium && !_hasAnsweredNaughty);
-    
+    final needsNaughtyQuestion =
+        isFemale ? !_hasAnsweredNaughty : (_isPremium && !_hasAnsweredNaughty);
+
     final l10n = AppLocalizations.of(context);
     String title = l10n.tr('chat.milestone_75_reached_title');
-    String description = needsNaughtyQuestion 
+    String description = needsNaughtyQuestion
         ? l10n.tr('chat.milestone_75_desc_naughty')
         : l10n.tr('chat.milestone_75_desc_premium');
-    String buttonText = needsNaughtyQuestion 
-        ? l10n.tr('chat.milestone_75_button_naughty') 
+    String buttonText = needsNaughtyQuestion
+        ? l10n.tr('chat.milestone_75_button_naughty')
         : l10n.tr('chat.milestone_75_button_unlock');
-    VoidCallback onPressed = needsNaughtyQuestion 
-        ? _showNaughtyQuestionsScreen 
+    VoidCallback onPressed = needsNaughtyQuestion
+        ? _showNaughtyQuestionsScreen
         : () {
             Navigator.push(
               context,
@@ -1877,7 +2158,7 @@ Future<void> _loadInitialMessages() async {
 
   void _showNaughtyQuestionsScreen() {
     if (widget.conversationId == null) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1892,7 +2173,8 @@ Future<void> _loadInitialMessages() async {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(AppLocalizations.of(context).tr('chat.answer_submitted')),
+                content: Text(
+                    AppLocalizations.of(context).tr('chat.answer_submitted')),
                 backgroundColor: Colors.green,
               ),
             );
@@ -1913,7 +2195,8 @@ Future<void> _loadInitialMessages() async {
       _db.sendMessage(
         conversationId: widget.conversationId!,
         senderId: userId,
-        type: 'quote', // Treat as text for DB compatibility if needed, or 'quote'
+        type:
+            'quote', // Treat as text for DB compatibility if needed, or 'quote'
         text: '“A shared moment matters more.”',
         mood: _currentMood,
         feelingDelta: 5,
@@ -1921,54 +2204,56 @@ Future<void> _loadInitialMessages() async {
     }
   }
 
-
   Future<void> _checkMilestones() async {
     if (widget.conversationId == null || _isBlocked) return;
-    
-    debugPrint('🎯 Checking milestones: current=$_feelingPercent, previous=$_previousFeelingPercent');
-    
+
+    debugPrint(
+        '🎯 Checking milestones: current=$_feelingPercent, previous=$_previousFeelingPercent');
+
     // Load seen milestones from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final seenKey = 'seen_milestones_${widget.conversationId}';
     final seenList = prefs.getStringList(seenKey) ?? [];
     final seenSet = seenList.map(int.parse).toSet();
-    
+
     // Check if we've crossed any milestone thresholds
     final milestones = [25, 50, 75, 100];
-    
+
     for (final threshold in milestones) {
       if (_feelingPercent >= threshold && !seenSet.contains(threshold)) {
-        debugPrint('✅ Milestone $threshold% reached and NOT seen locally! Showing modal...');
-        
+        debugPrint(
+            '✅ Milestone $threshold% reached and NOT seen locally! Showing modal...');
+
         // Mark as seen immediately to prevent duplicate shows
         seenSet.add(threshold);
-        await prefs.setStringList(seenKey, seenSet.map((e) => e.toString()).toList());
-        
+        await prefs.setStringList(
+            seenKey, seenSet.map((e) => e.toString()).toList());
+
         // Also save to database (shared status)
         if (!_shownMilestones.contains(threshold)) {
           _shownMilestones.add(threshold);
           _saveMilestoneToDatabase(threshold);
         }
-        
+
         final milestone = FeelingMilestone.fromPercentage(threshold);
         if (milestone != null) {
           // Fetch partner data if needed for the milestone
           String? partnerBio;
           String? partnerSecretAudioUrl;
-          
+
           if (_conversation != null) {
             try {
               final currentUserId = AuthService().currentUser?.id;
               final partnerId = _conversation!.userAId == currentUserId
                   ? _conversation!.userBId
                   : _conversation!.userAId;
-              
+
               final response = await Supabase.instance.client
                   .from('profiles')
                   .select('about, secret_audio_url')
                   .eq('id', partnerId)
                   .single();
-              
+
               partnerBio = response['about'] as String?;
               partnerSecretAudioUrl = response['secret_audio_url'] as String?;
             } catch (e) {
@@ -1979,10 +2264,11 @@ Future<void> _loadInitialMessages() async {
           // Determine content to show in the chat bubble based on milestone
           String? milestoneContent;
           if (milestone.percentage == 25) {
-            milestoneContent = partnerBio ?? AppLocalizations.of(context).tr('chat.milestone_no_bio');
+            milestoneContent = partnerBio ??
+                AppLocalizations.of(context).tr('chat.milestone_no_bio');
           } else if (milestone.percentage == 50) {
             // No extra text content for 50%, the audio player is the material
-            milestoneContent = null; 
+            milestoneContent = null;
           } else if (milestone.percentage == 75) {
             // ONLY fetch intimate questions if the user is PREMIUM
             if (_isPremium) {
@@ -1991,46 +2277,52 @@ Future<void> _loadInitialMessages() async {
                 final partnerId = _conversation!.userAId == currentUserId
                     ? _conversation!.userBId
                     : _conversation!.userAId;
-                    
+
                 final questionsResponse = await Supabase.instance.client
                     .from('intimate_questions')
                     .select('question_1, question_2, question_3')
                     .eq('conversation_id', widget.conversationId!)
                     .eq('user_id', partnerId)
                     .maybeSingle();
-                    
+
                 if (questionsResponse != null) {
                   final q1 = questionsResponse['question_1'] as String?;
                   final q2 = questionsResponse['question_2'] as String?;
                   final q3 = questionsResponse['question_3'] as String?;
-                  
+
                   List<String> questions = [];
                   if (q1 != null && q1.isNotEmpty) questions.add(q1);
                   if (q2 != null && q2.isNotEmpty) questions.add(q2);
                   if (q3 != null && q3.isNotEmpty) questions.add(q3);
-                  
+
                   if (questions.isNotEmpty) {
                     milestoneContent = questions.join('\n\n');
                   } else {
-                    milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+                    milestoneContent = AppLocalizations.of(context)
+                        .tr('chat.milestone_75_congrats');
                   }
                 } else {
-                  milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+                  milestoneContent = AppLocalizations.of(context)
+                      .tr('chat.milestone_75_congrats');
                 }
               } catch (e) {
-                milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+                milestoneContent = AppLocalizations.of(context)
+                    .tr('chat.milestone_75_congrats');
               }
             } else {
               // Non-premium users just get the generic "congrats" text, no answers!
-              milestoneContent = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+              milestoneContent =
+                  AppLocalizations.of(context).tr('chat.milestone_75_congrats');
             }
           } else if (milestone.percentage == 100) {
-            milestoneContent = _partnerAvatarUrl; // Link to reveals photo if exists
+            milestoneContent =
+                _partnerAvatarUrl; // Link to reveals photo if exists
           }
 
           // NEW: Auto-post milestone to chat thread
-          _postMilestoneMessage(milestone, content: milestoneContent, audioUrl: partnerSecretAudioUrl);
-          
+          _postMilestoneMessage(milestone,
+              content: milestoneContent, audioUrl: partnerSecretAudioUrl);
+
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               _showMilestoneModal(
@@ -2041,74 +2333,76 @@ Future<void> _loadInitialMessages() async {
             }
           });
         }
-        
+
         // Only show one milestone at a time
         break;
       }
     }
-    
+
     _previousFeelingPercent = _feelingPercent;
   }
 
   Future<void> _saveMilestoneToDatabase(int threshold) async {
     if (widget.conversationId == null || _conversation == null) return;
-    
+
     try {
       debugPrint('💾 Saving milestone $threshold% to database');
-      
+
       // Determine which user field to update
       final currentUserId = AuthService().currentUser?.id;
       final isUserA = _conversation!.userAId == currentUserId;
-      final fieldName = isUserA ? 'user_a_seen_milestones' : 'user_b_seen_milestones';
-      
-      await Supabase.instance.client
-          .from('conversations')
-          .update({
-            fieldName: _shownMilestones.toList(),
-          })
-          .eq('id', widget.conversationId!);
+      final fieldName =
+          isUserA ? 'user_a_seen_milestones' : 'user_b_seen_milestones';
+
+      await Supabase.instance.client.from('conversations').update({
+        fieldName: _shownMilestones.toList(),
+      }).eq('id', widget.conversationId!);
       debugPrint('✅ Milestone saved to $fieldName');
     } catch (e) {
       debugPrint('❌ Error saving milestone: $e');
     }
   }
 
-  Future<void> _postMilestoneMessage(FeelingMilestone milestone, {String? content, String? audioUrl}) async {
+  Future<void> _postMilestoneMessage(FeelingMilestone milestone,
+      {String? content, String? audioUrl}) async {
     if (widget.conversationId == null) return;
-    
+
     final userId = AuthService().currentUser?.id;
     if (userId == null) return;
 
-    debugPrint('📣 Posting milestone message to thread: ${milestone.percentage}%');
+    debugPrint(
+        '📣 Posting milestone message to thread: ${milestone.percentage}%');
 
     try {
       // Determine message type and content
       String? mediaUrl;
       int? duration;
-      
+
       if (milestone.percentage == 50 && audioUrl != null) {
         mediaUrl = audioUrl;
         duration = 3; // Provide a default duration for the media
       }
 
       // We use a custom mood to identify this as a milestone message in the UI
-      // For content-rich milestones (25% bio, 75% naughty, 100% photo), 
+      // For content-rich milestones (25% bio, 75% naughty, 100% photo),
       // we append the content to the text field with a separator
       String messageText = milestone.getTitle(context);
       if (content != null && content.isNotEmpty) {
-        messageText = "$messageText|--CONTENT--|$content";
+        messageText = '$messageText|--CONTENT--|$content';
       }
 
       await _db.sendMessage(
         conversationId: widget.conversationId!,
         senderId: userId,
-        type: 'text', // Always use text for milestones to ensure DB compatibility
+        type:
+            'text', // Always use text for milestones to ensure DB compatibility
         text: messageText,
         mood: 'milestone_${milestone.percentage}',
         mediaUrl: mediaUrl,
         duration: duration,
         feelingDelta: 0,
-        lastMessageSummary: AppLocalizations.of(context).tr('chat.milestone_summary_${milestone.percentage}'),
+        lastMessageSummary: AppLocalizations.of(context)
+            .tr('chat.milestone_summary_${milestone.percentage}'),
       );
     } catch (e) {
       debugPrint('❌ Error posting milestone message: $e');
@@ -2120,31 +2414,35 @@ Future<void> _loadInitialMessages() async {
     String? partnerBio,
     String? partnerSecretAudioUrl,
   }) async {
-    debugPrint('🎉 _showMilestoneModal called for: ${milestone.getTitle(context)}');
-    
+    debugPrint(
+        '🎉 _showMilestoneModal called for: ${milestone.getTitle(context)}');
+
     // Show in-app notification for milestone unlock
     if (mounted) {
       NotificationService().show(
         context: context,
         title: AppLocalizations.of(context).tr('chat.milestone_unlock_title'),
-        message: milestone.getTitle(context),
+        message: milestone == FeelingMilestone.gift
+            ? null // Hide the subtitle specifically for 75% milestone
+            : milestone.getTitle(context),
         icon: Text(
           milestone.icon,
           style: const TextStyle(fontSize: 32),
         ),
       );
     }
-    
+
     // Data is now passed in to avoid redundant fetching
-    debugPrint('✅ Milestone data - bio: ${partnerBio != null}, audio: ${partnerSecretAudioUrl != null}');
-    
+    debugPrint(
+        '✅ Milestone data - bio: ${partnerBio != null}, audio: ${partnerSecretAudioUrl != null}');
+
     if (!mounted) {
       debugPrint('⚠️ Widget not mounted, skipping modal');
       return;
     }
-    
+
     debugPrint('🎭 Showing dialog for ${milestone.getTitle(context)}');
-    
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -2154,50 +2452,61 @@ Future<void> _loadInitialMessages() async {
         partnerSecretAudioUrl: partnerSecretAudioUrl,
         isPremium: _isPremium,
         userGender: _userGender,
-        onPremiumRequested: () {
-          Navigator.pop(context);
-          _showPremiumPaywall();
+        onPremiumRequested: () async {
+          Navigator.pop(context); // close the milestone unlocked modal
+          _showPremiumPaywall(); // the function itself shows dialog synchronously
+          // Check if they upgraded
+          await _loadPremiumStatus();
+          if (!_isPremium && mounted) {
+            // Kick them out of the conversation back to the previous screen
+            Navigator.pop(context);
+          }
         },
         onContinue: () {
           Navigator.pop(context);
-          // If 75% milestone, navigate to naughty questions screen if appropriate
+          // At 75% milestone: only premium males and females can answer naughty questions
           if (milestone == FeelingMilestone.gift) {
-            final isFemale = _userGender?.toLowerCase() == 'female' || _userGender?.toLowerCase() == 'woman' || _userGender?.toLowerCase() == 'femme';
-            
+            final isFemale = _userGender?.toLowerCase() == 'female' ||
+                _userGender?.toLowerCase() == 'woman' ||
+                _userGender?.toLowerCase() == 'femme';
+
             if (isFemale || _isPremium) {
-              debugPrint('🎁 75% milestone - navigating to Naughty Questions');
-            
-            if (widget.conversationId == null) {
-              debugPrint('❌ No conversation ID available!');
-              return;
-            }
-            
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NaughtyQuestionsScreen(
-                  conversationId: widget.conversationId!,
-                  onComplete: () {
-                    debugPrint('✅ Naughty question answered');
-                    
-                    if (mounted) {
-                      setState(() {
-                       _hasAnsweredNaughty = true;
-                      });
-                    }
-                    
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(AppLocalizations.of(context).tr('chat.answer_submitted')),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  },
+              debugPrint(
+                  '🎁 75% milestone – navigating premium/female to Naughty Questions');
+
+              if (widget.conversationId == null) {
+                debugPrint('❌ No conversation ID available!');
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NaughtyQuestionsScreen(
+                    conversationId: widget.conversationId!,
+                    onComplete: () {
+                      debugPrint('✅ Naughty question answered');
+
+                      if (mounted) {
+                        setState(() {
+                          _hasAnsweredNaughty = true;
+                        });
+                      }
+
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)
+                              .tr('chat.answer_submitted')),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            );
+              );
             }
+            // Non-premium males: their path is via onPremiumRequested in the modal button
           }
           // If 100% milestone, auto-trigger photo reveal dialog
           if (milestone == FeelingMilestone.heart) {
@@ -2211,9 +2520,24 @@ Future<void> _loadInitialMessages() async {
         },
       ),
     );
-    
+
+    // After dialog is dismissed, force a rebuild so _isPremiumLocked re-evaluates.
+    // This ensures non-premium males cannot bypass the lock by dismissing the modal.
+    if (mounted) {
+      setState(() {});
+
+      // For the 75% milestone specifically: if the user is still locked
+      // (non-premium male), immediately show the hard lock screen.
+      if (milestone == FeelingMilestone.gift && _isPremiumLocked) {
+        debugPrint(
+            '🔒 75% modal closed, user still locked – enforcing hard lock');
+        // `build()` will now return `_buildLockedMilestoneView()` on next frame.
+      }
+    }
+
     debugPrint('🎭 Dialog closed');
   }
+
   void _showPremiumPaywall() {
     Navigator.push(
       context,
@@ -2221,8 +2545,8 @@ Future<void> _loadInitialMessages() async {
     ).then((_) async {
       // Refresh status after returning from premium screen
       await _checkPremiumStatus();
-      
-      // If user is still locked (didn't upgrade and is at 75%+ milestone), 
+
+      // If user is still locked (didn't upgrade and is at 75%+ milestone),
       // redirect them to the home screen to avoid the "naughty question" trap.
       if (mounted && _isPremiumLocked) {
         debugPrint('🚪 User still locked at 75% - redirecting to Home');
@@ -2234,15 +2558,15 @@ Future<void> _loadInitialMessages() async {
   Future<void> _checkPremiumStatus() async {
     final userId = AuthService().currentUser?.id;
     if (userId == null) return;
-    
+
     final profile = await _db.getProfile(userId);
     if (profile != null && mounted) {
       setState(() {
-        _isPremium = profile['is_premium'] == true;
+        final tier = profile['tier'] as String? ?? 'free';
+        _isPremium = tier == 'premium' || tier == 'elite';
       });
     }
   }
-
 
   void _showPhotoReveal() async {
     // Fetch partner's photo
@@ -2253,7 +2577,7 @@ Future<void> _loadInitialMessages() async {
         final partnerId = _conversation!.userAId == currentUserId
             ? _conversation!.userBId
             : _conversation!.userAId;
-        
+
         final profileData = await _db.getProfile(partnerId);
         partnerPhotoUrl = profileData?['avatar_url'] as String?;
       }
@@ -2266,31 +2590,32 @@ Future<void> _loadInitialMessages() async {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return Dialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppLocalizations.of(context).tr('chat.photo_reveal.title'),
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF151515),
-                      ),
+      builder: (dialogContext) =>
+          StatefulBuilder(builder: (context, setDialogState) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppLocalizations.of(context).tr('chat.photo_reveal.title'),
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF151515),
                     ),
-                    const SizedBox(height: 24),
-                    // Photo container
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
+                  ),
+                  const SizedBox(height: 24),
+                  // Photo container
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
                       GestureDetector(
                         onTap: () {
                           if (_isPhotoRevealed && partnerPhotoUrl != null) {
@@ -2317,77 +2642,86 @@ Future<void> _loadInitialMessages() async {
                               : null,
                         ),
                       ),
-                        if (!_isPhotoRevealed)
-                          ClipOval(
-                            child: Container(
-                              width: 240,
-                              height: 240,
-                              color: Colors.black.withValues(alpha: 0.7),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.lock_outline, color: Colors.white, size: 48),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    AppLocalizations.of(context).tr('chat.photo_reveal.feeling_overlay'),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
+                      if (!_isPhotoRevealed)
+                        ClipOval(
+                          child: Container(
+                            width: 240,
+                            height: 240,
+                            color: Colors.black.withValues(alpha: 0.7),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.lock_outline,
+                                    color: Colors.white, size: 48),
+                                const SizedBox(height: 8),
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .tr('chat.photo_reveal.feeling_overlay'),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    _isPhotoRevealed
+                        ? AppLocalizations.of(context)
+                            .tr('chat.photo_reveal.match_found')
+                        : AppLocalizations.of(context)
+                            .tr('chat.photo_reveal.desc'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF737373),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      _isPhotoRevealed 
-                        ? AppLocalizations.of(context).tr('chat.photo_reveal.match_found')
-                        : AppLocalizations.of(context).tr('chat.photo_reveal.desc'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF737373),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    if (!_isPhotoRevealed)
-                      CustomButton(
-                        text: AppLocalizations.of(context).tr('chat.photo_reveal.button'),
-                        onPressed: () async {
-                          setState(() {
-                            _isPhotoRevealed = true;
-                          });
-                          
-                          // Persist revealed state locally
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setBool('is_photo_revealed_${widget.conversationId}', true);
+                  ),
+                  const SizedBox(height: 32),
+                  if (!_isPhotoRevealed)
+                    CustomButton(
+                      text: AppLocalizations.of(context)
+                          .tr('chat.photo_reveal.button'),
+                      onPressed: () async {
+                        setState(() {
+                          _isPhotoRevealed = true;
+                        });
 
-                          // Also save consent/status to database if needed
-                          final uid = Supabase.instance.client.auth.currentUser?.id;
-                          if (uid != null) {
-                            DatabaseService().upsertUserPreferences(
-                              userId: uid,
-                              consentPhotoReveal: true,
-                            );
-                          }
-                          // Re-render dialog
-                          setDialogState(() {});
-                        },
-                      )
-                    else
-                      CustomButton(
-                        text: AppLocalizations.of(context).tr('chat.photo_reveal.close'),
-                        onPressed: () => Navigator.pop(dialogContext),
-                      ),
-                  ],
-                ),
+                        // Persist revealed state locally
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool(
+                            'is_photo_revealed_${widget.conversationId}', true);
+
+                        // Also save consent/status to database if needed
+                        final uid =
+                            Supabase.instance.client.auth.currentUser?.id;
+                        if (uid != null) {
+                          DatabaseService().upsertUserPreferences(
+                            userId: uid,
+                            consentPhotoReveal: true,
+                          );
+                        }
+                        // Re-render dialog
+                        setDialogState(() {});
+                      },
+                    )
+                  else
+                    CustomButton(
+                      text: AppLocalizations.of(context)
+                          .tr('chat.photo_reveal.close'),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                ],
               ),
             ),
-          );
-        }
-      ),
+          ),
+        );
+      }),
     );
   }
 
@@ -2399,7 +2733,7 @@ Future<void> _loadInitialMessages() async {
     if (_editingMessage == null) {
       _messageController.clear();
     }
-    
+
     setState(() {
       _isTyping = false;
       _isSaving = true; // Show loading indicator
@@ -2423,19 +2757,19 @@ Future<void> _loadInitialMessages() async {
               .eq('conversation_id', widget.conversationId!)
               .order('created_at', ascending: false)
               .limit(1);
-          
+
           debugPrint('🔍 Checking for exchange:');
           debugPrint('  Last message query result: $lastMessages');
-          
-          final lastSenderId = lastMessages.isNotEmpty 
+
+          final lastSenderId = lastMessages.isNotEmpty
               ? lastMessages[0]['sender_id'] as String?
               : null;
           final isExchange = lastSenderId != null && lastSenderId != userId;
-          
+
           debugPrint('  📨 Last sender ID: $lastSenderId');
           debugPrint('  📨 Current user ID: $userId');
           debugPrint('  📨 Is exchange (different sender): $isExchange');
-          
+
           // SEND new message
           await _db.sendMessage(
             conversationId: widget.conversationId!,
@@ -2454,13 +2788,13 @@ Future<void> _loadInitialMessages() async {
             _replyingTo = null;
           });
         }
-        
+
         // Database trigger handles feeling increment automatically
         debugPrint('✅ Message sent/updated. Forcing state refresh...');
         if (mounted) {
-           Future.delayed(const Duration(milliseconds: 300), () {
-             if (mounted) _loadConversation();
-           });
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _loadConversation();
+          });
         }
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
@@ -2642,7 +2976,7 @@ Future<void> _loadInitialMessages() async {
         final user = Supabase.instance.client.auth.currentUser;
         if (user != null && widget.conversationId != null) {
           final id = DateTime.now().millisecondsSinceEpoch.toString();
-          
+
           // Enqueue upload
           await _uploadController.enqueue(UploadTask(
               id: id,
@@ -2654,10 +2988,10 @@ Future<void> _loadInitialMessages() async {
           while (_uploadController.statuses[id]?.completed != true) {
             await Future.delayed(const Duration(milliseconds: 100));
           }
-          
+
           final st = _uploadController.statuses[id];
           final mediaUrl = st?.url;
-          
+
           if (mediaUrl != null) {
             // Send message to database
             await _db.sendMessage(
@@ -2668,7 +3002,7 @@ Future<void> _loadInitialMessages() async {
               mood: _currentMood,
               feelingDelta: 5,
             );
-            
+
             // Insert image metadata
             await _db.insertImageMetadata(
               ownerId: user.id,
@@ -2681,7 +3015,7 @@ Future<void> _loadInitialMessages() async {
               entityType: 'message_attachment',
               visibility: 'public',
             );
-            
+
             // Add to local messages
             setState(() {
               _messages.add(ChatMessage(
@@ -2727,7 +3061,7 @@ Future<void> _loadInitialMessages() async {
         final user = Supabase.instance.client.auth.currentUser;
         if (user != null && widget.conversationId != null) {
           final id = DateTime.now().millisecondsSinceEpoch.toString();
-          
+
           // Enqueue upload
           await _uploadController.enqueue(UploadTask(
               id: id,
@@ -2739,10 +3073,10 @@ Future<void> _loadInitialMessages() async {
           while (_uploadController.statuses[id]?.completed != true) {
             await Future.delayed(const Duration(milliseconds: 100));
           }
-          
+
           final st = _uploadController.statuses[id];
           final mediaUrl = st?.url;
-          
+
           if (mediaUrl != null) {
             // Send message to database
             await _db.sendMessage(
@@ -2753,7 +3087,7 @@ Future<void> _loadInitialMessages() async {
               mood: _currentMood,
               feelingDelta: 5,
             );
-            
+
             // Insert image metadata
             await _db.insertImageMetadata(
               ownerId: user.id,
@@ -2766,7 +3100,7 @@ Future<void> _loadInitialMessages() async {
               entityType: 'message_attachment',
               visibility: 'public',
             );
-            
+
             // Add to local messages
             setState(() {
               _messages.add(ChatMessage(
@@ -2791,7 +3125,9 @@ Future<void> _loadInitialMessages() async {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).tr('errors.image_selection')}: $e')),
+          SnackBar(
+              content: Text(
+                  '${AppLocalizations.of(context).tr('errors.image_selection')}: $e')),
         );
       }
     }
@@ -2804,7 +3140,9 @@ Future<void> _loadInitialMessages() async {
     if (!hasPermission) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).tr('permissions.microphone'))),
+          SnackBar(
+              content: Text(
+                  AppLocalizations.of(context).tr('permissions.microphone'))),
         );
       }
       return;
@@ -3009,7 +3347,15 @@ Future<void> _loadInitialMessages() async {
             '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
         await _record.start(
-          const RecordConfig(encoder: AudioEncoder.aacLc),
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 128000,
+            sampleRate: 44100,
+            numChannels: 1,
+            autoGain: false,
+            echoCancel: false,
+            noiseSuppress: false,
+          ),
           path: path,
         );
 
@@ -3045,52 +3391,52 @@ Future<void> _loadInitialMessages() async {
 
   void _sendVoiceMessage() async {
     if (_recordingPath == null) return;
-    
+
     final duration = _recordingDuration;
     final path = _recordingPath!;
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    
+
     if (userId == null) return;
 
     // Optimistic UI update
     final tempId = DateTime.now().millisecondsSinceEpoch.toString();
     final tempMsg = ChatMessage(
-        id: tempId,
-        conversationId: widget.conversationId ?? '',
-        senderId: userId,
-        type: 'voice',
-        voicePath: path,
-        duration: duration,
-        createdAt: DateTime.now(),
-        isMe: true,
-        mood: _currentMood,
+      id: tempId,
+      conversationId: widget.conversationId ?? '',
+      senderId: userId,
+      type: 'voice',
+      voicePath: path,
+      duration: duration,
+      createdAt: DateTime.now(),
+      isMe: true,
+      mood: _currentMood,
     );
-    
+
     setState(() {
       _messages.add(tempMsg);
       // Sort to maintain chronological order
       _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
     _scrollToBottom();
-    
+
     // Upload and send
     if (widget.conversationId != null) {
-        final file = File(path);
-        final url = await _db.uploadVoiceClip(userId, file);
-        if (url != null) {
-            await _db.sendMessage(
-                conversationId: widget.conversationId!,
-                senderId: userId,
-                type: 'voice',
-                mediaUrl: url,
-                duration: duration,
-                mood: _currentMood,
-                feelingDelta: 5,
-            );
-            // Database trigger will handle feeling increment automatically
-        }
+      final file = File(path);
+      final url = await _db.uploadVoiceClip(userId, file);
+      if (url != null) {
+        await _db.sendMessage(
+          conversationId: widget.conversationId!,
+          senderId: userId,
+          type: 'voice',
+          mediaUrl: url,
+          duration: duration,
+          mood: _currentMood,
+          feelingDelta: 5,
+        );
+        // Database trigger will handle feeling increment automatically
+      }
     }
-    
+
     setState(() {
       _recordingPath = null;
       _recordingDuration = 0;
@@ -3180,7 +3526,6 @@ Future<void> _loadInitialMessages() async {
     final period = now.hour >= 12 ? 'pm' : 'am';
     return '$hour:$minute $period';
   }
-
 
   @override
   void dispose() {

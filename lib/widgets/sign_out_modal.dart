@@ -12,7 +12,7 @@ class SignOutModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    
+
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -99,27 +99,28 @@ class SignOutModal extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                  Expanded(
-                    child: CustomButton(
-                      text: l10n.tr('dialogs.confirm'),
-                      isActive: true,
-                      onPressed: () async {
-                        // Clear all tutorial flags so they show again for new accounts
-                        await TutorialService().clearAllTutorials();
-                        
-                        // Sign out logic
-                        await AuthService().signOut();
-                        
-                        if (context.mounted) {
-                          // Navigate to splash screen and remove all previous routes
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (context) => const SplashScreen()),
-                            (route) => false,
-                          );
-                        }
-                      },
-                    ),
+                Expanded(
+                  child: CustomButton(
+                    text: l10n.tr('dialogs.confirm'),
+                    isActive: true,
+                    onPressed: () async {
+                      // Clear all tutorial flags so they show again for new accounts
+                      await TutorialService().clearAllTutorials();
+
+                      // Sign out logic
+                      await AuthService().signOut();
+
+                      if (context.mounted) {
+                        // Navigate to splash screen and remove all previous routes
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                              builder: (context) => const SplashScreen()),
+                          (route) => false,
+                        );
+                      }
+                    },
                   ),
+                ),
               ],
             ),
           ],
@@ -128,4 +129,3 @@ class SignOutModal extends StatelessWidget {
     );
   }
 }
-

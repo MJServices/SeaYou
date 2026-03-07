@@ -26,7 +26,10 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
     super.initState();
     _init();
     _controller.addListener(() {
-      if (_controller.position.pixels >= _controller.position.maxScrollExtent - 200 && !_loading && !_end) {
+      if (_controller.position.pixels >=
+              _controller.position.maxScrollExtent - 200 &&
+          !_loading &&
+          !_end) {
         _load();
       }
     });
@@ -102,10 +105,12 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => PremiumScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => const PremiumScreen()),
                         );
                       },
-                      child: Text(AppLocalizations.of(context).tr('premium.gate.subscribe')),
+                      child: Text(AppLocalizations.of(context)
+                          .tr('premium.gate.subscribe')),
                     ),
                   ],
                 ),
@@ -157,7 +162,9 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                             if (ownerId == null || fantasyId == null) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Demo item cannot start DM')),
+                                  const SnackBar(
+                                      content:
+                                          Text('Demo item cannot start DM')),
                                 );
                               }
                               return;
@@ -166,23 +173,38 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                               context: context,
                               barrierColor: Colors.black.withValues(alpha: 0.2),
                               builder: (_) => AlertDialog(
-                                title: Text(AppLocalizations.of(context).tr('chamber.elite_dm')),
-                                content: const Text('Start anonymous elite conversation?'),
+                                title: Text(AppLocalizations.of(context)
+                                    .tr('chamber.elite_dm')),
+                                content: const Text(
+                                    'Start anonymous elite conversation?'),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppLocalizations.of(context).tr('dialogs.cancel'))),
-                                  TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Start')),
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(AppLocalizations.of(context)
+                                          .tr('dialogs.cancel'))),
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Start')),
                                 ],
                               ),
                             );
                             if (confirm != true) return;
-                            final convId = await _db.startAnonymousFantasyConversation(
+                            final convId =
+                                await _db.startAnonymousFantasyConversation(
                               fantasyId: fantasyId,
                               requesterId: user.id,
                               ownerId: ownerId,
                             );
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(convId != null ? AppLocalizations.of(context).tr('messages.conversation_started') : AppLocalizations.of(context).tr('messages.conversation_failed'))),
+                                SnackBar(
+                                    content: Text(convId != null
+                                        ? AppLocalizations.of(context)
+                                            .tr('messages.conversation_started')
+                                        : AppLocalizations.of(context).tr(
+                                            'messages.conversation_failed'))),
                               );
                             }
                           },

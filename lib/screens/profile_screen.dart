@@ -3,9 +3,6 @@ import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/bottom_nav_bar.dart';
-import 'home_screen.dart';
-import 'chat/chat_screen.dart';
-import 'door_of_desires_screen.dart';
 import 'profile/edit_bio_screen.dart';
 import 'profile/edit_fantasy_screen.dart';
 import 'profile/edit_quote_screen.dart';
@@ -17,7 +14,6 @@ import 'profile/privacy_policy_screen.dart';
 import 'premium_screen.dart';
 import 'sexual_orientation_screen.dart';
 import 'interests_screen.dart';
-import '../widgets/rate_seayou_modal.dart';
 import '../widgets/sign_out_modal.dart';
 import '../widgets/delete_account_modal.dart';
 
@@ -29,7 +25,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/tutorial_modal.dart';
-
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -71,15 +66,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _userName = profile['full_name'] ?? 'User';
           _gender = profile['gender'];
           _isPremium = profile['is_premium'] as bool? ?? false;
-          
+
           if (profile['sexual_orientation'] != null) {
-            _sexualOrientations = List<String>.from(profile['sexual_orientation']);
+            _sexualOrientations =
+                List<String>.from(profile['sexual_orientation']);
           }
-          
+
           if (profile['interests'] != null) {
             _interests = List<String>.from(profile['interests']);
           }
-          
+
           _isLoading = false;
         });
       }
@@ -103,15 +99,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _userName = profile['full_name'] ?? 'User';
           _gender = profile['gender'];
           _isPremium = profile['is_premium'] as bool? ?? false;
-          
+
           if (profile['sexual_orientation'] != null) {
-            _sexualOrientations = List<String>.from(profile['sexual_orientation']);
+            _sexualOrientations =
+                List<String>.from(profile['sexual_orientation']);
           }
-          
+
           if (profile['interests'] != null) {
             _interests = List<String>.from(profile['interests']);
           }
-          
+
           _isLoading = false;
         });
       }
@@ -203,7 +200,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   MaterialPageRoute(
                                     builder: (_) => UploadPictureScreen(
                                       userProfile: profile,
-                                      isOnboarding: false, // Profile update mode
+                                      isOnboarding:
+                                          false, // Profile update mode
                                     ),
                                   ),
                                 );
@@ -223,7 +221,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   borderRadius: BorderRadius.circular(32),
                                 ),
                                 child: Text(
-                                  AppLocalizations.of(context).tr('profile.edit_photo'),
+                                  AppLocalizations.of(context)
+                                      .tr('profile.edit_photo'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,
@@ -241,78 +240,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 32),
 
                     // Upgrade to Pro Section
-                    if (!_isPremium && !(_gender?.toLowerCase() == 'woman' || _gender?.toLowerCase() == 'female'))
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PremiumScreen(),
+                    if (!_isPremium &&
+                        !(_gender?.toLowerCase() == 'woman' ||
+                            _gender?.toLowerCase() == 'female'))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PremiumScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0xFFFFC700),
+                                  Color(0xFFFAB959),
+                                ],
+                              ),
+                              border: Border.all(
+                                color: const Color(0xFFEFA000),
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0xFFFFC700),
-                                Color(0xFFFAB959),
+                            child: Row(
+                              children: [
+                                // Crown icon
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    '👑',
+                                    style: TextStyle(fontSize: 24),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .tr('profile.upgrade_to_pro'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF824E00),
+                                        ),
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .tr('profile.upgrade_description'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w400,
+                                          color: Color(0xFF824E00),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
-                            border: Border.all(
-                              color: const Color(0xFFEFA000),
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              // Crown icon
-                              Container(
-                                width: 32,
-                                height: 32,
-                                alignment: Alignment.center,
-                                child: const Text(
-                                  '👑',
-                                  style: TextStyle(fontSize: 24),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      AppLocalizations.of(context).tr('profile.upgrade_to_pro'),
-                                      style: const TextStyle(
-                                        fontFamily: 'Montserrat',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF824E00),
-                                      ),
-                                    ),
-                                    Text(
-                                      AppLocalizations.of(context).tr('profile.upgrade_description'),
-                                      style: const TextStyle(
-                                        fontFamily: 'Montserrat',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: Color(0xFF824E00),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
 
                     const SizedBox(height: 24),
 
@@ -351,7 +355,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit bio
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.edit_bio'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.edit_bio'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -366,12 +371,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit my fantasy
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.edit_fantasy'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.edit_fantasy'),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const EditFantasyScreen(),
+                                  builder: (context) =>
+                                      const EditFantasyScreen(),
                                 ),
                               );
                             },
@@ -381,7 +388,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit my quote
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.edit_quote'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.edit_quote'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -396,12 +404,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Edit my voice message
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.edit_voice_message'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.edit_voice_message'),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const EditVoiceMessageScreen(),
+                                  builder: (context) =>
+                                      const EditVoiceMessageScreen(),
                                 ),
                               );
                             },
@@ -411,7 +421,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Change password
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.change_password'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.change_password'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -427,7 +438,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Sexual Orientation
                           _buildSectionWithContent(
-                            label: AppLocalizations.of(context).tr('profile.sexual_orientation_section'),
+                            label: AppLocalizations.of(context)
+                                .tr('profile.sexual_orientation_section'),
                             content: _sexualOrientations,
                             onEdit: () async {
                               await Navigator.push(
@@ -479,7 +491,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            AppLocalizations.of(context).tr('profile.support_section'),
+                            AppLocalizations.of(context)
+                                .tr('profile.support_section'),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
@@ -489,7 +502,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.help_center'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.help_center'),
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -513,7 +527,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            AppLocalizations.of(context).tr('profile.about_section'),
+                            AppLocalizations.of(context)
+                                .tr('profile.about_section'),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 14,
@@ -523,43 +538,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.rate_seayou'),
-                            onTap: () {
-                              showDialog(
-                                context: context,
-                                barrierColor:
-                                    Colors.black.withValues(alpha: 0.5),
-                                builder: (context) => const RateSeaYouModal(),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('profile.understand_seayou'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.understand_seayou'),
                             onTap: () {
                               TutorialModal.show(context);
                             },
                           ),
                           const SizedBox(height: 12),
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('legal.terms_title'),
+                            title: AppLocalizations.of(context)
+                                .tr('legal.terms_title'),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const TermsOfServiceScreen(),
+                                  builder: (context) =>
+                                      const TermsOfServiceScreen(),
                                 ),
                               );
                             },
                           ),
                           const SizedBox(height: 12),
                           _buildSectionItem(
-                            title: AppLocalizations.of(context).tr('legal.privacy_policy_title'),
+                            title: AppLocalizations.of(context)
+                                .tr('legal.privacy_policy_title'),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const PrivacyPolicyScreen(),
+                                  builder: (context) =>
+                                      const PrivacyPolicyScreen(),
                                 ),
                               );
                             },
@@ -578,7 +586,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (_isPremium) ...[
                             const SizedBox(height: 12),
                             _buildSectionItem(
-                              title: AppLocalizations.of(context).tr('profile.manage_subscription'),
+                              title: AppLocalizations.of(context)
+                                  .tr('profile.manage_subscription'),
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -590,7 +599,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ],
                           _buildActionButton(
-                            title: AppLocalizations.of(context).tr('profile.sign_out'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.sign_out'),
                             color: const Color(0xFF737373),
                             onTap: () {
                               showDialog(
@@ -603,18 +613,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           _buildActionButton(
-                            title: AppLocalizations.of(context).tr('profile.delete_account'),
+                            title: AppLocalizations.of(context)
+                                .tr('profile.delete_account'),
                             color: const Color(0xFFFB3748), // Warning Red
                             onTap: () {
                               showDialog(
                                 context: context,
                                 barrierColor:
                                     Colors.black.withValues(alpha: 0.5),
-                                builder: (context) => const DeleteAccountModal(),
+                                builder: (context) =>
+                                    const DeleteAccountModal(),
                               );
                             },
                           ),
-
                         ],
                       ),
                     ),
@@ -628,9 +639,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Bottom Navigation
             BottomNavBar(
               activeScreen: 'profile',
-              userProfile: _avatarUrl != null ? {
-                'avatar_url': _avatarUrl,
-              } : null,
+              userProfile: _avatarUrl != null
+                  ? {
+                      'avatar_url': _avatarUrl,
+                    }
+                  : null,
             ),
           ],
         ),
@@ -800,8 +813,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _translateInterest(BuildContext context, String interest) {
-    final slug = interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_').replaceAll('/', '_').replaceAll('&', '_');
-    return AppLocalizations.of(context).tr('onboarding.interests.options.$slug');
+    final slug = interest
+        .toLowerCase()
+        .replaceAll(' ', '_')
+        .replaceAll('-', '_')
+        .replaceAll('/', '_')
+        .replaceAll('&', '_');
+    return AppLocalizations.of(context)
+        .tr('onboarding.interests.options.$slug');
   }
 
   Widget _buildActionButton({
@@ -829,5 +848,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
-

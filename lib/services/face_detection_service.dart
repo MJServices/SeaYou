@@ -35,7 +35,7 @@ class FaceDetectionService {
       if (faces.length > 1) return FaceVerificationResult.multipleFaces;
 
       final face = faces.first;
-      
+
       // 1. Check for profile shots (Yaw)
       // headEulerAngleY is the rotation around the vertical axis.
       // 0 is looking straight, negative is left, positive is right.
@@ -55,10 +55,11 @@ class FaceDetectionService {
       // 3. Check for size (Distant shots)
       // We compare the face bounding box area to the input image area.
       if (inputImage.metadata?.size != null) {
-        final imageArea = inputImage.metadata!.size.width * inputImage.metadata!.size.height;
+        final imageArea =
+            inputImage.metadata!.size.width * inputImage.metadata!.size.height;
         final faceArea = face.boundingBox.width * face.boundingBox.height;
         final occupancy = faceArea / imageArea;
-        
+
         // Face must occupy at least 12% of the image to be considered "close enough"
         if (occupancy < 0.12) {
           return FaceVerificationResult.tooDistant;

@@ -39,7 +39,8 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
   @override
   void initState() {
     super.initState();
-    debugPrint('🎵 VoiceChatModal initialized with audioUrl: ${widget.audioUrl}, duration: ${widget.duration}');
+    debugPrint(
+        '🎵 VoiceChatModal initialized with audioUrl: ${widget.audioUrl}, duration: ${widget.duration}');
     _initializeAudio();
   }
 
@@ -47,22 +48,23 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
     if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty) {
       try {
         debugPrint('🎵 Loading audio from: ${widget.audioUrl}');
-        
+
         // Set player mode to media
         await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
         await _audioPlayer.setReleaseMode(ReleaseMode.stop);
         await _audioPlayer.setVolume(1.0);
         await _audioPlayer.setPlaybackRate(_playbackSpeed);
-        
+
         debugPrint('🎵 Setting audio source...');
-        
+
         // Set the source
         await _audioPlayer.setSourceUrl(widget.audioUrl!);
-        
+
         debugPrint('🎵 Audio source set successfully');
-        
+
         // Listen to duration changes
-        _durationSubscription = _audioPlayer.onDurationChanged.listen((duration) {
+        _durationSubscription =
+            _audioPlayer.onDurationChanged.listen((duration) {
           setState(() {
             _totalDuration = duration;
           });
@@ -70,20 +72,22 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
         });
 
         // Listen to position changes
-        _positionSubscription = _audioPlayer.onPositionChanged.listen((position) {
+        _positionSubscription =
+            _audioPlayer.onPositionChanged.listen((position) {
           setState(() {
             _currentPosition = position;
           });
         });
 
         // Listen to player state changes
-        _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((state) {
+        _playerStateSubscription =
+            _audioPlayer.onPlayerStateChanged.listen((state) {
           setState(() {
             _isPlaying = state == PlayerState.playing;
           });
-          
+
           debugPrint('🎵 Player state: $state');
-          
+
           // Auto-reset when finished
           if (state == PlayerState.completed) {
             setState(() {
@@ -93,7 +97,7 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
             _audioPlayer.seek(Duration.zero);
           }
         });
-        
+
         debugPrint('🎵 Audio player initialized successfully');
       } catch (e, stackTrace) {
         debugPrint('❌ Error loading audio: $e');
@@ -218,7 +222,7 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
             ),
           ),
         ),
-        
+
         // Modal content
         Align(
           alignment: Alignment.bottomCenter,
@@ -258,7 +262,9 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
                         color: Color(0xFF151515),
                       ),
                     ),
-                    if (widget.isReceived && (widget.senderAge != null || widget.senderDepartment != null)) ...[
+                    if (widget.isReceived &&
+                        (widget.senderAge != null ||
+                            widget.senderDepartment != null)) ...[
                       const SizedBox(width: 8),
                       const Text(
                         '•',
@@ -266,7 +272,8 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '${widget.senderAge ?? ""} ${widget.senderDepartment != null ? "• ${widget.senderDepartment}" : ""}'.trim(),
+                        '${widget.senderAge ?? ""} ${widget.senderDepartment != null ? "• ${widget.senderDepartment}" : ""}'
+                            .trim(),
                         style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 14,
@@ -360,7 +367,7 @@ class _VoiceChatModalState extends State<VoiceChatModal> {
 
                 const SizedBox(height: 48),
 
-                    // Speed control
+                // Speed control
                 GestureDetector(
                   onTap: _showSpeedControl,
                   child: Column(

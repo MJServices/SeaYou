@@ -84,7 +84,7 @@ class PhotoStampModal extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                  // Header with navigation
+                // Header with navigation
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
@@ -119,15 +119,18 @@ class PhotoStampModal extends StatelessWidget {
                           color: Color(0xFF151515),
                         ),
                       ),
-                      if (isReceived && (senderAge != null || senderDepartment != null)) ...[
+                      if (isReceived &&
+                          (senderAge != null || senderDepartment != null)) ...[
                         const SizedBox(width: 4),
                         const Text(
                           '•',
-                          style: TextStyle(color: Color(0xFF737373), fontSize: 12),
+                          style:
+                              TextStyle(color: Color(0xFF737373), fontSize: 12),
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${senderAge ?? ""} ${senderDepartment != null ? "• $senderDepartment" : ""}'.trim(),
+                          '${senderAge ?? ""} ${senderDepartment != null ? "• $senderDepartment" : ""}'
+                              .trim(),
                           style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 12,
@@ -207,39 +210,39 @@ class PhotoStampModal extends StatelessWidget {
                                     )
                                   : null,
                             ),
-                          child: imageUrl.isEmpty
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.image,
-                                    size: 48,
-                                    color: Color(0xFFCCCCCC),
-                                  ),
-                                )
-                              : null,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Caption
-                      if (caption.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            caption,
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF363636),
-                            ),
+                            child: imageUrl.isEmpty
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.image,
+                                      size: 48,
+                                      color: Color(0xFFCCCCCC),
+                                    ),
+                                  )
+                                : null,
                           ),
                         ),
-                      
-                      const SizedBox(height: 16),
-                    ],
+
+                        const SizedBox(height: 16),
+
+                        // Caption
+                        if (caption.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              caption,
+                              style: const TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF363636),
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
-                ),
                 ),
 
                 // Send reply button

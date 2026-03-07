@@ -13,7 +13,7 @@ class BlockedUsersScreen extends StatefulWidget {
 class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   List<Map<String, dynamic>> _blockedUsers = [];
 
@@ -72,7 +72,9 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unblock User'),
-        content: Text(AppLocalizations.of(context).tr('dialogs.unblock_confirm').replaceAll('{{userName}}', userName)),
+        content: Text(AppLocalizations.of(context)
+            .tr('dialogs.unblock_confirm')
+            .replaceAll('{{userName}}', userName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -183,7 +185,8 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: _blockedUsers.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final user = _blockedUsers[index];
                     return Container(

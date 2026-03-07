@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
@@ -47,7 +46,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         if (profile != null && mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => HomeScreen()),
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
             (route) => false,
           );
         }
@@ -61,7 +60,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).tr('errors.invalid_email'))),
+        SnackBar(
+            content:
+                Text(AppLocalizations.of(context).tr('errors.invalid_email'))),
       );
       return;
     }
@@ -69,7 +70,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     setState(() => _isLoading = true);
 
     // FIX: Generate password HERE so we keep it even if API fails
-    final localTempPassword = "temp-${DateTime.now().millisecondsSinceEpoch}";
+    final localTempPassword = 'temp-${DateTime.now().millisecondsSinceEpoch}';
 
     try {
       // Pre-check: Does email exist?
@@ -78,7 +79,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).tr('errors.account_exists')),
+              content: Text(
+                  AppLocalizations.of(context).tr('errors.account_exists')),
               backgroundColor: Colors.orange,
             ),
           );
@@ -105,33 +107,38 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           ),
         );
       }
-      } catch (e) {
+    } catch (e) {
       if (mounted) {
         // ERROR HANDLING STRATEGY:
         // If it's a 500 error (Supabase Email Service failure) or "sending confirmation email" error,
         // we assume the account MIGHT have been created or we want to let them Try Recovery.
         // So we proceed to the Verification Screen anyway to let them hit "Resend" or "Help".
-        
-        String errorMessage = AppLocalizations.of(context).tr('errors.verification_failed');
+
+        String errorMessage =
+            AppLocalizations.of(context).tr('errors.verification_failed');
         bool shouldProceedAnyway = false;
 
-        if (e.toString().contains('500') || e.toString().toLowerCase().contains('sending')) {
-             errorMessage = 'Email service is busy, but we\'re proceeding. Try "Resend" or "Help" on the next screen.';
-             shouldProceedAnyway = true;
-        } else if (e.toString().contains('User already registered') || e.toString().contains('already registered')) {
-            errorMessage = AppLocalizations.of(context).tr('errors.account_exists_login');
+        if (e.toString().contains('500') ||
+            e.toString().toLowerCase().contains('sending')) {
+          errorMessage =
+              'Email service is busy, but we\'re proceeding. Try "Resend" or "Help" on the next screen.';
+          shouldProceedAnyway = true;
+        } else if (e.toString().contains('User already registered') ||
+            e.toString().contains('already registered')) {
+          errorMessage =
+              AppLocalizations.of(context).tr('errors.account_exists_login');
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage), 
+            content: Text(errorMessage),
             backgroundColor: shouldProceedAnyway ? Colors.orange : Colors.red,
             duration: const Duration(seconds: 4),
           ),
         );
 
         if (shouldProceedAnyway && mounted) {
-           Navigator.push(
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => VerificationScreen(
@@ -160,7 +167,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+                minHeight: MediaQuery.of(context).size.height -
+                    MediaQuery.of(context).padding.top -
+                    MediaQuery.of(context).padding.bottom,
               ),
               child: IntrinsicHeight(
                 child: Column(
@@ -180,7 +189,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      AppLocalizations.of(context).tr('auth.verification_message'),
+                      AppLocalizations.of(context)
+                          .tr('auth.verification_message'),
                       style: AppTextStyles.bodyText,
                     ),
                     const SizedBox(height: 32),
@@ -188,14 +198,18 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       controller: _emailController,
                       hintText: 'email@example.com',
                       keyboardType: TextInputType.emailAddress,
-                      isActive: !_isLoading, 
+                      isActive: !_isLoading,
                     ),
                     const Spacer(),
                     Row(
                       children: [
                         Expanded(
                           child: CustomButton(
-                            text: _isLoading ? AppLocalizations.of(context).tr('auth.signing_up') : AppLocalizations.of(context).tr('auth.sign_up'),
+                            text: _isLoading
+                                ? AppLocalizations.of(context)
+                                    .tr('auth.signing_up')
+                                : AppLocalizations.of(context)
+                                    .tr('auth.sign_up'),
                             isActive: !_isLoading,
                             onPressed: _handleSignUp,
                           ),
@@ -203,14 +217,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: CustomButton(
-                            text: AppLocalizations.of(context).tr('auth.log_in'),
+                            text:
+                                AppLocalizations.of(context).tr('auth.log_in'),
                             isOutline: true,
                             isActive: !_isLoading,
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const SignInEmailPasswordScreen(),
+                                  builder: (context) =>
+                                      const SignInEmailPasswordScreen(),
                                 ),
                               );
                             },

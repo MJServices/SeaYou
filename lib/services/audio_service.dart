@@ -9,7 +9,8 @@ class GlobalAudioController {
 
   final ValueNotifier<bool> muted = ValueNotifier<bool>(false);
 
-  final AudioPlayer _ambientPlayer = AudioPlayer()..setReleaseMode(ReleaseMode.loop);
+  final AudioPlayer _ambientPlayer = AudioPlayer()
+    ..setReleaseMode(ReleaseMode.loop);
   final AudioPlayer _sfxPlayer = AudioPlayer();
 
   bool _ambientInitialized = false;
@@ -46,7 +47,8 @@ class GlobalAudioController {
       // Optional ducking: reduce ambient during SFX
       final prevVol = _ambientVolume;
       await _ambientPlayer.setVolume(prevVol * 0.7);
-      await _sfxPlayer.play(AssetSource('sfx/progress_complete.wav'), volume: 1.0);
+      await _sfxPlayer.play(AssetSource('sfx/progress_complete.wav'),
+          volume: 1.0);
       // Restore ambient after short delay
       unawaited(Future.delayed(const Duration(milliseconds: 800), () async {
         try {

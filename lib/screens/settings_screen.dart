@@ -17,11 +17,11 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   Map<String, dynamic>? _userProfile;
   Map<String, dynamic>? _preferences;
-  
+
   String _acceptFromGender = 'everyone';
   int _minAge = 18;
   int _maxAge = 100;
@@ -57,11 +57,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Set preferences if they exist
           if (_preferences != null) {
-            _acceptFromGender = _preferences!['accept_from_gender'] ?? 'everyone';
+            _acceptFromGender =
+                _preferences!['accept_from_gender'] ?? 'everyone';
             _minAge = _preferences!['accept_from_age_min'] ?? 18;
             _maxAge = _preferences!['accept_from_age_max'] ?? 100;
             _maxBottlesPerDay = _preferences!['max_bottles_per_day'] ?? 5;
-            _notifyOnReceived = _preferences!['notify_on_bottle_received'] ?? true;
+            _notifyOnReceived =
+                _preferences!['notify_on_bottle_received'] ?? true;
             _notifyOnRead = _preferences!['notify_on_bottle_read'] ?? true;
           }
 
@@ -96,7 +98,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).tr('settings.save_success')),
+            content:
+                Text(AppLocalizations.of(context).tr('settings.save_success')),
             backgroundColor: const Color(0xFF0AC5C5),
           ),
         );
@@ -105,7 +108,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${AppLocalizations.of(context).tr('settings.save_error')}: $e'),
+            content: Text(
+                '${AppLocalizations.of(context).tr('settings.save_error')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -113,14 +117,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-
-
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context).tr('settings.logout_confirm_title')),
-        content: Text(AppLocalizations.of(context).tr('dialogs.logout_confirm')),
+        title: Text(
+            AppLocalizations.of(context).tr('settings.logout_confirm_title')),
+        content:
+            Text(AppLocalizations.of(context).tr('dialogs.logout_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -186,19 +190,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 32),
 
                   // Receiving Preferences
-                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.receiving_preferences')),
+                  _buildSectionTitle(AppLocalizations.of(context)
+                      .tr('settings.receiving_preferences')),
                   _buildPreferenceCard(),
 
                   const SizedBox(height: 24),
 
                   // Privacy
-                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.privacy')),
+                  _buildSectionTitle(
+                      AppLocalizations.of(context).tr('settings.privacy')),
                   _buildPrivacyCard(),
 
                   const SizedBox(height: 24),
 
                   // Account
-                  _buildSectionTitle(AppLocalizations.of(context).tr('settings.account')),
+                  _buildSectionTitle(
+                      AppLocalizations.of(context).tr('settings.account')),
                   _buildAccountCard(),
 
                   const SizedBox(height: 32),
@@ -219,7 +226,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           elevation: 0,
                         ),
                         child: Text(
-                          AppLocalizations.of(context).tr('settings.save_button'),
+                          AppLocalizations.of(context)
+                              .tr('settings.save_button'),
                           style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
@@ -325,12 +333,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Color(0xFFE3E3E3)),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               items: [
-                DropdownMenuItem(value: 'everyone', child: Text(AppLocalizations.of(context).tr('settings.everyone'))),
-                DropdownMenuItem(value: 'men', child: Text(AppLocalizations.of(context).tr('settings.men_only'))),
-                DropdownMenuItem(value: 'women', child: Text(AppLocalizations.of(context).tr('settings.women_only'))),
+                DropdownMenuItem(
+                    value: 'everyone',
+                    child: Text(
+                        AppLocalizations.of(context).tr('settings.everyone'))),
+                DropdownMenuItem(
+                    value: 'men',
+                    child: Text(
+                        AppLocalizations.of(context).tr('settings.men_only'))),
+                DropdownMenuItem(
+                    value: 'women',
+                    child: Text(AppLocalizations.of(context)
+                        .tr('settings.women_only'))),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -523,7 +541,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: Colors.orange,
                 ),
               ),
-              subtitle: const Text('Testing only', style: TextStyle(fontSize: 12)),
+              subtitle:
+                  const Text('Testing only', style: TextStyle(fontSize: 12)),
               onTap: () async {
                 final userId = AuthService().currentUser?.id;
                 if (userId != null) {
@@ -531,16 +550,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await Supabase.instance.client.from('entitlements').upsert({
                       'user_id': userId,
                       'tier': 'premium',
-                      'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+                      'expires_at': DateTime.now()
+                          .add(const Duration(days: 365))
+                          .toIso8601String(),
                     }, onConflict: 'user_id');
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(AppLocalizations.of(context).tr('premium.activated')), backgroundColor: Colors.green),
+                        SnackBar(
+                            content: Text(AppLocalizations.of(context)
+                                .tr('premium.activated')),
+                            backgroundColor: Colors.green),
                       );
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text('Error: $e')));
                     }
                   }
                 }

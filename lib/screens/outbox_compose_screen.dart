@@ -35,7 +35,9 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
   bool _validate() {
     final gOk = ['everyone', 'male', 'female', 'nonbinary'].contains(_gender);
     final msgOk = _textController.text.trim().isNotEmpty;
-    final ageOk = _age.start.round() <= _age.end.round() && _age.start >= 18 && _age.end <= 80;
+    final ageOk = _age.start.round() <= _age.end.round() &&
+        _age.start >= 18 &&
+        _age.end <= 80;
     final distOk = _distance.round() >= 10 && _distance.round() <= 200;
     return gOk && msgOk && ageOk && distOk;
   }
@@ -45,7 +47,9 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
     if (userId == null) return;
     if (!_validate()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).tr('errors.fix_form_errors'))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text(AppLocalizations.of(context).tr('errors.fix_form_errors'))));
       return;
     }
     setState(() => _loading = true);
@@ -63,21 +67,30 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(id != null ? AppLocalizations.of(context).tr('messages.message_queued').replaceAll('{{count}}', assigned.toString()) : AppLocalizations.of(context).tr('messages.queue_failed')),
+          content: Text(id != null
+              ? AppLocalizations.of(context)
+                  .tr('messages.message_queued')
+                  .replaceAll('{{count}}', assigned.toString())
+              : AppLocalizations.of(context).tr('messages.queue_failed')),
           action: id != null
               ? SnackBarAction(
                   label: 'Inbox',
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivedBottlesViewer()));
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ReceivedBottlesViewer()));
                   },
                 )
               : null,
         ),
       );
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -94,95 +107,123 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
               child: Form(
                 key: _formKey,
                 child: FocusTraversalGroup(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: _loading ? null : () => Navigator.pop(context),
-                  child: Icon(Icons.arrow_back, color: _loading ? AppColors.black.withValues(alpha: 0.3) : AppColors.black),
-                ),
-                const SizedBox(height: 24),
-                const Text('Compose Anonymous Message', style: AppTextStyles.displayText),
-                const SizedBox(height: 16),
-                Semantics(
-                  label: 'Message',
-                  textField: true,
-                  child: CustomTextField(hintText: 'Your message', controller: _textController, isActive: !_loading, focusNode: _messageFocus),
-                ),
-                const SizedBox(height: 16),
-                const Text('Age range', style: AppTextStyles.bodyText),
-                Semantics(
-                  label: 'Age range selector',
-                  slider: true,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: RangeSlider(
-                      values: _age,
-                      min: 18,
-                      max: 80,
-                      divisions: 62,
-                      onChanged: _loading
-                          ? null
-                          : (v) {
-                              _ageDebounce?.cancel();
-                              _age = v;
-                              _ageDebounce = Timer(const Duration(milliseconds: 120), () {
-                                if (mounted) setState(() {});
-                              });
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text('Max distance (km): ${_distance.round()}', style: AppTextStyles.bodyText),
-                Semantics(
-                  label: 'Distance selector',
-                  slider: true,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Slider(
-                      value: _distance,
-                      min: 10,
-                      max: 200,
-                      divisions: 190,
-                      onChanged: _loading
-                          ? null
-                          : (v) {
-                              _distanceDebounce?.cancel();
-                              _distance = v;
-                              _distanceDebounce = Timer(const Duration(milliseconds: 120), () {
-                                if (mounted) setState(() {});
-                              });
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Semantics(
-                  label: 'Target gender',
-                  button: true,
-                  child: DropdownButton<String>(
-                    value: _gender,
-                    items: const [
-                      DropdownMenuItem(value: 'everyone', child: Text('Everyone')),
-                      DropdownMenuItem(value: 'male', child: Text('Male')),
-                      DropdownMenuItem(value: 'female', child: Text('Female')),
-                      DropdownMenuItem(value: 'nonbinary', child: Text('Non-binary')),
-                    ],
-                    onChanged: _loading ? null : (v) => setState(() => _gender = v ?? 'everyone'),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Semantics(
-                  label: 'Queue message',
-                  button: true,
-                  child: CustomButton(text: 'Queue Message', isActive: !_loading, onPressed: _submit),
-                ),
-              ]),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: _loading ? null : () => Navigator.pop(context),
+                          child: Icon(Icons.arrow_back,
+                              color: _loading
+                                  ? AppColors.black.withValues(alpha: 0.3)
+                                  : AppColors.black),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('Compose Anonymous Message',
+                            style: AppTextStyles.displayText),
+                        const SizedBox(height: 16),
+                        Semantics(
+                          label: 'Message',
+                          textField: true,
+                          child: CustomTextField(
+                              hintText: 'Your message',
+                              controller: _textController,
+                              isActive: !_loading,
+                              focusNode: _messageFocus),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('Age range', style: AppTextStyles.bodyText),
+                        Semantics(
+                          label: 'Age range selector',
+                          slider: true,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: RangeSlider(
+                              values: _age,
+                              min: 18,
+                              max: 80,
+                              divisions: 62,
+                              onChanged: _loading
+                                  ? null
+                                  : (v) {
+                                      _ageDebounce?.cancel();
+                                      _age = v;
+                                      _ageDebounce = Timer(
+                                          const Duration(milliseconds: 120),
+                                          () {
+                                        if (mounted) setState(() {});
+                                      });
+                                    },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Max distance (km): ${_distance.round()}',
+                            style: AppTextStyles.bodyText),
+                        Semantics(
+                          label: 'Distance selector',
+                          slider: true,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Slider(
+                              value: _distance,
+                              min: 10,
+                              max: 200,
+                              divisions: 190,
+                              onChanged: _loading
+                                  ? null
+                                  : (v) {
+                                      _distanceDebounce?.cancel();
+                                      _distance = v;
+                                      _distanceDebounce = Timer(
+                                          const Duration(milliseconds: 120),
+                                          () {
+                                        if (mounted) setState(() {});
+                                      });
+                                    },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Semantics(
+                          label: 'Target gender',
+                          button: true,
+                          child: DropdownButton<String>(
+                            value: _gender,
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'everyone', child: Text('Everyone')),
+                              DropdownMenuItem(
+                                  value: 'male', child: Text('Male')),
+                              DropdownMenuItem(
+                                  value: 'female', child: Text('Female')),
+                              DropdownMenuItem(
+                                  value: 'nonbinary',
+                                  child: Text('Non-binary')),
+                            ],
+                            onChanged: _loading
+                                ? null
+                                : (v) =>
+                                    setState(() => _gender = v ?? 'everyone'),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Semantics(
+                          label: 'Queue message',
+                          button: true,
+                          child: CustomButton(
+                              text: 'Queue Message',
+                              isActive: !_loading,
+                              onPressed: _submit),
+                        ),
+                      ]),
                 ),
               ),
             ),
             if (_loading)
-              Container(color: Colors.black.withValues(alpha: 0.1), child: const Center(child: CircularProgressIndicator())),
+              Container(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  child: const Center(child: CircularProgressIndicator())),
           ]),
         ),
       ),

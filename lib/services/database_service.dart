@@ -10,12 +10,13 @@ import '../models/naughty_question.dart';
 
 class DatabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   // Local broadcast for profile updates to ensure high reactivity
-  static final StreamController<Map<String, dynamic>> _profileUpdateController = 
+  static final StreamController<Map<String, dynamic>> _profileUpdateController =
       StreamController<Map<String, dynamic>>.broadcast();
-      
-  Stream<Map<String, dynamic>> get profileUpdateBroadcast => _profileUpdateController.stream;
+
+  Stream<Map<String, dynamic>> get profileUpdateBroadcast =>
+      _profileUpdateController.stream;
 
   // Create a new profile
   Future<void> createProfile({
@@ -69,7 +70,7 @@ class DatabaseService {
         'department': department,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
-      
+
       debugPrint('✅ Profile upsert response: $response');
 
       debugPrint('Profile created successfully!');
@@ -80,21 +81,21 @@ class DatabaseService {
     }
   }
 
-
   // --- Freemium/Premium Logic ---
 
-  /// Check if user can send a bottle today (Free: max 3). 
+  /// Check if user can send a bottle today (Free: max 3).
   Future<bool> canSendBottleToday(String userId, bool isPremium) async {
     // 1. Premium users are always allowed
     if (isPremium) return true;
 
     try {
       // 2. Fetch both limit data AND gender
-      final res = await _supabase.from('profiles')
+      final res = await _supabase
+          .from('profiles')
           .select('bottles_sent_today, last_bottle_sent_date, gender')
           .eq('id', userId)
           .single();
-      
+
       final int count = res['bottles_sent_today'] ?? 0;
       final String? dateStr = res['last_bottle_sent_date'];
       final String gender = (res['gender'] as String?)?.toLowerCase() ?? '';
@@ -110,7 +111,9 @@ class DatabaseService {
       final lastDate = DateTime.parse(dateStr).toLocal();
       final now = DateTime.now().toLocal();
 
-      if (lastDate.year != now.year || lastDate.month != now.month || lastDate.day != now.day) {
+      if (lastDate.year != now.year ||
+          lastDate.month != now.month ||
+          lastDate.day != now.day) {
         // We don't reset here (incrementDailyBottles handles it), just allow the send
         return true;
       }
@@ -126,11 +129,12 @@ class DatabaseService {
   /// Increment bottle sent count
   Future<void> incrementDailyBottles(String userId) async {
     try {
-      final res = await _supabase.from('profiles')
+      final res = await _supabase
+          .from('profiles')
           .select('bottles_sent_today, last_bottle_sent_date')
           .eq('id', userId)
           .single();
-      
+
       final int count = res['bottles_sent_today'] ?? 0;
       final String? dateStr = res['last_bottle_sent_date'];
       final now = DateTime.now();
@@ -139,18 +143,19 @@ class DatabaseService {
       if (dateStr != null) {
         final lastDate = DateTime.parse(dateStr).toLocal();
         final nowLocal = now.toLocal();
-        if (lastDate.year == nowLocal.year && lastDate.month == nowLocal.month && lastDate.day == nowLocal.day) {
+        if (lastDate.year == nowLocal.year &&
+            lastDate.month == nowLocal.month &&
+            lastDate.day == nowLocal.day) {
           isNewDay = false;
         }
       }
 
       int newCount = isNewDay ? 1 : count + 1;
-      
+
       await _supabase.from('profiles').update({
         'bottles_sent_today': newCount,
         'last_bottle_sent_date': now.toIso8601String(),
       }).eq('id', userId);
-
     } catch (e) {
       debugPrint('Error incrementing daily bottles: $e');
     }
@@ -159,14 +164,19 @@ class DatabaseService {
   /// Check if premium user reached weekly validation limit (3 messages)
   Future<bool> canSendMessageThisWeek(String userId) async {
     try {
-      final res = await _supabase.from('profiles').select('messages_sent_week, last_message_sent_week_start').eq('id', userId).single();
-      
+      final res = await _supabase
+          .from('profiles')
+          .select('messages_sent_week, last_message_sent_week_start')
+          .eq('id', userId)
+          .single();
+
       final int count = res['messages_sent_week'] ?? 0;
       final String? dateStr = res['last_message_sent_week_start'];
       final now = DateTime.now();
 
       // Check if week passed (7 days since start)
-      if (dateStr == null || now.difference(DateTime.parse(dateStr)).inDays >= 7) {
+      if (dateStr == null ||
+          now.difference(DateTime.parse(dateStr)).inDays >= 7) {
         // Reset
         await _supabase.from('profiles').update({
           'messages_sent_week': 0,
@@ -187,34 +197,44 @@ class DatabaseService {
   /// This gives the user more "available slots" for messages
   Future<void> addParchments(String userId, int amount) async {
     try {
-      final res = await _supabase.from('profiles').select('messages_sent_week').eq('id', userId).single();
+      final res = await _supabase
+          .from('profiles')
+          .select('messages_sent_week')
+          .eq('id', userId)
+          .single();
       final int currentCount = res['messages_sent_week'] ?? 0;
-      
+
       // Decrease the count (it can go negative, which acts as credit)
       final newCount = currentCount - amount;
-      
+
       await _supabase.from('profiles').update({
         'messages_sent_week': newCount,
       }).eq('id', userId);
-      
-      debugPrint('📜 Added $amount parchments. New messages_sent_week: $newCount');
+
+      debugPrint(
+          '📜 Added $amount parchments. New messages_sent_week: $newCount');
     } catch (e) {
       debugPrint('Error adding parchments: $e');
-      throw e; 
+      rethrow;
     }
   }
 
   /// Increment weekly message count
   Future<void> incrementWeeklyMessages(String userId) async {
     try {
-      final res = await _supabase.from('profiles').select('messages_sent_week, last_message_sent_week_start').eq('id', userId).single();
-      
+      final res = await _supabase
+          .from('profiles')
+          .select('messages_sent_week, last_message_sent_week_start')
+          .eq('id', userId)
+          .single();
+
       final int count = res['messages_sent_week'] ?? 0;
       final String? dateStr = res['last_message_sent_week_start'];
       final now = DateTime.now();
-      
+
       bool reset = false;
-      if (dateStr == null || now.difference(DateTime.parse(dateStr)).inDays >= 7) {
+      if (dateStr == null ||
+          now.difference(DateTime.parse(dateStr)).inDays >= 7) {
         reset = true;
       }
 
@@ -253,7 +273,7 @@ class DatabaseService {
         'secret_desire': secretDesire,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', userId);
-      
+
       debugPrint('📝 DB: Updated secret_desire to: "$secretDesire"');
 
       // Trigger broadcast for reactive updates
@@ -277,7 +297,7 @@ class DatabaseService {
         'secret_quote': secretQuote,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', userId);
-      
+
       debugPrint('📝 DB: Updated secret_quote to: "$secretQuote"');
 
       // Trigger broadcast for reactive updates
@@ -388,35 +408,42 @@ class DatabaseService {
         .select()
         .eq('id', userId)
         .maybeSingle();
-        
+
     // Fallback: if avatar_url is missing, check profile_photos table
-    if (response != null && (response['avatar_url'] == null || (response['avatar_url'] as String).isEmpty)) {
+    if (response != null &&
+        (response['avatar_url'] == null ||
+            (response['avatar_url'] as String).isEmpty)) {
       try {
         final photos = await _supabase
-          .from('profile_photos')
-          .select('url')
-          .eq('user_id', userId)
-          .order('created_at', ascending: false)
-          .limit(1);
-          
-        if (photos != null && (photos as List).isNotEmpty) {
-           final url = photos[0]['url'] as String;
-           debugPrint('FOUND FALLBACK PHOTO: $url');
-           // Inject into response so UI works immediately
-           response['avatar_url'] = url;
-           
-           // Self-repair: update profiles table in background
-           _supabase.from('profiles').update({'avatar_url': url}).eq('id', userId).then((_) {
-             debugPrint('Self-repaired profiles.avatar_url');
-           }).catchError((err) {
-             debugPrint('Failed to self-repair profiles: $err');
-           });
+            .from('profile_photos')
+            .select('url')
+            .eq('user_id', userId)
+            .order('created_at', ascending: false)
+            .limit(1);
+
+        if ((photos as List).isNotEmpty) {
+          final url = photos[0]['url'] as String;
+          debugPrint('FOUND FALLBACK PHOTO: $url');
+          // Inject into response so UI works immediately
+          response['avatar_url'] = url;
+
+          // Self-repair: update profiles table in background
+          _supabase
+              .from('profiles')
+              .update({'avatar_url': url})
+              .eq('id', userId)
+              .then((_) {
+                debugPrint('Self-repaired profiles.avatar_url');
+              })
+              .catchError((err) {
+                debugPrint('Failed to self-repair profiles: $err');
+              });
         }
       } catch (e) {
         debugPrint('Error fetching fallback photo: $e');
       }
     }
-    
+
     return response;
   }
 
@@ -428,15 +455,15 @@ class DatabaseService {
         .stream(primaryKey: ['id'])
         .eq('id', userId)
         .map((data) => data.isNotEmpty ? data.first : null);
-        
+
     final controller = StreamController<Map<String, dynamic>?>();
-    
+
     // Listen to Supabase
     final sub1 = supabaseStream.listen(
       (data) => controller.add(data),
       onError: (e) => controller.addError(e),
     );
-    
+
     // Listen to local updates
     final sub2 = _profileUpdateController.stream
         .where((data) => data['id'] == userId)
@@ -444,12 +471,12 @@ class DatabaseService {
           (data) => controller.add(data),
           onError: (e) => controller.addError(e),
         );
-        
+
     controller.onCancel = () {
       sub1.cancel();
       sub2.cancel();
     };
-    
+
     return controller.stream;
   }
 
@@ -508,11 +535,20 @@ class DatabaseService {
   Future<int> getUnrepliedBottlesCount(String userId) async {
     try {
       debugPrint('🔍 Getting unreplied bottles count for: $userId');
-      final response = await _supabase
+
+      final blockedIds = await getBlockedUserIds(userId);
+
+      var query = _supabase
           .from('received_bottles')
-          .select('*')
+          .select('id')
           .eq('receiver_id', userId)
           .or('is_replied.eq.false,is_replied.is.null'); // Handle NULL as unreplied
+
+      if (blockedIds.isNotEmpty) {
+        query = query.not('sender_id', 'in', blockedIds);
+      }
+
+      final response = await query;
 
       final count = (response as List).length;
       debugPrint('✅ Found $count unreplied bottles');
@@ -542,12 +578,20 @@ class DatabaseService {
   Future<List<ReceivedBottle>> getRecentReceivedBottles(String userId,
       {int limit = 3}) async {
     try {
-      final response = await _supabase
-          .from('received_bottles')
-          .select()
-          .eq('receiver_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
+      // 1. Get bidirectional blocked user IDs
+      final blockedIds = await getBlockedUsers(userId);
+      final blockerIds = await getBlockers(userId);
+      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+
+      var query =
+          _supabase.from('received_bottles').select().eq('receiver_id', userId);
+
+      if (allBlocked.isNotEmpty) {
+        query = query.not('sender_id', 'in', allBlocked);
+      }
+
+      final response =
+          await query.order('created_at', ascending: false).limit(limit);
 
       return (response as List)
           .map((json) => ReceivedBottle.fromJson(json))
@@ -562,12 +606,21 @@ class DatabaseService {
   Future<List<SentBottle>> getRecentSentBottles(String userId,
       {int limit = 3}) async {
     try {
-      final response = await _supabase
-          .from('sent_bottles')
-          .select()
-          .eq('sender_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
+      // 1. Get bidirectional blocked user IDs
+      final blockedIds = await getBlockedUsers(userId);
+      final blockerIds = await getBlockers(userId);
+      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+
+      var query =
+          _supabase.from('sent_bottles').select().eq('sender_id', userId);
+
+      if (allBlocked.isNotEmpty) {
+        // Exclude bottles where the matched recipient is blocked
+        query = query.not('matched_recipient_id', 'in', allBlocked);
+      }
+
+      final response =
+          await query.order('created_at', ascending: false).limit(limit);
 
       return (response as List)
           .map((json) => SentBottle.fromJson(json))
@@ -581,11 +634,19 @@ class DatabaseService {
   // Get all received bottles with sender details
   Future<List<ReceivedBottle>> getAllReceivedBottles(String userId) async {
     try {
-      final response = await _supabase
-          .from('received_bottles')
-          .select()
-          .eq('receiver_id', userId)
-          .order('created_at', ascending: false);
+      // 1. Get bidirectional blocked user IDs
+      final blockedIds = await getBlockedUsers(userId);
+      final blockerIds = await getBlockers(userId);
+      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+
+      var query =
+          _supabase.from('received_bottles').select().eq('receiver_id', userId);
+
+      if (allBlocked.isNotEmpty) {
+        query = query.not('sender_id', 'in', allBlocked);
+      }
+
+      final response = await query.order('created_at', ascending: false);
 
       final bottles = (response as List)
           .map((json) => ReceivedBottle.fromJson(json))
@@ -606,19 +667,19 @@ class DatabaseService {
       try {
         final profilesResponse = await _supabase
             .from('profiles')
-            .select('id, full_name, birth_year, department') 
+            .select('id, full_name, birth_year, department')
             .inFilter('id', senderIds);
-        
+
         final currentYear = DateTime.now().year;
         for (final p in (profilesResponse as List)) {
           final id = p['id'] as String;
           final fullName = p['full_name'] as String? ?? 'Someone';
           final birthYear = p['birth_year'] as int?;
           final department = p['department'] as String?;
-          
+
           final nickname = fullName.split(' ').first;
           final age = birthYear != null ? currentYear - birthYear : null;
-          
+
           senderInfoMap[id] = {
             'nickname': nickname,
             'age': age,
@@ -641,7 +702,6 @@ class DatabaseService {
         }
         return b.copyWith(senderNickname: 'Someone');
       }).toList();
-
     } catch (e) {
       debugPrint('Error getting all received bottles: $e');
       return [];
@@ -668,11 +728,19 @@ class DatabaseService {
   // Get all sent bottles
   Future<List<SentBottle>> getAllSentBottles(String userId) async {
     try {
-      final response = await _supabase
-          .from('sent_bottles')
-          .select()
-          .eq('sender_id', userId)
-          .order('created_at', ascending: false);
+      // 1. Get bidirectional blocked user IDs
+      final blockedIds = await getBlockedUsers(userId);
+      final blockerIds = await getBlockers(userId);
+      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+
+      var query =
+          _supabase.from('sent_bottles').select().eq('sender_id', userId);
+
+      if (allBlocked.isNotEmpty) {
+        query = query.not('matched_recipient_id', 'in', allBlocked);
+      }
+
+      final response = await query.order('created_at', ascending: false);
 
       return (response as List)
           .map((json) => SentBottle.fromJson(json))
@@ -814,16 +882,26 @@ class DatabaseService {
     String? mood,
     String? replyToContentType,
     String? replyToContent,
+    String? replyPrefix, // Pass translated prefix like "Replying to bio: "
   }) async {
     try {
       debugPrint('--- sendDirectBottle ---');
       debugPrint('Sender: $senderId, Receiver: $receiverId');
-      
+
+      // 0. Check if blocked (bidirectional)
+      if (await isRelationBlocked(senderId, receiverId)) {
+        debugPrint('🚫 Cannot send bottle: block relationship exists');
+        return null;
+      }
+
       // Append reply context to message since columns don't exist
       String finalMessage = message ?? '';
       if (replyToContent != null && replyToContent.isNotEmpty) {
-        final prefix = replyToContentType == 'bio' ? 'Replying to bio: ' : 'Replying to: ';
-        finalMessage = "$prefix\"$replyToContent\"\n\n$finalMessage";
+        final prefix = replyPrefix ??
+            (replyToContentType == 'bio'
+                ? 'Replying to bio: '
+                : 'Replying to: ');
+        finalMessage = '$prefix"$replyToContent"\n\n$finalMessage';
       }
 
       // 1. Create Sent Bottle
@@ -847,35 +925,33 @@ class DatabaseService {
           })
           .select()
           .single();
-          
+
       final bottleId = sentBottle['id'] as String;
       debugPrint('✅ Created sent bottle: $bottleId');
 
       // 2. Create Received Bottle for the recipient
-      await _supabase
-          .from('received_bottles')
-          .insert({
-            'receiver_id': receiverId,
-            'sender_id': senderId,
-            'sent_bottle_id': bottleId,
-            'content_type': contentType,
-            'message': finalMessage,
-            'audio_url': audioUrl,
-            'photo_url': photoUrl,
-            'caption': caption,
-            'mood': mood,
-            // 'reply_to_content_type': replyToContentType, // Column does not exist
-            // 'reply_to_content': replyToContent,         // Column does not exist
-            'match_score': 100, // Direct match
-            'is_read': false,
-            'is_replied': false,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-            'matched_at': DateTime.now().toIso8601String(),
-          });
-          
+      await _supabase.from('received_bottles').insert({
+        'receiver_id': receiverId,
+        'sender_id': senderId,
+        'sent_bottle_id': bottleId,
+        'content_type': contentType,
+        'message': finalMessage,
+        'audio_url': audioUrl,
+        'photo_url': photoUrl,
+        'caption': caption,
+        'mood': mood,
+        // 'reply_to_content_type': replyToContentType, // Column does not exist
+        // 'reply_to_content': replyToContent,         // Column does not exist
+        'match_score': 100, // Direct match
+        'is_read': false,
+        'is_replied': false,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'matched_at': DateTime.now().toIso8601String(),
+      });
+
       debugPrint('✅ Created received bottle for recipient');
-      
+
       // 3. Send Notification
       try {
         await _supabase.from('notifications').insert({
@@ -1060,12 +1136,34 @@ class DatabaseService {
     required String blockedId,
   }) async {
     try {
+      // 1. Add the block record
       await _supabase.from('user_blocks').insert({
         'blocker_id': blockerId,
         'blocked_id': blockedId,
         'created_at': DateTime.now().toIso8601String(),
       });
       debugPrint('User $blockedId blocked by $blockerId');
+
+      // 2. Delete mutual conversations (bidirectional wipe)
+      await _supabase.from('conversations').delete().or(
+          'and(user_a_id.eq.$blockerId,user_b_id.eq.$blockedId),and(user_a_id.eq.$blockedId,user_b_id.eq.$blockerId)');
+      debugPrint(
+          'Deleted mutual conversations between $blockerId and $blockedId');
+
+      // 3. Delete any bottles sent between these two users (Inbox clearing)
+      await _supabase.from('received_bottles').delete().or(
+          'and(receiver_id.eq.$blockerId,sender_id.eq.$blockedId),and(receiver_id.eq.$blockedId,sender_id.eq.$blockerId)');
+
+      // 4. Delete sent bottles matching
+      await _supabase.from('sent_bottles').delete().or(
+          'and(matched_recipient_id.eq.$blockerId,sender_id.eq.$blockedId),and(matched_recipient_id.eq.$blockedId,sender_id.eq.$blockerId)');
+
+      // 5. Delete matches (Orphaned matches)
+      await _supabase.from('matches').delete().or(
+          'and(recipient_id.eq.$blockerId,sender_id.eq.$blockedId),and(recipient_id.eq.$blockedId,sender_id.eq.$blockerId)');
+
+      debugPrint(
+          'Deleted mutual received bottles, sent bottles, and matches between $blockerId and $blockedId');
     } catch (e) {
       debugPrint('Error blocking user: $e');
       rethrow;
@@ -1261,23 +1359,31 @@ class DatabaseService {
   Future<List<Conversation>> getUserConversations(String userId) async {
     try {
       debugPrint('🔍 getUserConversations called for userId: $userId');
-      
+
       final response = await _supabase
           .from('conversations')
           .select()
           .or('user_a_id.eq.$userId,user_b_id.eq.$userId')
           .order('updated_at', ascending: false);
-      
-      debugPrint('📊 Raw response from database: ${response.length} conversations');
+
+      debugPrint(
+          '📊 Raw response from database: ${response.length} conversations');
       if (response.isNotEmpty) {
         for (var conv in response) {
-          debugPrint('  - Conversation ${conv['id']}: user_a=${conv['user_a_id']}, user_b=${conv['user_b_id']}');
+          debugPrint(
+              '  - Conversation ${conv['id']}: user_a=${conv['user_a_id']}, user_b=${conv['user_b_id']}');
         }
       }
-      
+
+      final blockedIds = await getBlockedUserIds(userId);
+      debugPrint('🚫 Blocked IDs for filter: $blockedIds');
+
       final conversations = (response as List)
           .map((json) => Conversation.fromJson(json))
-          .toList();
+          .where((conv) {
+        final otherId = conv.getOtherUserId(userId);
+        return !blockedIds.contains(otherId);
+      }).toList();
 
       // Fetch unread counts for these conversations
       // We do this by getting all unread messages for these convs where sender != me
@@ -1291,14 +1397,14 @@ class DatabaseService {
               .inFilter('conversation_id', convIds)
               .eq('is_read', false)
               .neq('sender_id', userId);
-          
+
           // Count per conversation
           final Map<String, int> unreadCounts = {};
           for (var msg in unreadMsgs) {
             final cId = msg['conversation_id'] as String;
             unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
           }
-          
+
           // Update conversation objects
           for (var i = 0; i < conversations.length; i++) {
             final c = conversations[i];
@@ -1312,7 +1418,7 @@ class DatabaseService {
           debugPrint('Error fetching unread counts: $e');
         }
       }
-      
+
       debugPrint('✅ Returning ${conversations.length} conversations');
       return conversations;
     } catch (e) {
@@ -1328,7 +1434,7 @@ class DatabaseService {
           .select()
           .eq('id', conversationId)
           .maybeSingle();
-      
+
       if (response == null) return null;
       return Conversation.fromJson(response);
     } catch (e) {
@@ -1337,7 +1443,6 @@ class DatabaseService {
     }
   }
 
-
   /// Create a new conversation between two users
   Future<String> createConversation({
     required String userAId,
@@ -1345,13 +1450,17 @@ class DatabaseService {
     String? title,
   }) async {
     try {
+      // 0. Check if blocked
+      if (await isRelationBlocked(userAId, userBId)) {
+        throw Exception('Blocked users cannot start conversations');
+      }
       // Check if conversation already exists between these users
       final existing = await _supabase
           .from('conversations')
           .select()
           .or('and(user_a_id.eq.$userAId,user_b_id.eq.$userBId),and(user_a_id.eq.$userBId,user_b_id.eq.$userAId)')
           .maybeSingle();
-      
+
       if (existing != null) {
         debugPrint('Conversation already exists: ${existing['id']}');
         return existing['id'] as String;
@@ -1370,7 +1479,7 @@ class DatabaseService {
           })
           .select()
           .single();
-      
+
       debugPrint('✅ Conversation created: ${response['id']}');
       return response['id'] as String;
     } catch (e) {
@@ -1433,13 +1542,15 @@ class DatabaseService {
       await _supabase.from('messages').insert(messageData);
 
       // Update conversation last message
-      String lastMsg = lastMessageSummary ?? text ?? (type == 'image' ? 'Picture' : 'Voice Message');
-      
+      String lastMsg = lastMessageSummary ??
+          text ??
+          (type == 'image' ? 'Picture' : 'Voice Message');
+
       // Sanitization: If it contains the milestone separator, strip the content part
       if (lastMsg.contains('|--CONTENT--|')) {
         lastMsg = lastMsg.split('|--CONTENT--|')[0];
       }
-      
+
       await _supabase.from('conversations').update({
         'last_message': lastMsg,
         'last_message_time': DateTime.now().toUtc().toIso8601String(),
@@ -1560,10 +1671,11 @@ class DatabaseService {
           .select()
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
-      
+
       final currentUserId = _supabase.auth.currentUser?.id;
       return (res as List)
-          .map((json) => ChatMessage.fromJson(json, currentUserId: currentUserId))
+          .map((json) =>
+              ChatMessage.fromJson(json, currentUserId: currentUserId))
           .toList();
     } catch (e) {
       debugPrint('Error loading messages: $e');
@@ -1573,10 +1685,10 @@ class DatabaseService {
 
   Future<void> updateMessage(String messageId, String newText) async {
     try {
-      await _supabase
-          .from('messages')
-          .update({'text': newText, 'updated_at': DateTime.now().toUtc().toIso8601String()})
-          .eq('id', messageId);
+      await _supabase.from('messages').update({
+        'text': newText,
+        'updated_at': DateTime.now().toUtc().toIso8601String()
+      }).eq('id', messageId);
       debugPrint('✅ Message updated: $messageId');
     } catch (e) {
       debugPrint('❌ Error updating message: $e');
@@ -1586,10 +1698,7 @@ class DatabaseService {
 
   Future<void> deleteMessage(String messageId) async {
     try {
-      await _supabase
-          .from('messages')
-          .delete()
-          .eq('id', messageId);
+      await _supabase.from('messages').delete().eq('id', messageId);
       debugPrint('✅ Message deleted: $messageId');
     } catch (e) {
       debugPrint('❌ Error deleting message: $e');
@@ -1657,7 +1766,7 @@ class DatabaseService {
           .from('conversations')
           .select('user_a_id, user_b_id')
           .or('user_a_id.eq.$userId,user_b_id.eq.$userId');
-      
+
       final Set<String> partnerIds = {};
       for (final c in (convs as List)) {
         if (c['user_a_id'] != userId) partnerIds.add(c['user_a_id'] as String);
@@ -1670,10 +1779,14 @@ class DatabaseService {
           .select('receiver_id, matched_recipient_id')
           .eq('sender_id', userId)
           .or('receiver_id.not.is.null,matched_recipient_id.not.is.null');
-      
+
       for (final b in (sentBottles as List)) {
-        if (b['receiver_id'] != null) partnerIds.add(b['receiver_id'] as String);
-        if (b['matched_recipient_id'] != null) partnerIds.add(b['matched_recipient_id'] as String);
+        if (b['receiver_id'] != null) {
+          partnerIds.add(b['receiver_id'] as String);
+        }
+        if (b['matched_recipient_id'] != null) {
+          partnerIds.add(b['matched_recipient_id'] as String);
+        }
       }
 
       return partnerIds.toList();
@@ -1684,13 +1797,14 @@ class DatabaseService {
   }
 
   /// Get intimate questions for a conversation
-  Future<List<IntimateQuestion>> getIntimateQuestions(String conversationId) async {
+  Future<List<IntimateQuestion>> getIntimateQuestions(
+      String conversationId) async {
     try {
       final response = await _supabase
           .from('intimate_questions')
           .select()
           .eq('conversation_id', conversationId);
-      
+
       return (response as List)
           .map((json) => IntimateQuestion.fromJson(json))
           .toList();
@@ -1700,38 +1814,38 @@ class DatabaseService {
     }
   }
 
-
   Stream<Map<String, dynamic>> subscribeMessages(String conversationId) {
     try {
-      debugPrint('🔌 Setting up realtime subscription for conversation: $conversationId');
+      debugPrint(
+          '🔌 Setting up realtime subscription for conversation: $conversationId');
       final controller = StreamController<Map<String, dynamic>>();
       final channel = _supabase.channel('messages_$conversationId');
-      
+
       channel
           .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'messages',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'conversation_id',
-              value: conversationId,
-            ),
-            callback: (payload) {
-              debugPrint('🔔 Realtime message event: ${payload.eventType}');
-              
-              Map<String, dynamic> data;
-              if (payload.eventType == PostgresChangeEvent.delete) {
-                data = Map<String, dynamic>.from(payload.oldRecord);
-              } else {
-                data = Map<String, dynamic>.from(payload.newRecord);
-              }
-              
-              // Include the event type so the UI knows what happened
-              data['event_type'] = payload.eventType.name;
-              controller.add(data);
-            },
-          )
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'messages',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'conversation_id',
+          value: conversationId,
+        ),
+        callback: (payload) {
+          debugPrint('🔔 Realtime message event: ${payload.eventType}');
+
+          Map<String, dynamic> data;
+          if (payload.eventType == PostgresChangeEvent.delete) {
+            data = Map<String, dynamic>.from(payload.oldRecord);
+          } else {
+            data = Map<String, dynamic>.from(payload.newRecord);
+          }
+
+          // Include the event type so the UI knows what happened
+          data['event_type'] = payload.eventType.name;
+          controller.add(data);
+        },
+      )
           .subscribe((status, error) {
         debugPrint('📡 Message subscription status: $status');
         if (error != null) {
@@ -1748,27 +1862,29 @@ class DatabaseService {
 
   Stream<Map<String, dynamic>> subscribeConversation(String conversationId) {
     try {
-      debugPrint('🔌 Setting up realtime subscription for conversation updates: $conversationId');
+      debugPrint(
+          '🔌 Setting up realtime subscription for conversation updates: $conversationId');
       final controller = StreamController<Map<String, dynamic>>();
       final channel = _supabase.channel('conversations_update_$conversationId');
       channel
           .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: 'public',
-            table: 'conversations',
-            callback: (payload) {
-              final newRec = payload.newRecord;
-              if (newRec['id'] == conversationId) {
-                debugPrint('🔥 Conversation UPDATE received via client-side filter!');
-                debugPrint('   Feeling: ${newRec['feeling_percent']}');
-                controller.add(newRec.cast<String, dynamic>());
-              }
-            },
-          )
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'conversations',
+        callback: (payload) {
+          final newRec = payload.newRecord;
+          if (newRec['id'] == conversationId) {
+            debugPrint(
+                '🔥 Conversation UPDATE received via client-side filter!');
+            debugPrint('   Feeling: ${newRec['feeling_percent']}');
+            controller.add(newRec.cast<String, dynamic>());
+          }
+        },
+      )
           .subscribe((status, error) {
-            debugPrint('📡 Conversation subscription status: $status');
-            if (error != null) debugPrint('❌ Subscription error: $error');
-          });
+        debugPrint('📡 Conversation subscription status: $status');
+        if (error != null) debugPrint('❌ Subscription error: $error');
+      });
 
       return controller.stream;
     } catch (e) {
@@ -1803,48 +1919,52 @@ class DatabaseService {
     int pageSize = 20,
   }) async {
     try {
-      debugPrint('🔍 SecretSouls: getSecretSoulsContent START (type: $contentType, page: $page)');
+      debugPrint(
+          '🔍 SecretSouls: getSecretSoulsContent START (type: $contentType, page: $page)');
       final currentUserId = _supabase.auth.currentUser?.id;
       List<Map<String, dynamic>> items = [];
 
       final int start = page * pageSize;
       final int end = start + pageSize - 1;
 
-      // 1. Get blocked users
+      // 1. Get blocked users (Bidirectional by default)
       final blockedIds = await getBlockedUserIds(currentUserId ?? '');
       debugPrint('🔍 SecretSouls: Blocked IDs: ${blockedIds.length}');
-      
+
       // 2. Fetch Quotes/Bios (if all, quote, or bio)
-      if (contentType == null || contentType == 'quote' || contentType == 'bio') {
-        debugPrint('🔍 SecretSouls: Fetching quotes/bios (range: $start-$end)...');
-        
+      if (contentType == null ||
+          contentType == 'quote' ||
+          contentType == 'bio') {
+        debugPrint(
+            '🔍 SecretSouls: Fetching quotes/bios (range: $start-$end)...');
+
         try {
           var profileQuery = _supabase
               .from('profiles')
-              .select('id, secret_desire, secret_quote, about, city, department, full_name, age, created_at')
-              .or('secret_desire.not.is.null,secret_quote.not.is.null,about.not.is.null')
+              .select(
+                  'id, secret_quote, about, city, department, full_name, age, created_at')
+              .or('secret_quote.not.is.null,about.not.is.null')
               .order('created_at', ascending: false)
               .range(start, end);
-              
+
           final profileItems = await profileQuery;
-          debugPrint('🔍 SecretSouls: Raw profile items fetched: ${(profileItems as List).length}');
-          
+          debugPrint(
+              '🔍 SecretSouls: Raw profile items fetched: ${(profileItems as List).length}');
+
           for (final q in (profileItems as List)) {
             if (q['id'] == currentUserId) continue;
             if (blockedIds.contains(q['id'])) continue;
-            
+
             String? quoteText;
             String? bioText;
             String idSuffix = 'about';
-            
-            if (q['secret_desire'] != null && q['secret_desire'].toString().isNotEmpty) {
-              quoteText = q['secret_desire'];
-              idSuffix = 'desire';
-            } else if (q['secret_quote'] != null && q['secret_quote'].toString().isNotEmpty) {
+
+            if (q['secret_quote'] != null &&
+                q['secret_quote'].toString().isNotEmpty) {
               quoteText = q['secret_quote'];
               idSuffix = 'quote';
-            } 
-            
+            }
+
             if (q['about'] != null && q['about'].toString().isNotEmpty) {
               bioText = q['about'];
             }
@@ -1864,7 +1984,7 @@ class DatabaseService {
                   'created_at': q['created_at'],
                 });
               }
-            } 
+            }
             // If user asked for QUOTE or ALL, handle as before
             else {
               // Priority: Desire > Quote > About (as a quote)
@@ -1888,49 +2008,18 @@ class DatabaseService {
           debugPrint('❌ ERROR fetching profile content: $e');
         }
 
-        // Fetch from fantasies table (Only for 'all' or 'quote')
-        if (contentType != 'bio') {
-          try {
-            debugPrint('🔍 SecretSouls: Fetching fantasies (range: $start-$end)...');
-            var fantasyQuery = _supabase
-                .from('fantasies')
-                .select('id, user_id, text, created_at, profiles!inner(city, department, full_name, age)')
-                .eq('is_active', true)
-                .neq('user_id', currentUserId ?? '')
-                .order('created_at', ascending: false)
-                .range(start, end);
-                
-            final fantasyItems = await fantasyQuery;
-            debugPrint('🔍 SecretSouls: Raw fantasies fetched: ${(fantasyItems as List).length}');
-            
-            for (final f in (fantasyItems as List)) {
-              if (blockedIds.contains(f['user_id'])) continue;
-              
-              items.add({
-                'id': 'fan_${f['id']}',
-                'user_id': f['user_id'],
-                'content_type': 'quote', // Map fantasy to a quote card
-                'quote_text': f['text'],
-                'city': f['profiles']?['city'],
-                'department': f['profiles']?['department'],
-                'full_name': f['profiles']?['full_name'],
-                'age': f['profiles']?['age'],
-                'created_at': f['created_at'],
-              });
-            }
-          } catch (e) {
-            debugPrint('❌ ERROR fetching fantasies: $e');
-          }
-        }
-
+        // Fetches from fantasies table removed.
+        // Fantasies should exclusively appear in the Door of Desires, not Secret Souls.
       }
 
       // 2.1 Fetch from secret_souls_content table (Mixed Content)
       try {
-        debugPrint('🔍 SecretSouls: Fetching from secret_souls_content (range: $start-$end)...');
+        debugPrint(
+            '🔍 SecretSouls: Fetching from secret_souls_content (range: $start-$end)...');
         var sscQuery = _supabase
             .from('secret_souls_content')
-            .select('id, user_id, content_type, photo_url, audio_url, quote_text, created_at')
+            .select(
+                'id, user_id, content_type, photo_url, audio_url, quote_text, created_at')
             .eq('is_visible', true)
             .neq('user_id', currentUserId ?? '');
 
@@ -1941,8 +2030,9 @@ class DatabaseService {
         final sscItems = await sscQuery
             .order('created_at', ascending: false)
             .range(start, end);
-        
-        debugPrint('🔍 SecretSouls: Raw secret_souls_content fetched: ${(sscItems as List).length}');
+
+        debugPrint(
+            '🔍 SecretSouls: Raw secret_souls_content fetched: ${(sscItems as List).length}');
 
         for (final s in (sscItems as List)) {
           if (blockedIds.contains(s['user_id'])) continue;
@@ -1971,14 +2061,16 @@ class DatabaseService {
           debugPrint('🔍 SecretSouls: Fetching audio (range: $start-$end)...');
           var query = _supabase
               .from('profiles')
-              .select('id, secret_audio_url, city, department, full_name, age, created_at')
+              .select(
+                  'id, secret_audio_url, city, department, full_name, age, created_at')
               .not('secret_audio_url', 'is', null)
               .order('created_at', ascending: false)
               .range(start, end);
-              
+
           final itemsToFetch = await query;
-          debugPrint('🔍 SecretSouls: Raw audios fetched: ${(itemsToFetch as List).length}');
-          
+          debugPrint(
+              '🔍 SecretSouls: Raw audios fetched: ${(itemsToFetch as List).length}');
+
           final audios = (itemsToFetch as List).where((a) {
             if (a['id'] == currentUserId) return false;
             if (blockedIds.contains(a['id'])) return false;
@@ -1987,16 +2079,16 @@ class DatabaseService {
           debugPrint('🔍 SecretSouls: Filtered audios: ${audios.length}');
 
           items.addAll(audios.map((a) => {
-            'id': 'aud_${a['id']}', 
-            'user_id': a['id'],
-            'content_type': 'audio',
-            'audio_url': a['secret_audio_url'],
-            'city': a['city'],
-            'department': a['department'],
-            'full_name': a['full_name'],
-            'age': a['age'],
-            'created_at': a['created_at'],
-          }));
+                'id': 'aud_${a['id']}',
+                'user_id': a['id'],
+                'content_type': 'audio',
+                'audio_url': a['secret_audio_url'],
+                'city': a['city'],
+                'department': a['department'],
+                'full_name': a['full_name'],
+                'age': a['age'],
+                'created_at': a['created_at'],
+              }));
         } catch (e) {
           debugPrint('❌ ERROR fetching audio: $e');
         }
@@ -2008,10 +2100,11 @@ class DatabaseService {
           debugPrint('🔍 SecretSouls: Fetching photos (range: $start-$end)...');
           var query = _supabase
               .from('profile_photos')
-              .select('id, user_id, url, created_at, profiles!inner(city, department, full_name, age)')
-              //.or('show_in_secret_souls.eq.true,is_visible_in_secret_souls.eq.true')
+              .select(
+                  'id, user_id, url, created_at, profiles!inner(city, department, full_name, age)')
+              .eq('show_in_secret_souls', true)
               .neq('user_id', currentUserId ?? '');
-              
+
           if (blockedIds.isNotEmpty) {
             query = query.filter('user_id', 'not.in', blockedIds);
           }
@@ -2019,28 +2112,32 @@ class DatabaseService {
           final photos = await query
               .order('created_at', ascending: false)
               .range(start, end);
-          
-          debugPrint('🔍 SecretSouls: Raw photos fetched: ${(photos as List).length}');
-          
+
+          debugPrint(
+              '🔍 SecretSouls: Raw photos fetched: ${(photos as List).length}');
+
           items.addAll((photos as List).map((p) => {
-            'id': 'photo_${p['id']}',
-            'user_id': p['user_id'],
-            'content_type': 'photo',
-            'photo_url': p['url'],
-            'city': p['profiles']?['city'],
-            'department': p['profiles']?['department'],
-            'full_name': p['profiles']?['full_name'],
-            'age': p['profiles']?['age'],
-            'created_at': p['created_at'],
-          }));
+                'id': 'photo_${p['id']}',
+                'user_id': p['user_id'],
+                'content_type': 'photo',
+                'photo_url': p['url'],
+                'city': p['profiles']?['city'],
+                'department': p['profiles']?['department'],
+                'full_name': p['profiles']?['full_name'],
+                'age': p['profiles']?['age'],
+                'created_at': p['created_at'],
+              }));
         } catch (e) {
           debugPrint('❌ ERROR fetching photos: $e');
         }
       }
       // 5. Finalize and Sort
-      items.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
-      
-      debugPrint('🔍 SecretSouls: getSecretSoulsContent SUCCESS ($page, count: ${items.length})');
+      items.sort((a, b) => (b['created_at'] ?? '')
+          .toString()
+          .compareTo((a['created_at'] ?? '').toString()));
+
+      debugPrint(
+          '🔍 SecretSouls: getSecretSoulsContent SUCCESS ($page, count: ${items.length})');
       return items;
     } catch (e) {
       debugPrint('❌ ERROR in getSecretSoulsContent: $e');
@@ -2065,7 +2162,7 @@ class DatabaseService {
           .eq('conversation_id', conversationId)
           .neq('sender_id', userId)
           .eq('is_read', false);
-          
+
       debugPrint('✅ Marked messages as read for conversation: $conversationId');
     } catch (e) {
       debugPrint('Error marking messages as read: $e');
@@ -2082,18 +2179,26 @@ class DatabaseService {
           .from('conversations')
           .select('id')
           .or('user_a_id.eq.$userId,user_b_id.eq.$userId');
-      
-      if (myConvs == null || (myConvs as List).isEmpty) return 0;
+
+      if ((myConvs as List).isEmpty) return 0;
 
       final convIds = (myConvs as List).map((c) => c['id']).toList();
 
       // 2. Count unread messages (Manual fetch & count to match getUserConversations)
-      final unreadMsgs = await _supabase
+      final blockedIds = await getBlockedUserIds(userId);
+
+      var query = _supabase
           .from('messages')
           .select('id')
           .inFilter('conversation_id', convIds)
           .eq('is_read', false)
           .neq('sender_id', userId);
+
+      if (blockedIds.isNotEmpty) {
+        query = query.not('sender_id', 'in', blockedIds);
+      }
+
+      final unreadMsgs = await query;
 
       final count = (unreadMsgs as List).length;
       debugPrint('🔔 Global unread count: $count');
@@ -2123,7 +2228,7 @@ class DatabaseService {
           .eq('user_a_id', userA)
           .eq('user_b_id', userB)
           .maybeSingle();
-      
+
       if (existing1 != null) return existing1['id'] as String;
 
       // Check for B-A (if conversations are not strictly ordered, dependent on app logic)
@@ -2134,9 +2239,9 @@ class DatabaseService {
           .eq('user_a_id', userB)
           .eq('user_b_id', userA)
           .maybeSingle();
-          
+
       if (existing2 != null) return existing2['id'] as String;
-      
+
       return null;
     } catch (e) {
       debugPrint('Error checking conversation existence: $e');
@@ -2165,22 +2270,27 @@ class DatabaseService {
           .maybeSingle();
 
       if (existing != null) {
-        debugPrint('⚠️ Found existing conversation: ${existing['id']} - returning null to prevent duplicate');
+        debugPrint(
+            '⚠️ Found existing conversation: ${existing['id']} - returning null to prevent duplicate');
         return null;
       }
 
       debugPrint('No existing conversation found. Creating new one...');
-      
+
       // 2. Create conversation with correct schema
-      final response = await _supabase.from('conversations').insert({
-        'user_a_id': requesterId,
-        'user_b_id': ownerId,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'title': 'Secret Souls',
-        'mask_a': 'Secret',
-        'mask_b': 'Soul',
-      }).select('id').single();
+      final response = await _supabase
+          .from('conversations')
+          .insert({
+            'user_a_id': requesterId,
+            'user_b_id': ownerId,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+            'title': 'Secret Souls',
+            'mask_a': 'Secret',
+            'mask_b': 'Soul',
+          })
+          .select('id')
+          .single();
 
       final convId = response['id'] as String;
       debugPrint('Created conversation: $convId');
@@ -2209,7 +2319,8 @@ class DatabaseService {
         });
         debugPrint('✅ Notification sent successfully');
       } catch (notifError) {
-        debugPrint('⚠️ Could not send notification (table may not exist): $notifError');
+        debugPrint(
+            '⚠️ Could not send notification (table may not exist): $notifError');
         // Continue anyway - notification is optional
       }
 
@@ -2247,17 +2358,21 @@ class DatabaseService {
       }
 
       debugPrint('No existing conversation found. Creating new one...');
-      
+
       // 2. Create conversation
-      final response = await _supabase.from('conversations').insert({
-        'user_a_id': requesterId,
-        'user_b_id': ownerId,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'title': 'Door of Desires',
-        'mask_a': 'Desire',
-        'mask_b': 'Fantasy',
-      }).select('id').single();
+      final response = await _supabase
+          .from('conversations')
+          .insert({
+            'user_a_id': requesterId,
+            'user_b_id': ownerId,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+            'title': 'Door of Desires',
+            'mask_a': 'Desire',
+            'mask_b': 'Fantasy',
+          })
+          .select('id')
+          .single();
 
       final convId = response['id'] as String;
       debugPrint('Created conversation: $convId');
@@ -2286,7 +2401,8 @@ class DatabaseService {
         });
         debugPrint('✅ Notification sent successfully');
       } catch (notifError) {
-        debugPrint('⚠️ Could not send notification (table may not exist): $notifError');
+        debugPrint(
+            '⚠️ Could not send notification (table may not exist): $notifError');
         // Continue anyway - notification is optional
       }
 
@@ -2307,7 +2423,7 @@ class DatabaseService {
       final currentUserId = _supabase.auth.currentUser?.id;
       final blockedIds = await getBlockedUserIds(currentUserId ?? '');
       final List<Map<String, dynamic>> allItems = [];
-      
+
       int start = page * pageSize;
       int end = (page + 1) * pageSize - 1;
 
@@ -2315,26 +2431,26 @@ class DatabaseService {
       try {
         var query = _supabase
             .from('profiles')
-            .select('id, secret_desire, city, department, full_name, age, created_at')
+            .select(
+                'id, secret_desire, city, department, full_name, age, created_at')
             .not('secret_desire', 'is', null);
 
         if (!includeSelf) {
           query = query.neq('id', currentUserId ?? '');
         }
-        
+
         if (blockedIds.isNotEmpty) {
           query = query.not('id', 'in', blockedIds);
         }
 
-        final profileItems = await query
-            .order('created_at', ascending: false)
-            .range(start, end);
+        final profileItems =
+            await query.order('created_at', ascending: false).range(start, end);
 
         for (var p in (profileItems as List)) {
-           allItems.add({
+          allItems.add({
             'id': 'prof_${p['id']}',
             'user_id': p['id'],
-            'fantasy_text': p['secret_desire'], 
+            'fantasy_text': p['secret_desire'],
             'type': 'profile_desire',
             'city': p['city'],
             'department': p['department'],
@@ -2349,14 +2465,13 @@ class DatabaseService {
 
       // 2. Fetch from fantasies table
       try {
-        var fQuery = _supabase
-            .from('fantasies')
-            .select('id, user_id, text, created_at, profiles!inner(city, department, full_name, age)');
+        var fQuery = _supabase.from('fantasies').select(
+            'id, user_id, text, created_at, profiles!inner(city, department, full_name, age)');
 
         if (!includeSelf) {
           fQuery = fQuery.neq('user_id', currentUserId ?? '');
         }
-        
+
         if (blockedIds.isNotEmpty) {
           fQuery = fQuery.not('user_id', 'in', blockedIds);
         }
@@ -2384,23 +2499,23 @@ class DatabaseService {
 
       // 3. Fetch from secret_souls_content (Fantasy type)
       try {
-         var sscQuery = _supabase
+        var sscQuery = _supabase
             .from('secret_souls_content')
             .select('id, user_id, content_type, quote_text, created_at')
             .eq('is_visible', true)
             .eq('content_type', 'fantasy');
-        
-         if (!includeSelf) {
+
+        if (!includeSelf) {
           sscQuery = sscQuery.neq('user_id', currentUserId ?? '');
         }
 
         final sscItems = await sscQuery
             .order('created_at', ascending: false)
             .range(start, end);
-            
+
         for (var s in (sscItems as List)) {
           if (blockedIds.contains(s['user_id'])) continue;
-          
+
           allItems.add({
             'id': 'ssc_${s['id']}',
             'user_id': s['user_id'],
@@ -2418,13 +2533,15 @@ class DatabaseService {
       }
 
       // 4. Sort aggregated results
-      allItems.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
-      
+      allItems.sort((a, b) => (b['created_at'] ?? '')
+          .toString()
+          .compareTo((a['created_at'] ?? '').toString()));
+
       return allItems.map((item) {
         return {
           'id': item['id'],
           'user_id': item['user_id'],
-          'fantasy_text': item['fantasy_text'], 
+          'fantasy_text': item['fantasy_text'],
           'text': item['fantasy_text'], // Legacy support
           'profiles': {
             'city': item['city'],
@@ -2435,7 +2552,6 @@ class DatabaseService {
           'created_at': item['created_at'],
         };
       }).toList();
-
     } catch (e) {
       debugPrint('❌ Error listing fantasies: $e');
       return [];
@@ -2525,13 +2641,13 @@ class DatabaseService {
       await _supabase
           .from('profiles')
           .update({'avatar_url': signedUrl}).eq('id', userId);
-          
+
       // Notify local listeners immediately
       _profileUpdateController.add({
         'id': userId,
         'avatar_url': signedUrl,
       });
-      
+
       return signedUrl;
     } catch (e) {
       debugPrint('Error uploading face photo: $e');
@@ -2542,21 +2658,22 @@ class DatabaseService {
   Future<Map<String, String>?> uploadFirstFacePhotoAndInsert({
     required String userId,
     required File imageFile,
+    bool showInSecretSouls = true, // User consent for Secret Room
   }) async {
     try {
       debugPrint('Starting uploadFirstFacePhotoAndInsert for user: $userId');
       final String ext = imageFile.path.split('.').last;
       final String path =
           '$userId/face_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      
+
       debugPrint('Uploading to storage: $path');
       await _supabase.storage.from('face_photos').upload(path, imageFile,
           fileOptions: const FileOptions(upsert: false));
-          
+
       final publicUrl =
           _supabase.storage.from('face_photos').getPublicUrl(path);
       debugPrint('Upload success. Public URL: $publicUrl');
-      
+
       debugPrint('Inserting into profile_photos...');
       final rec = await _supabase
           .from('profile_photos')
@@ -2565,7 +2682,7 @@ class DatabaseService {
             'url': publicUrl,
             'is_face': true,
             'is_first_face_photo': false,
-            'show_in_secret_souls': false,
+            'show_in_secret_souls': showInSecretSouls,
             'created_at': DateTime.now().toIso8601String(),
           })
           .select()
@@ -2600,12 +2717,12 @@ class DatabaseService {
   }) async {
     try {
       final String ext = audioFile.path.split('.').last;
-      final String fileName = 'secret_audio_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final String fileName =
+          'secret_audio_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final String path = '$userId/$fileName';
 
-      await _supabase.storage
-          .from('voice_clips')
-          .upload(path, audioFile, fileOptions: const FileOptions(upsert: false));
+      await _supabase.storage.from('voice_clips').upload(path, audioFile,
+          fileOptions: const FileOptions(upsert: false));
 
       final url = _supabase.storage.from('voice_clips').getPublicUrl(path);
       return url;
@@ -2625,7 +2742,7 @@ class DatabaseService {
       // 1. Delete from storage if it's hosted by us
       // We need to parse the path from the URL
       // Example URL: .../storage/v1/object/public/gallery_photos/USERID/gallery_TIMESTAMP.jpg
-      
+
       // Basic check if it's a supabase URL
       if (photoUrl.contains('supabase')) {
         final uri = Uri.parse(photoUrl);
@@ -2634,32 +2751,31 @@ class DatabaseService {
         // A safer way: if we stored the 'path' in the DB, we could use that.
         // But we didn't store 'path' in profile_photos, only 'url'.
         // So we'll try to extract the filename relative to the bucket.
-        
+
         String? extractPath(String fullUrl, String bucketObj) {
-            final split = fullUrl.split('$bucketObj/');
-            if (split.length > 1) return split[1];
-            return null;
+          final split = fullUrl.split('$bucketObj/');
+          if (split.length > 1) return split[1];
+          return null;
         }
 
         String? path;
         String? bucket;
 
         if (photoUrl.contains('/gallery_photos/')) {
-           bucket = 'gallery_photos';
-           path = extractPath(photoUrl, 'gallery_photos');
+          bucket = 'gallery_photos';
+          path = extractPath(photoUrl, 'gallery_photos');
         } else if (photoUrl.contains('/face_photos/')) {
-           bucket = 'face_photos';
-           path = extractPath(photoUrl, 'face_photos');
+          bucket = 'face_photos';
+          path = extractPath(photoUrl, 'face_photos');
         }
 
         if (bucket != null && path != null) {
-            await _supabase.storage.from(bucket).remove([path]);
+          await _supabase.storage.from(bucket).remove([path]);
         }
       }
 
       // 2. Delete from database
       await _supabase.from('profile_photos').delete().eq('id', photoId);
-      
     } catch (e) {
       debugPrint('Error deleting photo: $e');
       rethrow;
@@ -2678,16 +2794,15 @@ class DatabaseService {
         'avatar_url': photoUrl,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', userId);
-      
+
       // Notify local listeners immediately
       _profileUpdateController.add({
         'id': userId,
         'avatar_url': photoUrl,
       });
-      
-      // 2. Optionally verify consistency in profile_photos 
+
+      // 2. Optionally verify consistency in profile_photos
       // (e.g., if we had an is_main flag, we would toggle it here)
-      
     } catch (e) {
       debugPrint('Error setting main photo: $e');
       rethrow;
@@ -2731,7 +2846,9 @@ class DatabaseService {
 
   Future<void> updateFantasy(String fantasyId, String text) async {
     try {
-      await _supabase.from('fantasies').update({'text': text}).eq('id', fantasyId);
+      await _supabase
+          .from('fantasies')
+          .update({'text': text}).eq('id', fantasyId);
     } catch (e) {
       debugPrint('Error updating fantasy: $e');
       rethrow;
@@ -2802,19 +2919,14 @@ class DatabaseService {
 
   // ==================== BLOCK USER ====================
 
-  /// Get list of blocked user IDs for a user
+  /// Get list of all blocked user IDs for a user (bidirectional)
   Future<List<String>> getBlockedUserIds(String userId) async {
     try {
-      final response = await Supabase.instance.client
-          .from('user_blocks')
-          .select('blocked_id')
-          .eq('blocker_id', userId);
-
-      return (response as List)
-          .map((item) => item['blocked_id'] as String)
-          .toList();
+      final blockedByMe = await getBlockedUsers(userId);
+      final blockingMe = await getBlockers(userId);
+      return {...blockedByMe, ...blockingMe}.toList();
     } catch (e) {
-      debugPrint('❌ Error getting blocked users: $e');
+      debugPrint('❌ Error getting all blocked users: $e');
       return [];
     }
   }
@@ -2829,7 +2941,7 @@ class DatabaseService {
   }) async {
     try {
       debugPrint('📧 Attempting to send email to $to via Edge Function...');
-      
+
       await _supabase.functions.invoke(
         'send-email',
         body: {
@@ -2838,7 +2950,7 @@ class DatabaseService {
           'html': htmlBody,
         },
       );
-      
+
       debugPrint('✅ Email request sent successfully');
     } catch (e) {
       debugPrint('❌ Error sending email: $e');
@@ -2887,10 +2999,16 @@ class DatabaseService {
       };
 
       if (questionId != null) {
-        updates['naughty_question_id'] = questionId;
+        // Save to the per-user question column so each user's choice is
+        // independent and doesn't overwrite the other's pick.
+        updates[isUserA
+            ? 'user1_naughty_question_id'
+            : 'user2_naughty_question_id'] = questionId;
       }
+
       if (answer != null) {
-        updates[isUserA ? 'user1_naughty_answer' : 'user2_naughty_answer'] = answer;
+        updates[isUserA ? 'user1_naughty_answer' : 'user2_naughty_answer'] =
+            answer;
       }
 
       await _supabase
@@ -2898,7 +3016,8 @@ class DatabaseService {
           .update(updates)
           .eq('id', conversationId);
 
-      debugPrint('✅ Conversation $conversationId updated with naughty question data');
+      debugPrint(
+          '✅ Conversation $conversationId updated with naughty question data');
     } catch (e) {
       debugPrint('❌ Error updating naughty question: $e');
       rethrow;

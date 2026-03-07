@@ -1,22 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
 import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/warm_gradient_background.dart';
-import '../models/feeling_milestone.dart';
-import '../widgets/milestone_unlock_modal.dart';
 import '../models/bottle.dart';
 import '../models/conversation.dart';
 import 'bottle_detail_screen.dart';
 import 'all_bottles_screen.dart';
 import 'send_bottle_screen.dart';
-import 'chat/chat_screen.dart';
-import 'chat/chat_screen.dart';
-import 'home_default_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -24,17 +17,13 @@ import 'profile_screen.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
 import '../widgets/received_bottles_viewer.dart';
-import 'received_bottles_screen.dart';
-import '../widgets/empty_bottles_state.dart';
 import '../widgets/feeling_progress.dart';
 import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
-import '../models/bottle.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
 import 'new_bottles_list_screen.dart';
 import '../services/tutorial_service.dart';
-import '../services/auth_service.dart';
 import 'secret_souls_screen.dart';
 import 'door_of_desires_screen.dart';
 import 'premium_screen.dart';
@@ -46,7 +35,6 @@ import '../widgets/profile_avatar.dart';
 
 import '../widgets/tutorial_modal.dart';
 import '../services/notification_service.dart';
-import '../services/location_service.dart';
 import '../services/presence_service.dart';
 
 /// Home Screen - Dynamic with database integration
@@ -130,7 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Load all data in parallel
       final results = await Future.wait([
-        _databaseService.getUnrepliedBottlesCount(userId), // Only unreplied bottles
+        _databaseService
+            .getUnrepliedBottlesCount(userId), // Only unreplied bottles
         _databaseService.getSentBottlesCount(userId),
         _databaseService.getRecentSentBottles(userId, limit: 3),
         _databaseService.getProfile(userId),
@@ -149,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_userProfile != null) {
             _userName = _userProfile!['full_name'] ?? 'User';
             _avatarUrl = _userProfile!['avatar_url'];
-            
+
             // Check avatar_url instead of face_photo_url
             final hasAvatar = _avatarUrl != null && _avatarUrl!.isNotEmpty;
             if (!hasAvatar) {
@@ -183,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _userProfile = profile;
           _userName = profile['full_name'] ?? 'User';
           _avatarUrl = profile['avatar_url'];
-          
+
           final hasAvatar = _avatarUrl != null && _avatarUrl!.isNotEmpty;
           _showFaceCoachmark = !hasAvatar;
         });
@@ -191,39 +180,46 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-
   Future<void> _subscribeNewMessages() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
-      
+
       final convs = await _databaseService.getUserConversations(userId);
-      
+
       // Calculate actual unread count from conversations
       int totalUnread = 0;
       for (final c in convs) {
         totalUnread += c.unreadCount;
       }
-      
+
       setState(() {
         _newMessagesCount = totalUnread;
       });
-      
+
       // Subscribe to new messages to update count in realtime
       for (final c in convs) {
         final convId = c.id;
-        final sub = _databaseService.subscribeMessages(convId).listen((msg) async {
+        final sub =
+            _databaseService.subscribeMessages(convId).listen((msg) async {
           final senderId = msg['sender_id'] as String?;
           if (senderId != null && senderId != userId) {
+            // Check if this user is blocked
+            final isBlocked =
+                await _databaseService.isRelationBlocked(userId, senderId);
+            if (isBlocked) return; // Do not show notification if blocked
+
             // Show notification for new message
             final messageText = msg['text'] as String?;
             final conversationTitle = c.title ?? 'New Message';
-            
+
             if (mounted) {
               NotificationService().show(
                 context: context,
                 title: '💬 $conversationTitle',
-                message: messageText ?? AppLocalizations.of(context).tr('notification.you_have_new_message'),
+                message: messageText ??
+                    AppLocalizations.of(context)
+                        .tr('notification.you_have_new_message'),
                 icon: const Icon(
                   Icons.chat_bubble,
                   color: Colors.white,
@@ -242,9 +238,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               );
             }
-            
+
             // Reload conversations to get updated unread counts
-            final updatedConvs = await _databaseService.getUserConversations(userId);
+            final updatedConvs =
+                await _databaseService.getUserConversations(userId);
             int newTotalUnread = 0;
             for (final conv in updatedConvs) {
               newTotalUnread += conv.unreadCount;
@@ -271,28 +268,34 @@ class _HomeScreenState extends State<HomeScreen> {
           .from('received_bottles')
           .stream(primaryKey: ['id'])
           .eq('receiver_id', userId)
-          .listen((data) {
+          .listen((data) async {
             if (data.isNotEmpty && mounted) {
               final latestBottle = data.last;
               final senderId = latestBottle['sender_id'] as String?;
               final isRead = latestBottle['is_read'] as bool? ?? false;
               final bottleId = latestBottle['id'] as String;
-              
+
               // Only show notification for:
               // 1. Bottles from others
               // 2. Unread bottles
               // 3. Bottles completely new to this session (prevent multi-notify)
-              if (senderId != null && 
-                  senderId != userId && 
-                  !isRead && 
+              if (senderId != null &&
+                  senderId != userId &&
+                  !isRead &&
                   bottleId != _lastNotifiedBottleId) {
-                  
+                // Block check
+                final isBlocked =
+                    await _databaseService.isRelationBlocked(userId, senderId);
+                if (isBlocked) return;
+
                 _lastNotifiedBottleId = bottleId;
-                
+
                 NotificationService().show(
                   context: context,
-                  title: '🍾 ${AppLocalizations.of(context).tr('notification.new_bottle')}',
-                  message: AppLocalizations.of(context).tr('notification.new_bottle_message'),
+                  title:
+                      '🍾 ${AppLocalizations.of(context).tr('notification.new_bottle')}',
+                  message: AppLocalizations.of(context)
+                      .tr('notification.new_bottle_message'),
                   icon: const Icon(
                     Icons.mail,
                     color: Colors.white,
@@ -308,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 );
-                
+
                 // Reload data to update bottle count
                 _loadData();
               }
@@ -325,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (userId == null) return;
 
       debugPrint('🔌 Subscribing to NEW conversations for user: $userId');
-      
+
       _supabase
           .channel('public:conversations')
           .onPostgresChanges(
@@ -335,12 +338,22 @@ class _HomeScreenState extends State<HomeScreen> {
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.inFilter,
               column: 'user_b_id',
-              value: [userId], 
+              value: [userId],
             ),
             callback: (payload) async {
               debugPrint('🆕 New conversation detected!');
               final newConv = payload.newRecord;
-              if (newConv['user_a_id'] == userId || newConv['user_b_id'] == userId) {
+              if (newConv['user_a_id'] == userId ||
+                  newConv['user_b_id'] == userId) {
+                final otherUserId = newConv['user_a_id'] == userId
+                    ? newConv['user_b_id']
+                    : newConv['user_a_id'];
+                if (otherUserId != null) {
+                  final isBlocked = await _databaseService.isRelationBlocked(
+                      userId, otherUserId);
+                  if (isBlocked) return;
+                }
+
                 if (mounted) {
                   // Show notification
                   NotificationService().show(
@@ -357,16 +370,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   );
-                  
+
                   // Reload everything (counts, conversation list)
                   await _loadData();
                   // Re-subscribe to messages effectively (by calling _subscribeNewMessages which clears and re-adds)
-                  // Actually _subscribeNewMessages appends, so we should be careful. 
+                  // Actually _subscribeNewMessages appends, so we should be careful.
                   // For now, simpler to just reload the message subs entirely or let _loadData handle UI
                   // Ideally we add the *new* specific sub.
-                  
+
                   // For simplicity/robustness: clear old subs and re-sub to all (safe but slightly heavy)
-                  for (final s in _messageSubs) await s.cancel();
+                  for (final s in _messageSubs) {
+                    await s.cancel();
+                  }
                   _messageSubs.clear();
                   _subscribeNewMessages();
                 }
@@ -374,13 +389,12 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           )
           .subscribe();
-          
-      // Also need to listen for user_a_id? usually I am the creator if I am A. 
+
+      // Also need to listen for user_a_id? usually I am the creator if I am A.
       // But if someone else creates it (starts conversation), I am B.
       // So listening for user_b_id == me is usually enough for "incoming" conversations.
       // But let's be safe and listen to valid changes if Supabase allows OR filter in channels (it doesn't easily).
       // We will rely on user_b_id for incoming.
-      
     } catch (e) {
       debugPrint('Error subscribing to new conversations: $e');
     }
@@ -398,405 +412,453 @@ class _HomeScreenState extends State<HomeScreen> {
         SystemNavigator.pop();
       },
       child: Scaffold(
-      body: WarmGradientBackground(
-        child: Stack(
-          children: [
-            // Scrollable content
-            Positioned.fill(
-              bottom: 70, // Updated: 60 (content height) + safe area padding (~6-10px)
-              child: SingleChildScrollView(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 402,
-                      minWidth: screenWidth > 402 ? 402 : screenWidth,
-                    ),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 20), // Top spacing for status bar
-                        
-                        // Header with profile
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () async {
-                                  await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) =>
-                                              const ProfileScreen()));
-                                  _loadData();
-                                },
-                                child: ProfileAvatar(
-                                  imageUrl: _avatarUrl,
-                                  radius: 20,
-                                  isLoading: _isLoading,
+        body: WarmGradientBackground(
+          child: Stack(
+            children: [
+              // Scrollable content
+              Positioned.fill(
+                bottom:
+                    70, // Updated: 60 (content height) + safe area padding (~6-10px)
+                child: SingleChildScrollView(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 402,
+                        minWidth: screenWidth > 402 ? 402 : screenWidth,
+                      ),
+                      child: Column(
+                        children: [
+                          const SizedBox(
+                              height: 20), // Top spacing for status bar
+
+                          // Header with profile
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () async {
+                                    await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ProfileScreen()));
+                                    _loadData();
+                                  },
+                                  child: ProfileAvatar(
+                                    imageUrl: _avatarUrl,
+                                    radius: 20,
+                                    isLoading: _isLoading,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                () {
-                                  // Extract first name only (split on space, take first word, remove any digits)
-                                  final String firstName = _userName.split(' ').first.replaceAll(RegExp(r'\d+'), '');
-                                  return '${AppLocalizations.of(context).tr('home.greeting')} $firstName';
-                                }(),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF151515),
+                                const SizedBox(width: 8),
+                                Text(
+                                  () {
+                                    // Extract first name only (split on space, take first word, remove any digits)
+                                    final String firstName = _userName
+                                        .split(' ')
+                                        .first
+                                        .replaceAll(RegExp(r'\d+'), '');
+                                    return '${AppLocalizations.of(context).tr('home.greeting')} $firstName';
+                                  }(),
+                                  style: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF151515),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 32),
+                          const SizedBox(height: 32),
 
-                        // Circular Bottle with message count
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            if (_receivedCount > 0) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const NewBottlesListScreen(),
-                                ),
-                              ).then((_) => _loadData());
-                            } else {
-                               // No bottles received -> Show the Palm Tree Page (HomeDefaultScreen)
-                               Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ReceivedBottlesViewer(),
-                                ),
-                              ).then((_) => _loadData());
-                            }
-                          },
-                          child: Column(
-                            children: [
+                          // Circular Bottle with message count
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              if (_receivedCount > 0) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const NewBottlesListScreen(),
+                                  ),
+                                ).then((_) => _loadData());
+                              } else {
+                                // No bottles received -> Show the Palm Tree Page (HomeDefaultScreen)
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ReceivedBottlesViewer(),
+                                  ),
+                                ).then((_) => _loadData());
+                              }
+                            },
+                            child: Column(
+                              children: [
                                 Container(
                                   width: 140,
                                   height: 140,
                                   decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/homepage_bottle.png',
-                        width: 140,
-                        height: 140,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                                ),
-                              const SizedBox(height: 16),
-                              // Message count
-                              Text(
-                                AppLocalizations.of(context).tr('home.new_messages_count').replaceAll('{count}', '$_receivedCount'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF151515),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              // Discover text
-                              Text(
-                                AppLocalizations.of(context).tr('home.discover'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF737373),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // 2x2 Cards Grid
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            children: [
-                              // Row 1: Ongoing Conversations + Write a message
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildNavigationCard(
-                                      imagePath: 'assets/images/ongoing_conversation.jpeg',
-                                      label: AppLocalizations.of(context).tr('home.ongoing_conversations'),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const ChatListScreen(),
-                                          ),
-                                        );
-                                      },
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/homepage_bottle.png',
+                                      width: 140,
+                                      height: 140,
+                                      fit: BoxFit.cover,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildNavigationCard(
-                                      imagePath: 'assets/images/write_message.jpeg',
-                                      label: AppLocalizations.of(context).tr('home.write_message'),
-                                      onTap: () async {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const SendBottleScreen(),
-                                          ),
-                                        );
-                                        _loadData();
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // Row 2: Secret Souls + Door of Desires
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildNavigationCard(
-                                      imagePath: 'assets/images/secretsouls.jpeg',
-                                      label: AppLocalizations.of(context).tr('home.secret_souls'),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const SecretSoulsScreen(),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildNavigationCard(
-                                      imagePath: 'assets/images/desirecard.jpeg',
-                                      label: AppLocalizations.of(context).tr('home.door_of_desires'),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const DoorOfDesiresScreen(),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Premium Button
-                        if (_userProfile?['gender']?.toString().toLowerCase() != 'woman' && 
-                            _userProfile?['gender']?.toString().toLowerCase() != 'female' &&
-                            _userProfile?['gender']?.toString().toLowerCase() != 'femme')
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => PremiumScreen()),
-                              );
-                            },
-                            child: Container(
-                              width: double.infinity,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF0AC5C5), Color(0xFF65ADA9)],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
                                 ),
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF0AC5C5).withValues(alpha: 0.3),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  AppLocalizations.of(context).tr('home.premium_cta'),
+                                const SizedBox(height: 16),
+                                // Message count
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .tr('home.new_messages_count')
+                                      .replaceAll('{count}', '$_receivedCount'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF151515),
                                   ),
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-
-                        // Debug button for testing (Visible in all modes for the user's testing phase)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                          child: InkWell(
-                            onTap: () async {
-                              final userId = _supabase.auth.currentUser?.id;
-                              if (userId != null) {
-                                await EntitlementsService().grantEntitlement(userId, 'premium', 'debug_test');
-                                _loadData();
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('DEBUG: Compte désormais PREMIUM'),
-                                      backgroundColor: Colors.purple,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF0AC5C5).withOpacity(0.5), width: 1),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  AppLocalizations.of(context).tr('home.debug_activate_premium'),
+                                const SizedBox(height: 4),
+                                // Discover text
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .tr('home.discover'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
-                                    fontSize: 13,
-                                    color: Color(0xFF0AC5C5),
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: Color(0xFF737373),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // 2x2 Cards Grid
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              children: [
+                                // Row 1: Ongoing Conversations + Write a message
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildNavigationCard(
+                                        imagePath:
+                                            'assets/images/ongoing_conversation.jpeg',
+                                        label: AppLocalizations.of(context)
+                                            .tr('home.ongoing_conversations'),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const ChatListScreen(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildNavigationCard(
+                                        imagePath:
+                                            'assets/images/write_message.jpeg',
+                                        label: AppLocalizations.of(context)
+                                            .tr('home.write_message'),
+                                        onTap: () async {
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const SendBottleScreen(),
+                                            ),
+                                          );
+                                          _loadData();
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Row 2: Secret Souls + Door of Desires
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildNavigationCard(
+                                        imagePath:
+                                            'assets/images/secretsouls.jpeg',
+                                        label: AppLocalizations.of(context)
+                                            .tr('home.secret_souls'),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const SecretSoulsScreen(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildNavigationCard(
+                                        imagePath:
+                                            'assets/images/desirecard.jpeg',
+                                        label: AppLocalizations.of(context)
+                                            .tr('home.door_of_desires'),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const DoorOfDesiresScreen(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Premium Button
+                          if (_userProfile?['gender']
+                                      ?.toString()
+                                      .toLowerCase() !=
+                                  'woman' &&
+                              _userProfile?['gender']
+                                      ?.toString()
+                                      .toLowerCase() !=
+                                  'female' &&
+                              _userProfile?['gender']
+                                      ?.toString()
+                                      .toLowerCase() !=
+                                  'femme')
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const PremiumScreen()),
+                                  );
+                                },
+                                child: Container(
+                                  width: double.infinity,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF0AC5C5),
+                                        Color(0xFF65ADA9)
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0AC5C5)
+                                            .withValues(alpha: 0.3),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      AppLocalizations.of(context)
+                                          .tr('home.premium_cta'),
+                                      style: const TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          // Debug button for testing (Visible in all modes for the user's testing phase)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 20),
+                            child: InkWell(
+                              onTap: () async {
+                                final userId = _supabase.auth.currentUser?.id;
+                                if (userId != null) {
+                                  await EntitlementsService().grantEntitlement(
+                                      userId, 'premium', 'debug_test');
+                                  _loadData();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'DEBUG: Compte désormais PREMIUM'),
+                                        backgroundColor: Colors.purple,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFF0AC5C5)
+                                          .withValues(alpha: 0.5),
+                                      width: 1),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    AppLocalizations.of(context)
+                                        .tr('home.debug_activate_premium'),
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 13,
+                                      color: Color(0xFF0AC5C5),
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
 
-                        // Bottom padding for scrolling
-                        const SizedBox(height: 100),
-                      ],
+                          // Bottom padding for scrolling
+                          const SizedBox(height: 100),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            // Fixed Navigation Bar
-            BottomNavBar(
-              activeScreen: 'home',
-              userProfile: _userProfile,
-            ),
+              // Fixed Navigation Bar
+              BottomNavBar(
+                activeScreen: 'home',
+                userProfile: _userProfile,
+              ),
 
-            Builder(builder: (context) {
-              Widget? bubble;
-              if (_showSignupCoachmark) {
-                bubble = CoachmarkBubble(
-                  title:
-                      AppLocalizations.of(context).tr('tutorial.signup.title'),
-                  message: AppLocalizations.of(context)
-                      .tr('tutorial.signup.message'),
-                  ctaText:
-                      AppLocalizations.of(context).tr('tutorial.signup.cta'),
-                  onCta: () async {
-                    setState(() => _showSignupCoachmark = false);
-                    await TutorialService().setSeenSignupCoachmark();
-                  },
-                  onClose: () async {
-                    setState(() => _showSignupCoachmark = false);
-                    await TutorialService().setSeenSignupCoachmark();
-                  },
-                );
-              } else if (_showPremiumCoachmark) {
-                bubble = CoachmarkBubble(
-                  title: AppLocalizations.of(context).tr('premium.gate.title'),
-                  message:
-                      AppLocalizations.of(context).tr('premium.gate.message'),
-                  ctaText:
-                      AppLocalizations.of(context).tr('premium.gate.subscribe'),
-                  onCta: () async {
-                    setState(() => _showPremiumCoachmark = false);
-                    await TutorialService().setSeenPremiumGateTip();
-                    if (!context.mounted) return;
-                    Navigator.push(
+              Builder(builder: (context) {
+                Widget? bubble;
+                if (_showSignupCoachmark) {
+                  bubble = CoachmarkBubble(
+                    title: AppLocalizations.of(context)
+                        .tr('tutorial.signup.title'),
+                    message: AppLocalizations.of(context)
+                        .tr('tutorial.signup.message'),
+                    ctaText:
+                        AppLocalizations.of(context).tr('tutorial.signup.cta'),
+                    onCta: () async {
+                      setState(() => _showSignupCoachmark = false);
+                      await TutorialService().setSeenSignupCoachmark();
+                    },
+                    onClose: () async {
+                      setState(() => _showSignupCoachmark = false);
+                      await TutorialService().setSeenSignupCoachmark();
+                    },
+                  );
+                } else if (_showPremiumCoachmark) {
+                  bubble = CoachmarkBubble(
+                    title:
+                        AppLocalizations.of(context).tr('premium.gate.title'),
+                    message:
+                        AppLocalizations.of(context).tr('premium.gate.message'),
+                    ctaText: AppLocalizations.of(context)
+                        .tr('premium.gate.subscribe'),
+                    onCta: () async {
+                      setState(() => _showPremiumCoachmark = false);
+                      await TutorialService().setSeenPremiumGateTip();
+                      if (!context.mounted) return;
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ProfileScreen()));
+                    },
+                    onClose: () async {
+                      setState(() => _showPremiumCoachmark = false);
+                      await TutorialService().setSeenPremiumGateTip();
+                    },
+                  );
+                } else if (_showFaceCoachmark) {
+                  bubble = CoachmarkBubble(
+                    title: AppLocalizations.of(context)
+                        .tr('tutorial.face_required.title'),
+                    message: AppLocalizations.of(context)
+                        .tr('tutorial.face_required.message'),
+                    ctaText: AppLocalizations.of(context)
+                        .tr('tutorial.face_required.cta'),
+                    onCta: () async {
+                      setState(() => _showFaceCoachmark = false);
+
+                      // Create UserProfile from current data
+                      final profile = UserProfile(
+                        fullName: _userName,
+                        avatarUrl: _avatarUrl,
+                        // Add other fields if available in _userProfile map
+                        email: _supabase.auth.currentUser?.email,
+                      );
+
+                      if (_userProfile != null) {
+                        profile.age = _userProfile!['age'];
+                        profile.city = _userProfile!['city'];
+                        profile.about = _userProfile!['about'];
+                        // Map other fields as necessary if strictly required by UploadPictureScreen
+                      }
+
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const ProfileScreen()));
-                  },
-                  onClose: () async {
-                    setState(() => _showPremiumCoachmark = false);
-                    await TutorialService().setSeenPremiumGateTip();
-                  },
-                );
-              } else if (_showFaceCoachmark) {
-                bubble = CoachmarkBubble(
-                  title: AppLocalizations.of(context)
-                      .tr('tutorial.face_required.title'),
-                  message: AppLocalizations.of(context)
-                      .tr('tutorial.face_required.message'),
-                  ctaText: AppLocalizations.of(context)
-                      .tr('tutorial.face_required.cta'),
-                  onCta: () async {
-                    setState(() => _showFaceCoachmark = false);
-                    
-                    // Create UserProfile from current data
-                    final profile = UserProfile(
-                      fullName: _userName,
-                      avatarUrl: _avatarUrl,
-                      // Add other fields if available in _userProfile map
-                      email: _supabase.auth.currentUser?.email,
-                    );
-                    
-                    if (_userProfile != null) {
-                      profile.age = _userProfile!['age'];
-                      profile.city = _userProfile!['city'];
-                      profile.about = _userProfile!['about'];
-                      // Map other fields as necessary if strictly required by UploadPictureScreen
-                    }
-
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => UploadPictureScreen(userProfile: profile),
-                      ),
-                    );
-                    // Refresh data after returning
-                    _loadData();
-                  },
-                  onClose: () {
-                    setState(() => _showFaceCoachmark = false);
-                  },
-                );
-              }
-              return bubble != null
-                  ? Positioned(top: 8, left: 0, right: 0, child: bubble)
-                  : const SizedBox.shrink();
-            }),
-          ],
+                          builder: (_) =>
+                              UploadPictureScreen(userProfile: profile),
+                        ),
+                      );
+                      // Refresh data after returning
+                      _loadData();
+                    },
+                    onClose: () {
+                      setState(() => _showFaceCoachmark = false);
+                    },
+                  );
+                }
+                return bubble != null
+                    ? Positioned(top: 8, left: 0, right: 0, child: bubble)
+                    : const SizedBox.shrink();
+              }),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -890,6 +952,20 @@ class _HomeScreenState extends State<HomeScreen> {
     return widgets;
   }
 
+  String _getTranslatedMessage(BuildContext context, String? message) {
+    if (message == null) return '';
+    final l10n = AppLocalizations.of(context);
+
+    if (message.startsWith('Replying to bio: ')) {
+      return message.replaceFirst(
+          'Replying to bio: ', l10n.tr('chamber.replying_to_bio'));
+    } else if (message.startsWith('Replying to: ')) {
+      return message.replaceFirst(
+          'Replying to: ', l10n.tr('chamber.replying_to_content'));
+    }
+    return message;
+  }
+
   Widget _buildDynamicBottleCard(SentBottle bottle) {
     // Determine card properties based on content type
     Color cardColor;
@@ -949,7 +1025,7 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context) => BottleDetailScreen(
                 mood: bottle.mood ?? 'Curious',
                 messageType: 'Text',
-                message: bottle.message ?? '',
+                message: _getTranslatedMessage(context, bottle.message),
                 isReceived: false,
                 bottleId: bottle.id,
                 senderId: bottle.senderId,
@@ -962,10 +1038,14 @@ class _HomeScreenState extends State<HomeScreen> {
         color: cardColor,
         iconPath: iconPath,
         title: title,
-        message: bottle.contentType == 'text' ? bottle.message : null,
+        message: bottle.contentType == 'text'
+            ? _getTranslatedMessage(context, bottle.message)
+            : null,
         hasAudio: bottle.contentType == 'voice',
         hasImage: bottle.contentType == 'photo',
-        status: bottle.hasReply ? 'read' : (bottle.isMatched ? 'matched' : bottle.status),
+        status: bottle.hasReply
+            ? 'read'
+            : (bottle.isMatched ? 'matched' : bottle.status),
         isMatched: bottle.isMatched,
       ),
     );
@@ -1160,7 +1240,8 @@ class _HomeScreenState extends State<HomeScreen> {
             title: _newMessagesCount > 0
                 ? '$_newMessagesCount New Messages'
                 : AppLocalizations.of(context).tr('home.ongoing_conversations'),
-            status: _newMessagesCount > 0 ? 'floating' : 'read', // Visual indicator
+            status:
+                _newMessagesCount > 0 ? 'floating' : 'read', // Visual indicator
           ),
           _buildBottleCard(
             color: const Color(0xFFFAFEFE),
@@ -1414,7 +1495,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => PremiumScreen()),
+          MaterialPageRoute(builder: (context) => const PremiumScreen()),
         );
       },
       child: Container(
@@ -1512,9 +1593,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // I'll assume for now we can skip it or it's not critical.
             // Actually, let's look at how it's used in the next lines (which I can't see fully).
             // But to fix the build error, I must replace the map access.
-            
+
             // Let's just use null for now as it's not in the model.
-            final lastSender = null; 
+            final lastSender = null;
             return GestureDetector(
               onTap: () {
                 final isUnlocked = feeling >= 100;

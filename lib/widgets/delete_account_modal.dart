@@ -41,7 +41,8 @@ class _DeleteAccountModalState extends State<DeleteAccountModal> {
             ),
             const SizedBox(height: 16),
             Text(
-              AppLocalizations.of(context).tr('dialogs.delete_account_description'),
+              AppLocalizations.of(context)
+                  .tr('dialogs.delete_account_description'),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Montserrat',
@@ -63,23 +64,26 @@ class _DeleteAccountModalState extends State<DeleteAccountModal> {
                         await DatabaseService().deleteAccount();
                         // Also sign out locally just in case
                         await AuthService().signOut();
-                        
+
                         if (mounted) {
                           Navigator.pop(context); // Close dialog
                           // Navigate to splash screen and remove all previous routes
                           Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (context) => const SplashScreen()),
+                            MaterialPageRoute(
+                                builder: (context) => const SplashScreen()),
                             (route) => false,
                           );
                         }
                       } catch (e) {
-                         debugPrint('Error deleting account: $e');
-                         if (mounted) {
-                           setState(() => _isLoading = false);
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             SnackBar(content: Text(AppLocalizations.of(context).tr('errors.generic'))),
-                           );
-                         }
+                        debugPrint('Error deleting account: $e');
+                        if (mounted) {
+                          setState(() => _isLoading = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(AppLocalizations.of(context)
+                                    .tr('errors.generic'))),
+                          );
+                        }
                       }
                     },
                     child: Container(
@@ -91,7 +95,8 @@ class _DeleteAccountModalState extends State<DeleteAccountModal> {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        AppLocalizations.of(context).tr('dialogs.confirm_delete'),
+                        AppLocalizations.of(context)
+                            .tr('dialogs.confirm_delete'),
                         style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontWeight: FontWeight.w600,

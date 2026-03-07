@@ -3,8 +3,6 @@ import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
 import '../services/auth_service.dart';
 import '../i18n/app_localizations.dart';
-import '../utils/app_text_styles.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'chat/chat_conversation_screen.dart';
 import 'premium_screen.dart';
 import 'purchase_scrolls_screen.dart';
@@ -25,7 +23,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   bool _isPremium = false;
   int _page = 0;
   late AnimationController _swipeController;
-  
+
   // New state for the Gate
   bool _showGate = true;
 
@@ -36,8 +34,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       vsync: this,
       duration: const Duration(milliseconds: 300),
       lowerBound: -1.0, // Allow left swipe (negative values)
-      upperBound: 1.0,  // Allow right swipe (positive values)
-      value: 0.0,       // Start centered
+      upperBound: 1.0, // Allow right swipe (positive values)
+      value: 0.0, // Start centered
     );
     _init();
   }
@@ -51,7 +49,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   Future<void> _init() async {
     final user = AuthService().currentUser;
     if (user != null) {
-      final isPremiumOrWoman = await EntitlementsService().isPremiumOrWoman(user.id);
+      final isPremiumOrWoman =
+          await EntitlementsService().isPremiumOrWoman(user.id);
       if (mounted) {
         setState(() {
           _isPremium = isPremiumOrWoman;
@@ -77,26 +76,27 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
     // Get IDs of users we've already replied to
     final repliedPartnerIds = await _db.getRepliedPartnerIds(currentUserId);
-    
+
     final newFantasies = await _db.listFantasies(page: _page);
 
     // Filter out anyone they've already messaged
     final filtered = newFantasies.where((f) {
       final fantasyUserId = f['user_id'] as String?;
       debugPrint('🔍 DoorOfDesires: Checking user $fantasyUserId');
-      
+
       if (fantasyUserId == null) return false;
-      
+
       // TEMPORARILY DISABLED for verification
       // if (repliedPartnerIds.contains(fantasyUserId)) {
       //   debugPrint('🔍 DoorOfDesires: Skipping $fantasyUserId (already replied)');
       //   return false;
       // }
-      
+
       return true;
     }).toList();
 
-    debugPrint('🔍 DoorOfDesires: Fetched ${newFantasies.length}, Filtered ${filtered.length}');
+    debugPrint(
+        '🔍 DoorOfDesires: Fetched ${newFantasies.length}, Filtered ${filtered.length}');
 
     setState(() {
       _fantasies.addAll(filtered);
@@ -117,7 +117,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       // REVERSED LOGIC: Positive value = swipe RIGHT = previous (backward)
       // REVERSED LOGIC: Negative value = swipe LEFT = next (forward)
       final bool isRightSwipe = _swipeController.value > 0;
-      
+
       // Animate to the appropriate end position
       final targetValue = isRightSwipe ? 1.0 : -1.0;
       _swipeController.animateTo(targetValue).then((_) {
@@ -125,7 +125,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
           // Left swipe (negative) - move forward to NEXT
           if (!isRightSwipe && _currentIndex < _fantasies.length - 1) {
             _currentIndex++;
-          } 
+          }
           // Right swipe (positive) - move backward to PREVIOUS
           else if (isRightSwipe && _currentIndex > 0) {
             _currentIndex--;
@@ -153,7 +153,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
     // 1. Check for existing conversation
     // If conversation exists, go directly to chat
-    final existingConvId = await _db.getConversationId(user.id, fantasy['user_id'] as String);
+    final existingConvId =
+        await _db.getConversationId(user.id, fantasy['user_id'] as String);
     if (existingConvId != null) {
       if (!mounted) return;
       Navigator.push(
@@ -161,7 +162,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         MaterialPageRoute(
           builder: (_) => ChatConversationScreen(
             conversationId: existingConvId,
-            contactName: 'Door of Desires',
+            contactName:
+                AppLocalizations.of(context).tr('common.door_of_desires'),
           ),
         ),
       );
@@ -193,7 +195,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               // Header
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF8A2BE2)),
+                  const Icon(Icons.auto_awesome,
+                      size: 18, color: Color(0xFF8A2BE2)),
                   const SizedBox(width: 8),
                   Text(
                     AppLocalizations.of(context).tr('chamber.anonymous_soul'),
@@ -207,7 +210,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.pop(dialogContext, null),
-                    child: Icon(Icons.close_rounded, size: 22, color: Colors.grey.withOpacity(0.6)),
+                    child: Icon(Icons.close_rounded,
+                        size: 22, color: Colors.grey.withValues(alpha: 0.6)),
                   ),
                 ],
               ),
@@ -225,7 +229,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             borderRadius: BorderRadius.circular(15),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
+                                color: Colors.black.withValues(alpha: 0.03),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -238,11 +242,12 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context).tr('chamber.whisper_hint'),
+                              hintText: AppLocalizations.of(context)
+                                  .tr('chamber.whisper_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
-                                fontSize: 13, 
-                                color: Colors.grey.withOpacity(0.7),
+                                fontSize: 13,
+                                color: Colors.grey.withValues(alpha: 0.7),
                                 fontStyle: FontStyle.italic,
                               ),
                               border: InputBorder.none,
@@ -251,7 +256,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             ),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 14, 
+                              fontSize: 14,
                               color: Color(0xFF2D2D2D),
                               height: 1.4,
                             ),
@@ -267,9 +272,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             '${messageController.text.length}/200',
                             style: TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 10, 
+                              fontSize: 10,
                               fontWeight: FontWeight.w500,
-                              color: Colors.grey.withOpacity(0.8),
+                              color: Colors.grey.withValues(alpha: 0.8),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -283,19 +288,23 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: messageController.text.trim().isEmpty 
-                                    ? Colors.grey.withOpacity(0.2)
+                                color: messageController.text.trim().isEmpty
+                                    ? Colors.grey.withValues(alpha: 0.2)
                                     : const Color(0xFF8A2BE2),
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: messageController.text.trim().isEmpty ? [] : [
-                                  BoxShadow(
-                                    color: const Color(0xFF8A2BE2).withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
+                                boxShadow: messageController.text.trim().isEmpty
+                                    ? []
+                                    : [
+                                        BoxShadow(
+                                          color: const Color(0xFF8A2BE2)
+                                              .withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
                               ),
                               child: Text(
                                 AppLocalizations.of(context).tr('chamber.send'),
@@ -315,10 +324,11 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                AppLocalizations.of(context).tr('dialogs.cancel'),
+                                AppLocalizations.of(context)
+                                    .tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
-                                  color: Colors.grey.withOpacity(0.7),
+                                  color: Colors.grey.withValues(alpha: 0.7),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -347,7 +357,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       debugPrint('  Requester ID: ${user.id}');
       debugPrint('  Owner ID: ${fantasy['user_id']}');
       debugPrint('  Message: $message');
-      
+
+      final l10n = AppLocalizations.of(context);
+      final replyPrefix = l10n.tr('chamber.replying_to_content');
+
       final bottleId = await _db.sendDirectBottle(
         senderId: user.id,
         receiverId: fantasy['user_id'] as String,
@@ -355,6 +368,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         message: message,
         replyToContentType: 'fantasy',
         replyToContent: fantasy['fantasy_text'] as String?,
+        replyPrefix: replyPrefix,
       );
 
       debugPrint('📬 Bottle creation result: $bottleId');
@@ -366,32 +380,34 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).tr('chamber.bottle_sent_success')),
-              backgroundColor: Color(0xFF4CAF50),
-              duration: Duration(seconds: 4),
+              content: Text(AppLocalizations.of(context)
+                  .tr('chamber.bottle_sent_success')),
+              backgroundColor: const Color(0xFF4CAF50),
+              duration: const Duration(seconds: 4),
             ),
           );
-          
+
           // Remove the fantasy from the list so they can't reply again
           setState(() {
-             if (_currentIndex < _fantasies.length) {
-               _fantasies.removeAt(_currentIndex);
-               // If list becomes empty or near empty, load more
-               if (_fantasies.length < 3) {
-                 _loadFantasies();
-               }
-               // Adjust index if needed
-               if (_currentIndex >= _fantasies.length) {
-                 _currentIndex = 0; // Or handle empty state
-               }
-               // Reset swipe controller just in case
-               _swipeController.value = 0; 
-             }
+            if (_currentIndex < _fantasies.length) {
+              _fantasies.removeAt(_currentIndex);
+              // If list becomes empty or near empty, load more
+              if (_fantasies.length < 3) {
+                _loadFantasies();
+              }
+              // Adjust index if needed
+              if (_currentIndex >= _fantasies.length) {
+                _currentIndex = 0; // Or handle empty state
+              }
+              // Reset swipe controller just in case
+              _swipeController.value = 0;
+            }
           });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).tr('errors.send_bottle_failed')),
+              content: Text(
+                  AppLocalizations.of(context).tr('errors.send_bottle_failed')),
               backgroundColor: const Color(0xFFF44336),
             ),
           );
@@ -417,13 +433,15 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         final tr = AppLocalizations.of(context);
         return Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_clock_outlined, size: 50, color: Color(0xFF8A2BE2)),
+                const Icon(Icons.lock_clock_outlined,
+                    size: 50, color: Color(0xFF8A2BE2)),
                 const SizedBox(height: 16),
                 Text(
                   tr.tr('limits.weekly.title'),
@@ -450,16 +468,20 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const PurchaseScrollsScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const PurchaseScrollsScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF8A2BE2),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
-                  child: const Text('Cliquez-ici !'), // Updated text to "Click Here!" (French)
+                  child: const Text(
+                      'Cliquez-ici !'), // Updated text to "Click Here!" (French)
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -481,7 +503,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     // If Gate is active, show the Gate (Check for premium happens inside or before)
     // The requirement says: "Visible actions: Become Premium (if non-Premium) / Direct access (if Premium)"
     // So we show the Gate first.
-    
+
     if (_showGate) {
       return _buildGate(context);
     }
@@ -499,7 +521,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
             'assets/images/door of desires.jpg',
             fit: BoxFit.cover,
           ),
-          
+
           // Content Overlay
           SafeArea(
             child: Column(
@@ -563,7 +585,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       : _fantasies.isEmpty
                           ? Center(
                               child: Text(
-                                AppLocalizations.of(context).tr('chamber.no_fantasies'),
+                                AppLocalizations.of(context)
+                                    .tr('chamber.no_fantasies'),
                                 style: const TextStyle(
                                   fontFamily: 'PlayfairDisplay',
                                   fontSize: 18,
@@ -583,11 +606,13 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF8A2BE2), // Purple/Blueish from reference
+                        color: const Color(
+                            0xFF8A2BE2), // Purple/Blueish from reference
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF8A2BE2).withValues(alpha: 0.4),
+                            color:
+                                const Color(0xFF8A2BE2).withValues(alpha: 0.4),
                             blurRadius: 16,
                             offset: const Offset(0, 4),
                           ),
@@ -617,7 +642,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
   Widget _buildGate(BuildContext context) {
     final tr = AppLocalizations.of(context);
-    
+
     // Background can be the same mystical image but with a dark overlay
     return Scaffold(
       body: Stack(
@@ -631,7 +656,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
           Container(
             color: Colors.black.withValues(alpha: 0.7),
           ),
-          
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -651,7 +676,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Description
                   Text(
                     tr.tr('door_of_desires.gate.description'),
@@ -664,9 +689,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  
+
                   const Spacer(),
-                  
+
                   // Action Button
                   if (_isPremium)
                     // Direct Access (Premium)
@@ -684,7 +709,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF8A2BE2).withValues(alpha: 0.4),
+                              color: const Color(0xFF8A2BE2)
+                                  .withValues(alpha: 0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -708,8 +734,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const PremiumScreen()),
-                        ).then((_) => _init()); // Refresh status after returning
+                          MaterialPageRoute(
+                              builder: (context) => const PremiumScreen()),
+                        ).then(
+                            (_) => _init()); // Refresh status after returning
                       },
                       child: Container(
                         width: double.infinity,
@@ -721,7 +749,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF00FF).withValues(alpha: 0.3),
+                              color: const Color(0xFFFF00FF)
+                                  .withValues(alpha: 0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -739,14 +768,15 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                         ),
                       ),
                     ),
-                    
+
                   const SizedBox(height: 16),
-                  
+
                   // Close Button
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 24),
                       child: Text(
                         tr.tr('door_of_desires.gate.action.close'),
                         style: const TextStyle(
@@ -787,8 +817,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               child: AnimatedBuilder(
                 animation: _swipeController,
                 builder: (context, child) {
-                  final angle = _swipeController.value * 0.1; // Reduced rotation for full screen feel
-                  final offset = _swipeController.value * cardWidth; // Swipe full width
+                  final angle = _swipeController.value *
+                      0.1; // Reduced rotation for full screen feel
+                  final offset =
+                      _swipeController.value * cardWidth; // Swipe full width
                   return Transform.translate(
                     offset: Offset(offset, 0),
                     child: Transform.rotate(
@@ -800,7 +832,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 child: Container(
                   width: cardWidth,
                   height: cardHeight,
-                  color: Colors.transparent, // Transparent to show static background
+                  color: Colors
+                      .transparent, // Transparent to show static background
                   child: Stack(
                     children: [
                       // White Border Inset
@@ -824,7 +857,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      _fantasies[_currentIndex]['text'] as String? ?? '',
+                                      _fantasies[_currentIndex]['text']
+                                              as String? ??
+                                          '',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontFamily: 'PlayfairDisplay',
@@ -835,65 +870,84 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                       ),
                                     ),
                                     // User Info display
-                                    Builder(
-                                      builder: (context) {
-                                        final profile = _fantasies[_currentIndex]['profiles'];
-                                        if (profile == null) return const SizedBox.shrink();
-
-                                        final department = profile['department'] as String?;
-                                        final city = profile['city'] as String?;
-                                        final fullName = profile['full_name'] as String?;
-                                        final firstName = fullName?.split(' ').first;
-                                        final age = profile['age'];
-
-                                        String locationInfo = city ?? '';
-                                        if (department != null && department.isNotEmpty) {
-                                          final deptNum = department.split(' - ').first;
-                                          if (city != null && city.isNotEmpty) {
-                                            locationInfo = '$city ($deptNum)';
-                                          } else {
-                                            locationInfo = department;
-                                          }
-                                        }
-
-                                        String displayInfo = locationInfo;
-                                        if (firstName != null && age != null) {
-                                          if (locationInfo.isNotEmpty) {
-                                            displayInfo = '$firstName, $age - $locationInfo';
-                                          } else {
-                                            displayInfo = '$firstName, $age';
-                                          }
-                                        }
-
-                                        if (displayInfo.isEmpty) return const SizedBox.shrink();
-
-                                        return Column(
-                                          children: [
-                                            const SizedBox(height: 16),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                const Icon(
-                                                  Icons.location_on,
-                                                  size: 14,
-                                                  color: Colors.black54,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  displayInfo,
-                                                  style: const TextStyle(
-                                                    fontFamily: 'Montserrat',
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w400,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        );
+                                    Builder(builder: (context) {
+                                      final profile =
+                                          _fantasies[_currentIndex]['profiles'];
+                                      if (profile == null) {
+                                        return const SizedBox.shrink();
                                       }
-                                    ),
+
+                                      final department =
+                                          profile['department'] as String?;
+                                      final city = profile['city'] as String?;
+                                      final fullName =
+                                          profile['full_name'] as String?;
+                                      final firstName =
+                                          fullName?.split(' ').first;
+                                      final age = profile['age'];
+
+                                      String locationInfo = city ?? '';
+                                      if (department != null &&
+                                          department.isNotEmpty) {
+                                        final deptNum =
+                                            department.split(' - ').first;
+                                        if (city != null && city.isNotEmpty) {
+                                          locationInfo = '$city ($deptNum)';
+                                        } else {
+                                          locationInfo = department;
+                                        }
+                                      }
+
+                                      String displayInfo = locationInfo;
+                                      String finalName = firstName ?? '';
+                                      if (fullName == 'Secret Soul' ||
+                                          fullName == 'Door of Desires') {
+                                        finalName = AppLocalizations.of(context)
+                                            .tr('common.secret_soul');
+                                      }
+
+                                      if (finalName.isNotEmpty && age != null) {
+                                        if (locationInfo.isNotEmpty) {
+                                          displayInfo =
+                                              '$finalName, $age - $locationInfo';
+                                        } else {
+                                          displayInfo = '$finalName, $age';
+                                        }
+                                      } else if (finalName.isNotEmpty) {
+                                        displayInfo = finalName;
+                                      }
+
+                                      if (displayInfo.isEmpty) {
+                                        return const SizedBox.shrink();
+                                      }
+
+                                      return Column(
+                                        children: [
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const Icon(
+                                                Icons.location_on,
+                                                size: 14,
+                                                color: Colors.black54,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                displayInfo,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Montserrat',
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    }),
                                   ],
                                 ),
                               ),

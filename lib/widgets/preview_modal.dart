@@ -49,7 +49,7 @@ class _PreviewModalState extends State<PreviewModal> {
 
   Future<void> _handleSend() async {
     if (_localIsLoading) return;
-    
+
     setState(() {
       _localIsLoading = true;
     });
@@ -167,11 +167,12 @@ class _PreviewModalState extends State<PreviewModal> {
               ],
             ),
             const SizedBox(height: 20),
-            
+
             // Upload status
             if (_localIsLoading)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0AC5C5).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -184,12 +185,14 @@ class _PreviewModalState extends State<PreviewModal> {
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0AC5C5)),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF0AC5C5)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      AppLocalizations.of(context).tr('common.uploading_sending'),
+                      AppLocalizations.of(context)
+                          .tr('common.uploading_sending'),
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 12,
@@ -276,7 +279,8 @@ class _PreviewModalState extends State<PreviewModal> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 0,
-                  disabledBackgroundColor: const Color(0xFF0AC5C5).withValues(alpha: 0.6),
+                  disabledBackgroundColor:
+                      const Color(0xFF0AC5C5).withValues(alpha: 0.6),
                 ),
                 child: _localIsLoading
                     ? const SizedBox(
@@ -284,7 +288,8 @@ class _PreviewModalState extends State<PreviewModal> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : Text(
@@ -304,4 +309,3 @@ class _PreviewModalState extends State<PreviewModal> {
     );
   }
 }
-

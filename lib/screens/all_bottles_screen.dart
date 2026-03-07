@@ -7,6 +7,7 @@ import '../models/bottle.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
 import 'bottle_detail_screen.dart';
+import '../i18n/app_localizations.dart';
 
 /// All Bottles Screen - Shows all sent or received bottles
 class AllBottlesScreen extends StatefulWidget {
@@ -24,7 +25,7 @@ class AllBottlesScreen extends StatefulWidget {
 class _AllBottlesScreenState extends State<AllBottlesScreen> {
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   List<Bottle> _bottles = [];
 
@@ -120,7 +121,9 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
               // Bottles grid
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0AC5C5)))
+                    ? const Center(
+                        child:
+                            CircularProgressIndicator(color: Color(0xFF0AC5C5)))
                     : _bottles.isEmpty
                         ? Center(
                             child: Column(
@@ -174,7 +177,7 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
     Color cardColor;
     String iconPath;
     String title;
-    
+
     // Determine type
     switch (bottle.contentType) {
       case 'voice':
@@ -197,12 +200,12 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
     // Determine status (mostly relevant for sent bottles)
     String? statusText;
     Color? statusColor;
-    
+
     if (bottle is SentBottle) {
-      final sent = bottle as SentBottle;
+      final sent = bottle;
       // Priority: Read/Replied > Matched > Delivered > Floating
       if (sent.hasReply) {
-        statusText = '↩ Replied'; 
+        statusText = '↩ Replied';
         statusColor = const Color(0xFF9B98E6);
       } else if (sent.isMatched) {
         statusText = '✓ Matched';
@@ -221,7 +224,7 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
         if (bottle.contentType == 'voice') {
           showDialog(
             context: context,
-            barrierColor: Colors.black.withOpacity(0.5),
+            barrierColor: Colors.black.withValues(alpha: 0.5),
             builder: (context) => VoiceChatModal(
               isReceived: !widget.isSent,
               onReply: () => Navigator.pop(context),
@@ -230,7 +233,7 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
         } else if (bottle.contentType == 'photo') {
           showDialog(
             context: context,
-            barrierColor: Colors.black.withOpacity(0.5),
+            barrierColor: Colors.black.withValues(alpha: 0.5),
             builder: (context) => PhotoStampModal(
               imageUrl: bottle.photoUrl ?? 'assets/images/photo_stamp.png',
               caption: bottle.caption ?? 'Photo',
@@ -247,10 +250,12 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
               builder: (context) => BottleDetailScreen(
                 mood: bottle.mood ?? 'Curious',
                 messageType: title,
-                message: bottle.message ?? '',
+                message: _getTranslatedMessage(context, bottle.message),
                 isReceived: !widget.isSent,
                 bottleId: bottle.id,
-                senderId: (bottle is SentBottle) ? (bottle as SentBottle).senderId : (bottle as ReceivedBottle).senderId,
+                senderId: (bottle is SentBottle)
+                    ? (bottle).senderId
+                    : (bottle as ReceivedBottle).senderId,
               ),
             ),
           );
@@ -299,10 +304,10 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: statusColor.withOpacity(0.3),
+                    color: statusColor.withValues(alpha: 0.3),
                     width: 0.5,
                   ),
                 ),
@@ -316,9 +321,7 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
                   ),
                 ),
               ),
-              
             const SizedBox(height: 8),
-            
             if (bottle.contentType == 'voice') ...[
               const SizedBox(height: 8),
               Container(
@@ -335,9 +338,10 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
                   decoration: BoxDecoration(
                     borderRadius: const BorderRadius.all(Radius.circular(8)),
                     image: DecorationImage(
-                      image: bottle.photoUrl != null 
-                        ? NetworkImage(bottle.photoUrl!) 
-                        : const AssetImage('assets/images/photo_stamp.png') as ImageProvider,
+                      image: bottle.photoUrl != null
+                          ? NetworkImage(bottle.photoUrl!)
+                          : const AssetImage('assets/images/photo_stamp.png')
+                              as ImageProvider,
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -346,7 +350,7 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
             ] else ...[
               Expanded(
                 child: Text(
-                  bottle.message ?? '',
+                  _getTranslatedMessage(context, bottle.message),
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 12,
@@ -363,5 +367,19 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
         ),
       ),
     );
+  }
+
+  String _getTranslatedMessage(BuildContext context, String? message) {
+    if (message == null) return '';
+    final l10n = AppLocalizations.of(context);
+
+    if (message.startsWith('Replying to bio: ')) {
+      return message.replaceFirst(
+          'Replying to bio: ', l10n.tr('chamber.replying_to_bio'));
+    } else if (message.startsWith('Replying to: ')) {
+      return message.replaceFirst(
+          'Replying to: ', l10n.tr('chamber.replying_to_content'));
+    }
+    return message;
   }
 }

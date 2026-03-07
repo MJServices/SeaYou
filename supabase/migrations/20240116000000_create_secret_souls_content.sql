@@ -12,21 +12,23 @@ CREATE TABLE IF NOT EXISTS secret_souls_content (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_secret_souls_visible ON secret_souls_content(is_visible, content_type);
-CREATE INDEX idx_secret_souls_user ON secret_souls_content(user_id);
-CREATE INDEX idx_secret_souls_created ON secret_souls_content(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_secret_souls_visible ON secret_souls_content(is_visible, content_type);
+CREATE INDEX IF NOT EXISTS idx_secret_souls_user ON secret_souls_content(user_id);
+CREATE INDEX IF NOT EXISTS idx_secret_souls_created ON secret_souls_content(created_at DESC);
 
 -- Enable RLS
 ALTER TABLE secret_souls_content ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 -- Users can view all visible content (anonymous)
+DROP POLICY IF EXISTS "Anyone can view visible content" ON secret_souls_content;
 CREATE POLICY "Anyone can view visible content"
   ON secret_souls_content
   FOR SELECT
   USING (is_visible = true);
 
 -- Users can manage their own content
+DROP POLICY IF EXISTS "Users can manage own content" ON secret_souls_content;
 CREATE POLICY "Users can manage own content"
   ON secret_souls_content
   FOR ALL
@@ -62,6 +64,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS secret_souls_updated_at ON secret_souls_content;
 CREATE TRIGGER secret_souls_updated_at
   BEFORE UPDATE ON secret_souls_content
   FOR EACH ROW

@@ -10,13 +10,13 @@ import '../services/auth_service.dart';
 import '../i18n/app_localizations.dart';
 import '../models/user_profile.dart';
 
-
 class FantasyRegistrationScreen extends StatefulWidget {
   final UserProfile userProfile;
   const FantasyRegistrationScreen({super.key, required this.userProfile});
 
   @override
-  State<FantasyRegistrationScreen> createState() => _FantasyRegistrationScreenState();
+  State<FantasyRegistrationScreen> createState() =>
+      _FantasyRegistrationScreenState();
 }
 
 class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
@@ -90,7 +90,8 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -146,7 +147,9 @@ class _FantasyRegistrationScreenState extends State<FantasyRegistrationScreen> {
                         hintText: tr.tr('chamber.write_placeholder'),
                         filled: true,
                         fillColor: AppColors.background,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none),
                       ),
                       onChanged: (_) => setState(() {}),
                     ),

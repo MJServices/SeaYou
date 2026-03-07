@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../i18n/app_localizations.dart';
 
@@ -17,7 +16,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final AuthService _authService = AuthService();
-  
+
   bool _isOldPasswordVisible = false;
   bool _isNewPasswordVisible = false;
   bool _isButtonEnabled = false;
@@ -41,9 +40,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _hasMinLength = password.length >= 8;
       _hasSymbol = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
       _hasNumber = password.contains(RegExp(r'[0-9]'));
-      _isButtonEnabled =
-          _hasMinLength && _hasSymbol && _hasNumber && 
-          password.isNotEmpty && oldPassword.isNotEmpty &&
+      _isButtonEnabled = _hasMinLength &&
+          _hasSymbol &&
+          _hasNumber &&
+          password.isNotEmpty &&
+          oldPassword.isNotEmpty &&
           !_isSaving;
     });
   }
@@ -80,7 +81,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    AppLocalizations.of(context).tr('profile.password_changed_success'),
+                    AppLocalizations.of(context)
+                        .tr('profile.password_changed_success'),
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
@@ -94,7 +96,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
         ),
       );
-      
+
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
           Navigator.pop(context); // Close dialog
@@ -105,10 +107,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       debugPrint('Error changing password: $e');
       if (mounted) {
         setState(() => _isSaving = false);
-        
-        String errorMessage = AppLocalizations.of(context).tr('errors.change_password_failed');
+
+        String errorMessage =
+            AppLocalizations.of(context).tr('errors.change_password_failed');
         if (e.toString().contains('Current password is incorrect')) {
-          errorMessage = AppLocalizations.of(context).tr('profile.current_password_incorrect');
+          errorMessage = AppLocalizations.of(context)
+              .tr('profile.current_password_incorrect');
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -162,7 +166,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           ),
                           const SizedBox(width: 16),
                           Text(
-                            AppLocalizations.of(context).tr('profile.change_password'),
+                            AppLocalizations.of(context)
+                                .tr('profile.change_password'),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
@@ -177,50 +182,53 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     const SizedBox(height: 16),
 
                     // Title
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(context).tr('profile.create_password'),
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF151515),
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        AppLocalizations.of(context)
+                            .tr('profile.create_password'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF151515),
                         ),
                       ),
+                    ),
 
                     const SizedBox(height: 8),
 
                     // Subtitle
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(context).tr('profile.password_requirements'),
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF464646),
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        AppLocalizations.of(context)
+                            .tr('profile.password_requirements'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF464646),
                         ),
                       ),
+                    ),
 
                     const SizedBox(height: 24),
 
                     // Current Password Input (Added)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(context).tr('profile.current_password'),
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF2B2B2B),
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        AppLocalizations.of(context)
+                            .tr('profile.current_password'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF2B2B2B),
                         ),
                       ),
+                    ),
                     const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -247,24 +255,26 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF2B2B2B),
                                 ),
-                                  decoration: InputDecoration(
-                                    border: InputBorder.none,
-                                    hintText: AppLocalizations.of(context).tr('profile.current_password_hint'),
-                                    hintStyle: const TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF464646),
-                                    ),
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: AppLocalizations.of(context)
+                                      .tr('profile.current_password_hint'),
+                                  hintStyle: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF464646),
                                   ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
                               ),
                             ),
                             GestureDetector(
                               onTap: () {
                                 setState(() {
-                                  _isOldPasswordVisible = !_isOldPasswordVisible;
+                                  _isOldPasswordVisible =
+                                      !_isOldPasswordVisible;
                                 });
                               },
                               child: Icon(
@@ -283,18 +293,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     const SizedBox(height: 24),
 
                     // New Password Title
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(context).tr('profile.new_password'),
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF2B2B2B),
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        AppLocalizations.of(context).tr('profile.new_password'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF2B2B2B),
                         ),
                       ),
+                    ),
                     const SizedBox(height: 8),
 
                     // New Password Input
@@ -322,18 +332,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF2B2B2B),
                                 ),
-                                  decoration: InputDecoration(
-                                    border: InputBorder.none,
-                                    hintText: AppLocalizations.of(context).tr('profile.new_password_hint'),
-                                    hintStyle: const TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF464646),
-                                    ),
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: AppLocalizations.of(context)
+                                      .tr('profile.new_password_hint'),
+                                  hintStyle: const TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF464646),
                                   ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
                               ),
                             ),
                             GestureDetector(
@@ -365,17 +376,20 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildRequirement(
-                            AppLocalizations.of(context).tr('profile.req_min_length'),
+                            AppLocalizations.of(context)
+                                .tr('profile.req_min_length'),
                             _hasMinLength,
                           ),
                           const SizedBox(height: 8),
                           _buildRequirement(
-                            AppLocalizations.of(context).tr('profile.req_symbol'),
+                            AppLocalizations.of(context)
+                                .tr('profile.req_symbol'),
                             _hasSymbol,
                           ),
                           const SizedBox(height: 8),
                           _buildRequirement(
-                            AppLocalizations.of(context).tr('profile.req_number'),
+                            AppLocalizations.of(context)
+                                .tr('profile.req_number'),
                             _hasNumber,
                           ),
                         ],
@@ -400,20 +414,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 : const Color(0xFFE3E3E3),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                            child: Text(
-                              _isSaving
-                                  ? AppLocalizations.of(context).tr('common.saving')
-                                  : AppLocalizations.of(context).tr('profile.save_new_password'),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: _isButtonEnabled
-                                    ? const Color(0xFFFEFAEE)
-                                    : const Color(0xFF464646),
-                              ),
+                          child: Text(
+                            _isSaving
+                                ? AppLocalizations.of(context)
+                                    .tr('common.saving')
+                                : AppLocalizations.of(context)
+                                    .tr('profile.save_new_password'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: _isButtonEnabled
+                                  ? const Color(0xFFFEFAEE)
+                                  : const Color(0xFF464646),
                             ),
+                          ),
                         ),
                       ),
                     ),

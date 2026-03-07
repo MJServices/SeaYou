@@ -1,6 +1,6 @@
 -- Create intimate_questions table for storing one-time intimate question answers
 CREATE TABLE IF NOT EXISTS public.intimate_questions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   question_1 TEXT,
@@ -22,6 +22,7 @@ COMMENT ON TABLE public.intimate_questions IS 'Stores intimate question answers 
 ALTER TABLE public.intimate_questions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy: Users can view intimate questions in their conversations
+DROP POLICY IF EXISTS "Users can view intimate questions in their conversations" ON public.intimate_questions;
 CREATE POLICY "Users can view intimate questions in their conversations"
   ON public.intimate_questions FOR SELECT
   USING (
@@ -33,6 +34,7 @@ CREATE POLICY "Users can view intimate questions in their conversations"
   );
 
 -- RLS Policy: Users can insert their own intimate questions (one time only)
+DROP POLICY IF EXISTS "Users can insert their own intimate questions" ON public.intimate_questions;
 CREATE POLICY "Users can insert their own intimate questions"
   ON public.intimate_questions FOR INSERT
   WITH CHECK (user_id = auth.uid());

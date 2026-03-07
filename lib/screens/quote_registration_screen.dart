@@ -3,8 +3,6 @@ import '../utils/app_text_styles.dart';
 import '../utils/app_colors.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/custom_button.dart';
-import 'home_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
 import '../services/auth_service.dart';
 import '../services/tutorial_service.dart';
@@ -17,7 +15,8 @@ class QuoteRegistrationScreen extends StatefulWidget {
   const QuoteRegistrationScreen({super.key, required this.userProfile});
 
   @override
-  State<QuoteRegistrationScreen> createState() => _QuoteRegistrationScreenState();
+  State<QuoteRegistrationScreen> createState() =>
+      _QuoteRegistrationScreenState();
 }
 
 class _QuoteRegistrationScreenState extends State<QuoteRegistrationScreen> {
@@ -32,84 +31,90 @@ class _QuoteRegistrationScreenState extends State<QuoteRegistrationScreen> {
       if (!seen && mounted) setState(() => _showTip = true);
     });
   }
+
+  @override
   Widget build(BuildContext context) {
     final canProceed = _controller.text.trim().isNotEmpty;
     return Scaffold(
       body: WarmGradientBackground(
         child: Stack(children: [
           SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                    ),
-                    const Text('Secret Quote', style: AppTextStyles.displayText),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('1/2', style: AppTextStyles.bodyText),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  controller: _controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Write a short secret quote',
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(8))),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                      ),
+                      const Text('Secret Quote',
+                          style: AppTextStyles.displayText),
+                      const SizedBox(width: 48),
+                    ],
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: CustomButton(
-                  text: 'Next',
-                  isActive: canProceed,
-                  onPressed: canProceed
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('1/2', style: AppTextStyles.bodyText),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: _controller,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Write a short secret quote',
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(
+                          borderSide: BorderSide.none,
+                          borderRadius: BorderRadius.all(Radius.circular(8))),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: CustomButton(
+                    text: 'Next',
+                    isActive: canProceed,
+                    onPressed: canProceed
                         ? () {
-                          final user = AuthService().currentUser;
-                          final quote = _controller.text.trim();
-                          
-                          if (user != null) {
-                            DatabaseService().upsertUserPreferences(
-                              userId: user.id,
-                              secretQuote: quote,
+                            final user = AuthService().currentUser;
+                            final quote = _controller.text.trim();
+
+                            if (user != null) {
+                              DatabaseService().upsertUserPreferences(
+                                userId: user.id,
+                                secretQuote: quote,
+                              );
+                            }
+
+                            // Update profile object for next steps
+                            widget.userProfile.secretDesire = quote;
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UploadPictureScreen(
+                                    userProfile: widget.userProfile),
+                              ),
                             );
                           }
-                          
-                          // Update profile object for next steps
-                          widget.userProfile.secretDesire = quote;
-                          
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => UploadPictureScreen(userProfile: widget.userProfile),
-                            ),
-                          );
-                        }
-                      : null,
+                        : null,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
           if (_showTip)
             Positioned(

@@ -9,9 +9,9 @@ import 'sexual_orientation_screen.dart';
 
 class GenderIdentityScreen extends StatefulWidget {
   final UserProfile userProfile;
-  
+
   const GenderIdentityScreen({
-    super.key, 
+    super.key,
     required this.userProfile,
   });
 
@@ -61,7 +61,8 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              AppLocalizations.of(context).tr('onboarding.gender.title'),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.gender.title'),
                               style: AppTextStyles.displayText,
                             ),
                           ),
@@ -73,7 +74,8 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.gender.subtitle'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.gender.subtitle'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 24),
@@ -97,10 +99,10 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                     } else if (_selectedGender == 'Non-binary') {
                       dbGender = 'nonbinary';
                     }
-                    
+
                     // Save to user profile
                     widget.userProfile.gender = dbGender;
-                    
+
                     // Navigate to sexual orientation screen
                     Navigator.push(
                       context,
@@ -140,7 +142,8 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
           ),
         ),
         child: Text(
-          AppLocalizations.of(context).tr('onboarding.gender.options.${text.toLowerCase().replaceAll(' ', '_')}'),
+          AppLocalizations.of(context).tr(
+              'onboarding.gender.options.${text.toLowerCase().replaceAll(' ', '_')}'),
           style: AppTextStyles.bodyText.copyWith(
             color: isSelected ? AppColors.darkGrey : AppColors.grey,
           ),

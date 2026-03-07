@@ -20,7 +20,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class UploadPictureScreen extends StatefulWidget {
   final UserProfile userProfile;
   final bool isOnboarding;
-  
+
   const UploadPictureScreen({
     super.key,
     required this.userProfile,
@@ -36,6 +36,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
   XFile? _selectedImage;
   final List<XFile> _galleryPhotos = [];
   final _faceDetector = FaceDetectionService();
+  // Whether user authorizes their face photo to appear in 'The Door of Secrets'
+  bool _showInSecretSouls = true;
 
   Future<void> _pickImageFromGallery() async {
     try {
@@ -83,7 +85,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
+          SnackBar(
+              content: Text(
+                  '${AppLocalizations.of(context).tr('notification.error')}: $e')),
         );
       }
     }
@@ -134,7 +138,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
+          SnackBar(
+              content: Text(
+                  '${AppLocalizations.of(context).tr('notification.error')}: $e')),
         );
       }
     }
@@ -145,33 +151,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final t = TutorialService();
-      final seen = await t.hasSeenPhotoTooltip();
-      if (!seen && mounted) {
-        final tr = AppLocalizations.of(context);
-        showDialog(
-          context: context,
-          barrierColor: Colors.black.withOpacity(0.5),
-          builder: (context) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(tr.tr('tooltip.photo.title'), style: AppTextStyles.displayText),
-              content: Text(tr.tr('tooltip.photo.message'), style: AppTextStyles.bodyText),
-              actions: [
-                TextButton(
-                  onPressed: () async {
-                    await t.setSeenPhotoTooltip();
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                  child: Text(tr.tr('tooltip.photo.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      }
-    });
+    // Photo tooltip is shown after the user picks their first photo via _showPhotoBubble()
+    // Do NOT show it here as well — that causes the dialog to appear twice.
   }
 
   Future<void> _proceedToNextScreen() async {
@@ -184,15 +165,16 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         final user = AuthService().currentUser;
         if (user != null) {
           final file = File(_selectedImage!.path);
-          
+
           debugPrint('📸 Uploading main photo for user: ${user.id}');
-          
+
           // Use DatabaseService to upload first face photo
           final res = await DatabaseService().uploadFirstFacePhotoAndInsert(
             userId: user.id,
             imageFile: file,
+            showInSecretSouls: _showInSecretSouls,
           );
-          
+
           if (res == null) throw Exception('Failed to upload main photo');
           widget.userProfile.avatarUrl = res['url'];
 
@@ -204,11 +186,11 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
               File(_galleryPhotos[i].path),
             );
           }
-          
+
           debugPrint('✅ All photos uploaded successfully');
 
           // Upload secret audio if it's a local file
-          if (widget.userProfile.secretAudioUrl != null && 
+          if (widget.userProfile.secretAudioUrl != null &&
               !widget.userProfile.secretAudioUrl!.startsWith('http')) {
             debugPrint('🎤 Uploading secret audio clip...');
             final audioFile = File(widget.userProfile.secretAudioUrl!);
@@ -222,7 +204,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                 debugPrint('✅ Audio uploaded: $audioUrl');
               }
             } else {
-              debugPrint('⚠️ Audio file does not exist at path: ${widget.userProfile.secretAudioUrl}');
+              debugPrint(
+                  '⚠️ Audio file does not exist at path: ${widget.userProfile.secretAudioUrl}');
             }
           }
         } else {
@@ -261,10 +244,12 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
             gender: widget.userProfile.gender,
             department: widget.userProfile.department,
           );
-          
-          if (widget.userProfile.secretDesire != null && widget.userProfile.secretDesire!.trim().isNotEmpty) {
+
+          if (widget.userProfile.secretDesire != null &&
+              widget.userProfile.secretDesire!.trim().isNotEmpty) {
             try {
-              await DatabaseService().createFantasy(userId, widget.userProfile.secretDesire!.trim());
+              await DatabaseService().createFantasy(
+                  userId, widget.userProfile.secretDesire!.trim());
             } catch (e) {
               debugPrint('⚠️ Error creating fantasy during onboarding: $e');
             }
@@ -284,7 +269,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         NotificationService().show(
           context: context,
           title: AppLocalizations.of(context).tr('notification.error'),
-          message: AppLocalizations.of(context).tr('notification.upload_failed'),
+          message:
+              AppLocalizations.of(context).tr('notification.upload_failed'),
           gradientColors: [Colors.red, Colors.redAccent],
         );
       }
@@ -303,7 +289,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(tr.tr('tooltip.photo.title'), style: AppTextStyles.displayText),
+        title: Text(tr.tr('tooltip.photo.title'),
+            style: AppTextStyles.displayText),
         content: Text(
           tr.tr('tooltip.photo.message'),
           style: AppTextStyles.bodyText,
@@ -311,7 +298,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(tr.tr('tooltip.photo.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            child: Text(tr.tr('tooltip.photo.ok'),
+                style: const TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -334,7 +323,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       final data = resp.data as Map<String, dynamic>? ?? {};
       final passed = (data['passed'] as bool?) ?? false;
       final score = (data['score'] as num?)?.toInt() ?? 0;
-      
+
       if (passed) {
         debugPrint('✅ Face verification passed (score: $score)');
       } else {
@@ -346,11 +335,14 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
   }
 
   void _showFaceVerificationErrorDialog(FaceVerificationResult result) {
-    if (result == FaceVerificationResult.success || result == FaceVerificationResult.error) {
+    if (result == FaceVerificationResult.success ||
+        result == FaceVerificationResult.error) {
       if (result == FaceVerificationResult.error) {
-           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).tr('notification.error'))),
-          );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text(AppLocalizations.of(context).tr('notification.error'))),
+        );
       }
       return;
     }
@@ -377,7 +369,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         break;
       case FaceVerificationResult.invalidOrientation:
         titleKey = 'secret_souls.main_photo_warning.invalid_orientation_title';
-        messageKey = 'secret_souls.main_photo_warning.invalid_orientation_message';
+        messageKey =
+            'secret_souls.main_photo_warning.invalid_orientation_message';
         break;
       default:
         titleKey = 'secret_souls.main_photo_warning.no_face_title';
@@ -388,7 +381,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(AppLocalizations.of(context).tr(titleKey), style: AppTextStyles.displayText),
+        title: Text(AppLocalizations.of(context).tr(titleKey),
+            style: AppTextStyles.displayText),
         content: Text(
           AppLocalizations.of(context).tr(messageKey),
           style: AppTextStyles.bodyText,
@@ -396,7 +390,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).tr('common.ok'), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            child: Text(AppLocalizations.of(context).tr('common.ok'),
+                style: const TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -439,7 +435,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            AppLocalizations.of(context).tr('onboarding.upload_picture.title'),
+                            AppLocalizations.of(context)
+                                .tr('onboarding.upload_picture.title'),
                             style: AppTextStyles.displayText,
                           ),
                         ),
@@ -459,7 +456,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                       height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.lightPurple.withValues(alpha: 0.5), // Softened
+                        color: AppColors.lightPurple
+                            .withValues(alpha: 0.5), // Softened
                         image: _selectedImage != null
                             ? DecorationImage(
                                 image: FileImage(File(_selectedImage!.path)),
@@ -481,6 +479,55 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // Secret Room consent checkbox — always shown
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Checkbox row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Checkbox(
+                              value: _showInSecretSouls,
+                              activeColor: AppColors.primary,
+                              onChanged: (val) => setState(
+                                  () => _showInSecretSouls = val ?? true),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() =>
+                                    _showInSecretSouls = !_showInSecretSouls),
+                                child: Text(
+                                  AppLocalizations.of(context).tr(
+                                      'onboarding.upload_picture.secret_room_consent'),
+                                  style: AppTextStyles.bodyText.copyWith(
+                                    fontSize: 12,
+                                    color: AppColors.darkGrey,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Informational second line
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              left: 12, top: 4, bottom: 8),
+                          child: Text(
+                            AppLocalizations.of(context).tr(
+                                'onboarding.upload_picture.gallery_secret_room_info'),
+                            style: AppTextStyles.bodyText.copyWith(
+                              fontSize: 11,
+                              color: AppColors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   if (_selectedImage != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -488,7 +535,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            AppLocalizations.of(context).tr('onboarding.upload_picture.gallery_label'),
+                            AppLocalizations.of(context)
+                                .tr('onboarding.upload_picture.gallery_label'),
                             style: AppTextStyles.bodyText,
                           ),
                           const SizedBox(height: 8),
@@ -496,7 +544,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                             height: 60,
                             child: ListView.builder(
                               scrollDirection: Axis.horizontal,
-                              itemCount: _galleryPhotos.length + (_galleryPhotos.length < 5 ? 1 : 0),
+                              itemCount: _galleryPhotos.length +
+                                  (_galleryPhotos.length < 5 ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == _galleryPhotos.length) {
                                   return GestureDetector(
@@ -508,7 +557,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                         color: AppColors.lightGrey,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: const Icon(Icons.add, color: AppColors.grey),
+                                      child: const Icon(Icons.add,
+                                          color: AppColors.grey),
                                     ),
                                   );
                                 }
@@ -520,7 +570,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(8),
                                         image: DecorationImage(
-                                          image: FileImage(File(_galleryPhotos[index].path)),
+                                          image: FileImage(
+                                              File(_galleryPhotos[index].path)),
                                           fit: BoxFit.cover,
                                         ),
                                       ),
@@ -540,7 +591,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                             color: Colors.red,
                                             shape: BoxShape.circle,
                                           ),
-                                          child: const Icon(Icons.close, size: 12, color: Colors.white),
+                                          child: const Icon(Icons.close,
+                                              size: 12, color: Colors.white),
                                         ),
                                       ),
                                     ),
@@ -558,80 +610,109 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                     child: Column(
                       children: [
                         CustomButton(
-                          text: AppLocalizations.of(context).tr('onboarding.upload_picture.upload_from_gallery'),
+                          text: AppLocalizations.of(context).tr(
+                              'onboarding.upload_picture.upload_from_gallery'),
                           onPressed: _pickImageFromGallery,
                         ),
                         const SizedBox(height: 16),
                         CustomButton(
-                          text: AppLocalizations.of(context).tr('onboarding.upload_picture.take_photo'),
+                          text: AppLocalizations.of(context)
+                              .tr('onboarding.upload_picture.take_photo'),
                           onPressed: _takePhoto,
                         ),
                         const SizedBox(height: 16),
                         // Show Continue button if all requirements are met
                         if (_selectedImage != null)
-                          Builder(
-                            builder: (context) {
-                              // Verify all requirements
-                              final hasQuote = widget.userProfile.secretQuote != null && 
-                                             widget.userProfile.secretQuote!.isNotEmpty;
-                              final hasFantasy = widget.userProfile.secretDesire != null && 
-                                             widget.userProfile.secretDesire!.isNotEmpty;
-                              final hasAudio = widget.userProfile.secretAudioUrl != null && 
-                                             widget.userProfile.secretAudioUrl!.isNotEmpty;
-                              
-                              // If onboarding, require all 4.
-                              final requirementsMet = !widget.isOnboarding || (hasQuote && hasFantasy && hasAudio);
-                              final canProceed = requirementsMet; 
+                          Builder(builder: (context) {
+                            // Verify all requirements
+                            final hasQuote =
+                                widget.userProfile.secretQuote != null &&
+                                    widget.userProfile.secretQuote!.isNotEmpty;
+                            final hasFantasy =
+                                widget.userProfile.secretDesire != null &&
+                                    widget.userProfile.secretDesire!.isNotEmpty;
+                            final hasAudio =
+                                widget.userProfile.secretAudioUrl != null &&
+                                    widget
+                                        .userProfile.secretAudioUrl!.isNotEmpty;
 
-                              return Column(
-                                children: [
-                                  if (!canProceed && widget.isOnboarding)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8.0),
-                                      child: Text(
-                                        AppLocalizations.of(context).tr(
-                                          'onboarding.upload_picture.requirements_missing',
-                                          params: {
-                                            'quote': !hasQuote ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_quote') : '',
-                                            'fantasy': !hasFantasy ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_fantasy') : '',
-                                            'audio': !hasAudio ? AppLocalizations.of(context).tr('onboarding.upload_picture.requirements_audio') : '',
-                                          },
-                                        ),
-                                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                            // If onboarding, require all 4.
+                            final requirementsMet = !widget.isOnboarding ||
+                                (hasQuote && hasFantasy && hasAudio);
+                            final canProceed = requirementsMet;
+
+                            return Column(
+                              children: [
+                                if (!canProceed && widget.isOnboarding)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: Text(
+                                      AppLocalizations.of(context).tr(
+                                        'onboarding.upload_picture.requirements_missing',
+                                        params: {
+                                          'quote': !hasQuote
+                                              ? AppLocalizations.of(context).tr(
+                                                  'onboarding.upload_picture.requirements_quote')
+                                              : '',
+                                          'fantasy': !hasFantasy
+                                              ? AppLocalizations.of(context).tr(
+                                                  'onboarding.upload_picture.requirements_fantasy')
+                                              : '',
+                                          'audio': !hasAudio
+                                              ? AppLocalizations.of(context).tr(
+                                                  'onboarding.upload_picture.requirements_audio')
+                                              : '',
+                                        },
                                       ),
+                                      style: const TextStyle(
+                                          color: Colors.red, fontSize: 12),
                                     ),
-                                  CustomButton(
-                                    text: widget.isOnboarding ? AppLocalizations.of(context).tr('common.continue') : AppLocalizations.of(context).tr('common.confirm'),
-                                    isActive: canProceed,
-                                    onPressed: canProceed ? _proceedToNextScreen : () {
-                  showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.title')),
-            content: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.message')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.cancel')),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _proceedToNextScreen();
-                },
-                child: Text(AppLocalizations.of(context).tr('secret_souls.main_photo_warning.set_main')),
-              ),
-            ],
-          ),
-        );
-                                    },
                                   ),
-                                ],
-                              );
-                            }
-                          ),
-                        if (_selectedImage != null)
-                          const SizedBox(height: 16),
+                                CustomButton(
+                                  text: widget.isOnboarding
+                                      ? AppLocalizations.of(context)
+                                          .tr('common.continue')
+                                      : AppLocalizations.of(context)
+                                          .tr('common.confirm'),
+                                  isActive: canProceed,
+                                  onPressed: canProceed
+                                      ? _proceedToNextScreen
+                                      : () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: Text(AppLocalizations.of(
+                                                      context)
+                                                  .tr('secret_souls.main_photo_warning.title')),
+                                              content: Text(AppLocalizations.of(
+                                                      context)
+                                                  .tr('secret_souls.main_photo_warning.message')),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: Text(AppLocalizations
+                                                          .of(context)
+                                                      .tr('secret_souls.main_photo_warning.cancel')),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(context);
+                                                    _proceedToNextScreen();
+                                                  },
+                                                  child: Text(AppLocalizations
+                                                          .of(context)
+                                                      .tr('secret_souls.main_photo_warning.set_main')),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                ),
+                              ],
+                            );
+                          }),
+                        if (_selectedImage != null) const SizedBox(height: 16),
                       ],
                     ),
                   ),

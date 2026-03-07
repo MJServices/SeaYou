@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// In-app notification banner that slides in from the top
 class InAppNotification extends StatefulWidget {
   final String title;
-  final String message;
+  final String? message;
   final Widget? icon;
   final VoidCallback? onTap;
   final Duration duration;
@@ -13,7 +13,7 @@ class InAppNotification extends StatefulWidget {
   const InAppNotification({
     super.key,
     required this.title,
-    required this.message,
+    this.message,
     this.icon,
     this.onTap,
     this.duration = const Duration(seconds: 4),
@@ -61,7 +61,7 @@ class _InAppNotificationState extends State<InAppNotification>
   void _dismiss() async {
     if (_isDismissed) return;
     _isDismissed = true;
-    
+
     await _controller.reverse();
     if (mounted) {
       widget.onDismiss?.call();
@@ -88,7 +88,8 @@ class _InAppNotificationState extends State<InAppNotification>
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: widget.gradientColors ?? [const Color(0xFFFF6B9D), const Color(0xFFFFC1E3)],
+              colors: widget.gradientColors ??
+                  [const Color(0xFFFF6B9D), const Color(0xFFFFC1E3)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -121,18 +122,20 @@ class _InAppNotificationState extends State<InAppNotification>
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.message,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white,
+                    if (widget.message != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.message!,
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    ],
                   ],
                 ),
               ),

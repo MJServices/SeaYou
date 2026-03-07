@@ -38,7 +38,8 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
     }
   }
 
-  String? selectedExpectation;
+  // Multi-select: user can pick as many expectations as they want
+  final Set<String> selectedExpectations = {};
   String? selectedGender;
 
   final List<String> expectations = [
@@ -78,7 +79,8 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            AppLocalizations.of(context).tr('onboarding.expectations.title'),
+                            AppLocalizations.of(context)
+                                .tr('onboarding.expectations.title'),
                             style: AppTextStyles.displayText,
                           ),
                           const Text(
@@ -89,14 +91,16 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.expectations.subtitle'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.expectations.subtitle'),
                         style: AppTextStyles.bodyText,
                       ),
                       const SizedBox(height: 24),
                       ...expectations.map((exp) => _buildOption(exp, true)),
                       const SizedBox(height: 32),
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.expectations.who_to_meet'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.expectations.who_to_meet'),
                         style: AppTextStyles.displayText,
                       ),
                       const SizedBox(height: 24),
@@ -110,9 +114,11 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                 child: CustomButton(
                   text: AppLocalizations.of(context).tr('common.next'),
                   isActive:
-                      selectedExpectation != null && selectedGender != null,
+                      selectedExpectations.isNotEmpty && selectedGender != null,
                   onPressed: () {
-                    widget.userProfile.expectation = selectedExpectation;
+                    // Store as comma-separated string for DB compatibility
+                    widget.userProfile.expectation =
+                        selectedExpectations.join(', ');
                     widget.userProfile.interestedIn = selectedGender;
 
                     Navigator.push(
@@ -134,14 +140,20 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
   }
 
   Widget _buildOption(String text, bool isExpectation) {
-    final isSelected =
-        isExpectation ? selectedExpectation == text : selectedGender == text;
+    final isSelected = isExpectation
+        ? selectedExpectations.contains(text)
+        : selectedGender == text;
 
     return GestureDetector(
       onTap: () {
         setState(() {
           if (isExpectation) {
-            selectedExpectation = text;
+            // Toggle: add if not present, remove if already selected
+            if (selectedExpectations.contains(text)) {
+              selectedExpectations.remove(text);
+            } else {
+              selectedExpectations.add(text);
+            }
           } else {
             selectedGender = text;
           }
@@ -158,13 +170,24 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
             width: 0.8,
           ),
         ),
-        child: Text(
-          isExpectation 
-              ? AppLocalizations.of(context).tr('onboarding.expectations.options.${text.toLowerCase().replaceAll(' ', '_')}')
-              : AppLocalizations.of(context).tr('onboarding.expectations.genders.${text.toLowerCase().replaceAll(' ', '_')}'),
-          style: AppTextStyles.bodyText.copyWith(
-            color: isSelected ? AppColors.darkGrey : AppColors.grey,
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isExpectation
+                    ? AppLocalizations.of(context).tr(
+                        'onboarding.expectations.options.${text.toLowerCase().replaceAll(' ', '_')}')
+                    : AppLocalizations.of(context).tr(
+                        'onboarding.expectations.genders.${text.toLowerCase().replaceAll(' ', '_')}'),
+                style: AppTextStyles.bodyText.copyWith(
+                  color: isSelected ? AppColors.darkGrey : AppColors.grey,
+                ),
+              ),
+            ),
+            if (isExpectation && isSelected)
+              const Icon(Icons.check_circle,
+                  color: AppColors.primary, size: 18),
+          ],
         ),
       ),
     );

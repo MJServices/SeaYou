@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:ui';
 import '../../i18n/app_localizations.dart';
 
 /// Privacy Policy Screen
@@ -40,7 +39,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 16),
                         Text(
-                          AppLocalizations.of(context).tr('legal.privacy_policy_title'),
+                          AppLocalizations.of(context)
+                              .tr('legal.privacy_policy_title'),
                           style: const TextStyle(
                             fontFamily: 'Montserrat',
                             fontSize: 16,
@@ -57,7 +57,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        AppLocalizations.of(context).tr('legal.privacy_policy_content'),
+                        AppLocalizations.of(context)
+                            .tr('legal.privacy_policy_content'),
                         style: const TextStyle(
                           fontFamily: 'Montserrat',
                           fontSize: 14,

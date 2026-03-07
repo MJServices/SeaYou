@@ -5,7 +5,8 @@ class LocalizationService {
   LocalizationService._();
   static final LocalizationService instance = LocalizationService._();
 
-  final ValueNotifier<Locale> locale = ValueNotifier<Locale>(const Locale('fr'));
+  final ValueNotifier<Locale> locale =
+      ValueNotifier<Locale>(const Locale('fr'));
 
   static const _prefKey = 'preferred_locale';
 
@@ -17,7 +18,9 @@ class LocalizationService {
     } else {
       final system = WidgetsBinding.instance.platformDispatcher.locale;
       final lang = system.languageCode;
-      locale.value = ['en', 'fr', 'de', 'es'].contains(lang) ? Locale(lang) : const Locale('fr');
+      locale.value = ['en', 'fr', 'de', 'es'].contains(lang)
+          ? Locale(lang)
+          : const Locale('fr');
     }
   }
 
@@ -27,4 +30,3 @@ class LocalizationService {
     await prefs.setString(_prefKey, l.languageCode);
   }
 }
-

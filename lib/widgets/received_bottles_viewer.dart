@@ -20,7 +20,7 @@ class ReceivedBottlesViewer extends StatefulWidget {
 class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   int currentIndex = 0;
   bool _isLoading = true;
   List<ReceivedBottle> _bottles = [];
@@ -39,13 +39,14 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
       if (userId == null) return;
 
       final allBottles = await _databaseService.getAllReceivedBottles(userId);
-      
+
       // Filter based on current tab
       final filteredBottles = allBottles.where((bottle) {
         return _showReplied ? bottle.isReplied : !bottle.isReplied;
       }).toList();
-      
-      debugPrint('🔍 Loaded ${filteredBottles.length} ${_showReplied ? "replied" : "unreplied"} bottles');
+
+      debugPrint(
+          '🔍 Loaded ${filteredBottles.length} ${_showReplied ? "replied" : "unreplied"} bottles');
 
       if (mounted) {
         setState(() {
@@ -53,7 +54,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
           currentIndex = 0; // Reset to first bottle when switching tabs
           _isLoading = false;
         });
-        
+
         // Mark first bottle as read if exists
         if (_bottles.isNotEmpty) {
           _markAsRead(0);
@@ -69,7 +70,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
 
   Future<void> _markAsRead(int index) async {
     if (index < 0 || index >= _bottles.length) return;
-    
+
     final bottle = _bottles[index];
     if (!bottle.isRead) {
       await _databaseService.markBottleAsRead(bottle.id);
@@ -134,9 +135,11 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
                 builder: (context) {
                   try {
                     return Text(
-                      _showReplied 
-                          ? AppLocalizations.of(context).tr('bottles.empty.replied')
-                          : AppLocalizations.of(context).tr('bottles.empty.new'),
+                      _showReplied
+                          ? AppLocalizations.of(context)
+                              .tr('bottles.empty.replied')
+                          : AppLocalizations.of(context)
+                              .tr('bottles.empty.new'),
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 18,
@@ -147,7 +150,9 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
                   } catch (e) {
                     // Fallback if localization not available
                     return Text(
-                      _showReplied ? '0 Nouvelles bouteilles répondues' : '0 Nouvelles bouteilles',
+                      _showReplied
+                          ? '0 Nouvelles bouteilles répondues'
+                          : '0 Nouvelles bouteilles',
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 18,
@@ -178,7 +183,7 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -407,9 +412,9 @@ class _ReceivedBottlesViewerState extends State<ReceivedBottlesViewer> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: _showReplied 
-                    ? [const Color(0xFF737373), const Color(0xFF5A5A5A)]
-                    : [const Color(0xFF0AC5C5), const Color(0xFF08A3A3)],
+                  colors: _showReplied
+                      ? [const Color(0xFF737373), const Color(0xFF5A5A5A)]
+                      : [const Color(0xFF0AC5C5), const Color(0xFF08A3A3)],
                 ),
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/audio_service.dart';
 
 /// Warm gradient background widget for all screens
 /// Creates a welcoming, sensual atmosphere with peach to purple gradient

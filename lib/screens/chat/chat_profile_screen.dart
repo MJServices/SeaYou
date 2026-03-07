@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
-import '../../models/user_profile.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/voice_player.dart';
@@ -34,7 +33,6 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   Map<String, dynamic>? _partnerProfile;
   String? _naughtyAnswer;
 
-
   @override
   void initState() {
     super.initState();
@@ -45,7 +43,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
     try {
       // Fetch partner profile
       final profile = await _db.getProfile(widget.partnerId);
-      
+
       // Fetch naughty answer if feeling >= 75%
       String? naughtyAnswer;
       if (widget.feelingPercent >= 75) {
@@ -54,11 +52,11 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             .select('user_a_id, user1_naughty_answer, user2_naughty_answer')
             .eq('id', widget.conversationId)
             .single();
-        
+
         final currentUserId = AuthService().currentUser?.id;
         final isUserA = convData['user_a_id'] == currentUserId;
         // Get partner's answer (opposite of current user)
-        naughtyAnswer = isUserA 
+        naughtyAnswer = isUserA
             ? convData['user2_naughty_answer']
             : convData['user1_naughty_answer'];
       }
@@ -109,10 +107,10 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                 size: 24, color: Color(0xFF151515)),
           ),
           const SizedBox(width: 24),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Profile',
-              style: TextStyle(
+              AppLocalizations.of(context).tr('chat_profile.title'),
+              style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 20,
                 fontWeight: FontWeight.w500,
@@ -127,7 +125,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
 
   Widget _buildProfileContent() {
     if (_partnerProfile == null) {
-      return const Center(child: Text('Profile not found'));
+      return const Center(child: Text(''));
     }
 
     return SingleChildScrollView(
@@ -160,7 +158,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
 
   Widget _buildProfileHeader() {
     final showPhoto = widget.feelingPercent >= 100;
-    
+
     return Column(
       children: [
         GestureDetector(
@@ -177,7 +175,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
               gradient: showPhoto ? null : _getMoodGradient(widget.mood),
               image: showPhoto && _partnerProfile?['avatar_url'] != null
                   ? DecorationImage(
-                      image: NetworkImage(_partnerProfile!['avatar_url'] as String),
+                      image: NetworkImage(
+                          _partnerProfile!['avatar_url'] as String),
                       fit: BoxFit.cover,
                     )
                   : null,
@@ -201,7 +200,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Feeling Level: ${widget.feelingPercent}%',
+          AppLocalizations.of(context).tr('chat_profile.feeling_level',
+              params: {'percent': widget.feelingPercent.toString()}),
           style: const TextStyle(
             fontFamily: 'Montserrat',
             fontSize: 14,
@@ -262,13 +262,15 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
-              SizedBox(width: 8),
+              const Icon(Icons.check_circle,
+                  color: Color(0xFF0AC5C5), size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Bio Unlocked (25%)',
-                style: TextStyle(
+                AppLocalizations.of(context)
+                    .tr('chat_profile.bio_unlocked', params: {'percent': '25'}),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -279,7 +281,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _partnerProfile?['about'] as String? ?? 'No bio available',
+            _partnerProfile?['about'] as String? ??
+                AppLocalizations.of(context).tr('chat_profile.no_bio'),
             style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
@@ -302,13 +305,15 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
-              SizedBox(width: 8),
+              const Icon(Icons.check_circle,
+                  color: Color(0xFF0AC5C5), size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Secret Audio Unlocked (50%)',
-                style: TextStyle(
+                AppLocalizations.of(context).tr('chat_profile.audio_unlocked',
+                    params: {'percent': '50'}),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -318,7 +323,6 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
           if (_partnerProfile?['secret_audio_url'] != null)
             Container(
               padding: const EdgeInsets.all(16),
@@ -332,14 +336,15 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
               ),
             )
           else
-            const Row(
+            Row(
               children: [
-                Icon(Icons.play_circle_filled, color: Colors.grey, size: 40),
-                SizedBox(width: 12),
+                const Icon(Icons.play_circle_filled,
+                    color: Colors.grey, size: 40),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'No audio available',
-                    style: TextStyle(
+                    AppLocalizations.of(context).tr('chat_profile.no_audio'),
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
@@ -364,13 +369,16 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle, color: Color(0xFF0AC5C5), size: 20),
-              SizedBox(width: 8),
+              const Icon(Icons.check_circle,
+                  color: Color(0xFF0AC5C5), size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Intimate Answer Unlocked (75%)',
-                style: TextStyle(
+                AppLocalizations.of(context).tr(
+                    'chat_profile.intimate_unlocked',
+                    params: {'percent': '75'}),
+                style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -407,14 +415,15 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.photo, color: Colors.white, size: 24),
-            SizedBox(width: 12),
+            const Icon(Icons.photo, color: Colors.white, size: 24),
+            const SizedBox(width: 12),
             Text(
-              'Reveal Photo (100%)',
-              style: TextStyle(
+              AppLocalizations.of(context)
+                  .tr('chat_profile.reveal_photo', params: {'percent': '100'}),
+              style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -433,7 +442,12 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         _showBlockModal();
       },
       child: Text(
-        'Block ${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName}',
+        AppLocalizations.of(context).tr('chat_profile.block_user', params: {
+          'name': (widget.feelingPercent >= 100 &&
+                  _partnerProfile?['username'] != null)
+              ? _partnerProfile!['username']
+              : widget.contactName
+        }),
         style: const TextStyle(
           fontFamily: 'Montserrat',
           fontSize: 16,
@@ -468,7 +482,13 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Block ${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName}',
+                  AppLocalizations.of(context)
+                      .tr('chat_profile.block_user', params: {
+                    'name': (widget.feelingPercent >= 100 &&
+                            _partnerProfile?['username'] != null)
+                        ? _partnerProfile!['username']
+                        : widget.contactName
+                  }),
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 16,
@@ -477,10 +497,10 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'This person won\'t be able to message you. They won\'t know you blocked or reported them',
+                Text(
+                  AppLocalizations.of(context).tr('chat_profile.block_warning'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
@@ -488,7 +508,6 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 const SizedBox(height: 40),
                 Row(
                   children: [
@@ -506,7 +525,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                           child: Text(
                             AppLocalizations.of(context).tr('dialogs.cancel'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -529,29 +548,38 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               blockerId: currentUserId,
                               blockedId: widget.partnerId,
                             );
-                            
 
                             if (!mounted) return;
-                            
+
                             // Close modal
                             Navigator.pop(dialogContext);
                             // Go back to chat list
                             Navigator.pop(context);
-                            
+
                             // Show success message
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('${(widget.feelingPercent >= 100 && _partnerProfile?['username'] != null) ? _partnerProfile!['username'] : widget.contactName} has been blocked'),
+                                content: Text(AppLocalizations.of(context).tr(
+                                    'chat_profile.has_been_blocked',
+                                    params: {
+                                      'name': (widget.feelingPercent >= 100 &&
+                                              _partnerProfile?['username'] !=
+                                                  null)
+                                          ? _partnerProfile!['username']
+                                              as String
+                                          : widget.contactName
+                                    })),
                                 backgroundColor: const Color(0xFF0AC5C5),
                               ),
                             );
                           } catch (e) {
                             debugPrint('Error blocking user: $e');
                             if (!mounted) return;
-                            
+
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(AppLocalizations.of(context).tr('errors.block_user_failed')),
+                                content: Text(AppLocalizations.of(context)
+                                    .tr('errors.block_user_failed')),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -563,10 +591,11 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                             color: const Color(0xFF0AC5C5),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
-                            'Confirm Block',
+                          child: Text(
+                            AppLocalizations.of(context)
+                                .tr('chat_profile.confirm_block'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
                               fontWeight: FontWeight.w500,

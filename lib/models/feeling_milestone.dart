@@ -49,15 +49,15 @@ enum FeelingMilestone {
   static int getProgressToNext(int percent) {
     final next = getNextMilestone(percent);
     if (next == null) return 0;
-    
+
     final previous = FeelingMilestone.values
         .where((m) => m.percentage < next.percentage)
         .lastOrNull;
-    
+
     final previousPercent = previous?.percentage ?? 0;
     final range = next.percentage - previousPercent;
     final progress = percent - previousPercent;
-    
+
     return ((progress / range) * 100).round();
   }
 }

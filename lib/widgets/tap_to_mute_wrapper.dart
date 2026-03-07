@@ -18,7 +18,7 @@ class TapToMuteWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!enabled) return child;
-    
+
     return Stack(
       children: [
         // Background tap detector (positioned behind everything)

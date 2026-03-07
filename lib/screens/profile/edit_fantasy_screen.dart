@@ -20,7 +20,7 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
   final TextEditingController _fantasyController = TextEditingController();
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
   String? _fantasyId;
@@ -66,7 +66,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = AppLocalizations.of(context).tr('errors.load_fantasy_failed');
+          _errorMessage =
+              AppLocalizations.of(context).tr('errors.load_fantasy_failed');
         });
       }
     }
@@ -87,7 +88,7 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
       }
 
       final text = _fantasyController.text.trim();
-      
+
       if (_fantasyId != null) {
         await _databaseService.updateFantasy(_fantasyId!, text);
       } else {
@@ -100,7 +101,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).tr('profile.fantasy_updated')),
+          content:
+              Text(AppLocalizations.of(context).tr('profile.fantasy_updated')),
           backgroundColor: const Color(0xFF0AC5C5),
           duration: const Duration(seconds: 2),
         ),
@@ -111,7 +113,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
       debugPrint('Error saving fantasy: $e');
       if (mounted) {
         setState(() {
-          _errorMessage = AppLocalizations.of(context).tr('errors.save_fantasy_failed');
+          _errorMessage =
+              AppLocalizations.of(context).tr('errors.save_fantasy_failed');
           _isSaving = false;
         });
       }
@@ -148,7 +151,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          AppLocalizations.of(context).tr('profile.edit_fantasy'),
+                          AppLocalizations.of(context)
+                              .tr('profile.edit_fantasy'),
                           style: AppTextStyles.displayText.copyWith(
                             color: AppColors.black,
                           ),
@@ -170,7 +174,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
 
                                 // Title
                                 Text(
-                                  AppLocalizations.of(context).tr('profile.fantasy_label'),
+                                  AppLocalizations.of(context)
+                                      .tr('profile.fantasy_label'),
                                   style: AppTextStyles.displayText.copyWith(
                                     fontSize: 20,
                                     color: AppColors.black,
@@ -180,7 +185,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
 
                                 // Description
                                 Text(
-                                  AppLocalizations.of(context).tr('profile.fantasy_anonymous_hint'),
+                                  AppLocalizations.of(context)
+                                      .tr('profile.fantasy_anonymous_hint'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
@@ -204,8 +210,10 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
                                       color: AppColors.black,
                                     ),
                                     decoration: InputDecoration(
-                                      hintText: AppLocalizations.of(context).tr('profile.fantasy_placeholder'),
-                                      hintStyle: AppTextStyles.bodyText.copyWith(
+                                      hintText: AppLocalizations.of(context)
+                                          .tr('profile.fantasy_placeholder'),
+                                      hintStyle:
+                                          AppTextStyles.bodyText.copyWith(
                                         color: AppColors.grey,
                                       ),
                                       border: OutlineInputBorder(
@@ -229,7 +237,8 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
                                     decoration: BoxDecoration(
                                       color: Colors.red.shade50,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.red.shade200),
+                                      border: Border.all(
+                                          color: Colors.red.shade200),
                                     ),
                                     child: Text(
                                       _errorMessage!,
@@ -246,8 +255,14 @@ class _EditFantasyScreenState extends State<EditFantasyScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: _isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm'),
-                                  onPressed: isFormValid && !_isSaving ? _saveFantasy : null,
+                                  text: _isSaving
+                                      ? AppLocalizations.of(context)
+                                          .tr('common.saving')
+                                      : AppLocalizations.of(context)
+                                          .tr('common.confirm'),
+                                  onPressed: isFormValid && !_isSaving
+                                      ? _saveFantasy
+                                      : null,
                                   isActive: isFormValid && !_isSaving,
                                 ),
                               ],

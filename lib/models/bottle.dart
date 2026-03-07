@@ -226,10 +226,11 @@ class SentBottle extends Bottle {
 
   /// Check if bottle is currently floating in the sea
   bool get isFloating => status == 'floating';
-  
+
   /// Check if bottle has been matched with a recipient
-  bool get isMatched => status == 'matched' || status == 'delivered' || status == 'read';
-  
+  bool get isMatched =>
+      status == 'matched' || status == 'delivered' || status == 'read';
+
   /// Check if bottle has been read by recipient
   bool get isRead => status == 'read';
 

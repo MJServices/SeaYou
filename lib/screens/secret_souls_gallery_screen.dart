@@ -6,7 +6,8 @@ class SecretSoulsGalleryScreen extends StatefulWidget {
   const SecretSoulsGalleryScreen({super.key});
 
   @override
-  State<SecretSoulsGalleryScreen> createState() => _SecretSoulsGalleryScreenState();
+  State<SecretSoulsGalleryScreen> createState() =>
+      _SecretSoulsGalleryScreenState();
 }
 
 class _SecretSoulsGalleryScreenState extends State<SecretSoulsGalleryScreen> {
@@ -22,7 +23,10 @@ class _SecretSoulsGalleryScreenState extends State<SecretSoulsGalleryScreen> {
     super.initState();
     _load();
     _controller.addListener(() {
-      if (_controller.position.pixels >= _controller.position.maxScrollExtent - 200 && !_loading && !_end) {
+      if (_controller.position.pixels >=
+              _controller.position.maxScrollExtent - 200 &&
+          !_loading &&
+          !_end) {
         _load();
       }
     });
@@ -101,7 +105,8 @@ class _SecretSoulsGalleryScreenState extends State<SecretSoulsGalleryScreen> {
                           fit: StackFit.expand,
                           children: [
                             Container(color: const Color(0xFFEFEFEF)),
-                            Image.network(it['url'] as String, fit: BoxFit.cover),
+                            Image.network(it['url'] as String,
+                                fit: BoxFit.cover),
                           ],
                         ),
                 );

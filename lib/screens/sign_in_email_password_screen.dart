@@ -92,9 +92,10 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
           ),
         );
       } else {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -110,10 +111,10 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
 
       if (errorString.contains('user not found') ||
           errorString.contains('no user found')) {
-        errorMessage =
-            AppLocalizations.of(context).tr('errors.no_account');
+        errorMessage = AppLocalizations.of(context).tr('errors.no_account');
       } else if (errorString.contains('rate limit')) {
-        errorMessage = AppLocalizations.of(context).tr('errors.too_many_attempts');
+        errorMessage =
+            AppLocalizations.of(context).tr('errors.too_many_attempts');
       } else {
         // Show the actual error for debugging
         errorMessage = 'Error: $e';
@@ -133,7 +134,8 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context).tr('messages.sign_in_failed_title')),
+        title: Text(
+            AppLocalizations.of(context).tr('messages.sign_in_failed_title')),
         content: Text(message),
         actions: [
           TextButton(
@@ -194,7 +196,9 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
                       obscureText: _obscureText,
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscureText ? Icons.visibility_off : Icons.visibility,
+                          _obscureText
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: AppColors.grey,
                         ),
                         onPressed: () {

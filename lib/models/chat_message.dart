@@ -1,4 +1,3 @@
-
 class ChatMessage {
   final String id;
   final String conversationId;
@@ -32,7 +31,8 @@ class ChatMessage {
     this.replyToId,
   });
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json, {String? currentUserId}) {
+  factory ChatMessage.fromJson(Map<String, dynamic> json,
+      {String? currentUserId}) {
     return ChatMessage(
       id: json['id'] as String? ?? '',
       conversationId: json['conversation_id'] as String? ?? '',
@@ -43,7 +43,9 @@ class ChatMessage {
       voicePath: json['voice_path'] as String?,
       duration: json['duration'] as int?,
       createdAt: DateTime.parse(json['created_at'] as String).toUtc(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String).toUtc() : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String).toUtc()
+          : null,
       isRead: json['is_read'] as bool? ?? false,
       isMe: currentUserId != null && json['sender_id'] == currentUserId,
       mood: json['mood'] as String?,

@@ -69,6 +69,8 @@
     "type_message_hint": "Escribe tu mensaje...",
     "upgrade_elite": "Actualice a Elite para enviar mensajes anónimos",
     "whisper_hint": "Susurra tu primer mensaje...",
+    "replying_to_bio": "Respuesta a la biografía: ",
+    "replying_to_content": "Respuesta a: ",
     "write_placeholder": "Tu fantasia..."
   },
   "chat": {

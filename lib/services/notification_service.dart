@@ -15,7 +15,7 @@ class NotificationService {
   void show({
     required BuildContext context,
     required String title,
-    required String message,
+    String? message,
     Widget? icon,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 4),
@@ -86,7 +86,7 @@ class NotificationService {
 
 class _NotificationData {
   final String title;
-  final String message;
+  final String? message;
   final Widget? icon;
   final VoidCallback? onTap;
   final Duration duration;
@@ -94,7 +94,7 @@ class _NotificationData {
 
   _NotificationData({
     required this.title,
-    required this.message,
+    this.message,
     this.icon,
     this.onTap,
     required this.duration,

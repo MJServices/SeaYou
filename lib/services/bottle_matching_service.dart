@@ -27,14 +27,17 @@ class BottleMatchingService {
       // 1.5. Fetch bottle details for targeting
       final bottle = await _supabase
           .from('sent_bottles')
-          .select('target_min_age, target_max_age, target_gender, target_departments')
+          .select(
+              'target_min_age, target_max_age, target_gender, target_departments')
           .eq('id', bottleId)
           .single();
 
       final int? minAge = bottle['target_min_age'];
       final int? maxAge = bottle['target_max_age'];
-      final List<String> targetGender = (bottle['target_gender'] as List?)?.cast<String>() ?? [];
-      final List<String> targetDepartments = (bottle['target_departments'] as List?)?.cast<String>() ?? [];
+      final List<String> targetGender =
+          (bottle['target_gender'] as List?)?.cast<String>() ?? [];
+      final List<String> targetDepartments =
+          (bottle['target_departments'] as List?)?.cast<String>() ?? [];
 
       // 2. Find eligible recipients
       final eligibleUsers = await _getEligibleRecipients(
@@ -63,7 +66,8 @@ class BottleMatchingService {
       }
 
       // Sort by score (highest first)
-      scoredUsers.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+      scoredUsers
+          .sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
 
       // 4. Select from top 3 matches (add randomness among best matches)
       final topMatches = scoredUsers.take(3).toList();
@@ -72,7 +76,8 @@ class BottleMatchingService {
       final recipientId = selectedMatch['userId'] as String;
       final matchScore = selectedMatch['score'] as int;
 
-      debugPrint('Matched bottle $bottleId to user $recipientId with score $matchScore');
+      debugPrint(
+          'Matched bottle $bottleId to user $recipientId with score $matchScore');
 
       // 5. Update bottle with recipient info
       await _supabase.from('sent_bottles').update({
@@ -98,11 +103,14 @@ class BottleMatchingService {
     List<String> targetDepartments = const [],
   }) async {
     try {
-      final lookingFor = senderProfile['interested_in'] as String? ?? 'everyone';
-      final senderOrientation = senderProfile['sexual_orientation'] as List? ?? [];
-      
-      debugPrint('📊 MATCHING: Sender interested_in=$lookingFor, orientation=$senderOrientation');
-      
+      final lookingFor =
+          senderProfile['interested_in'] as String? ?? 'everyone';
+      final senderOrientation =
+          senderProfile['sexual_orientation'] as List? ?? [];
+
+      debugPrint(
+          '📊 MATCHING: Sender interested_in=$lookingFor, orientation=$senderOrientation');
+
       // Build query for eligible users
       var query = _supabase
           .from('profiles')
@@ -113,49 +121,76 @@ class BottleMatchingService {
           .eq('is_active', true)
           .eq('receive_bottles', true)
           .lt('bottles_received_today', 5) // Fair distribution limit
-          .gte('last_active', DateTime.now().subtract(const Duration(days: 30)).toIso8601String()); // Widened to 30 days
+          .gte(
+              'last_active',
+              DateTime.now()
+                  .subtract(const Duration(days: 30))
+                  .toIso8601String()); // Widened to 30 days
 
       final results = await query as List<dynamic>;
       debugPrint('📊 MATCHING: Query returned ${results.length} active users');
-      
+
       // Filter by targeting criteria (Strict UI Filters)
       final filtered = results.where((user) {
         final String userName = user['full_name'] ?? 'Unknown';
-        
+
         debugPrint('  🔍 Checking user: $userName (${user['id']})');
-        
+
         // 1. Gender Targeting (Strict)
         // If targetGender is empty, we apply a smart default based on sender's orientation
         List<String> effectiveTargetGender = List.from(targetGender);
         if (effectiveTargetGender.isEmpty) {
-          final senderGender = (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
-          final lookingFor = (senderProfile['interested_in'] as String? ?? 'everyone').toLowerCase();
-          
+          final senderGender =
+              (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
+          final lookingFor =
+              (senderProfile['interested_in'] as String? ?? 'everyone')
+                  .toLowerCase();
+
           if (lookingFor == 'men') {
             effectiveTargetGender = ['Man'];
           } else if (lookingFor == 'women') {
             effectiveTargetGender = ['Woman'];
           } else if (lookingFor == 'everyone') {
-             // If looking for everyone, we check orientation for a "smarter" default if possible
-             if (senderGender == 'male' || senderGender == 'man') {
-               effectiveTargetGender = ['Woman']; // Default hetero-leaning for men
-             } else if (senderGender == 'female' || senderGender == 'woman' || senderGender == 'femme') {
-               effectiveTargetGender = ['Man']; // Default hetero-leaning for women
-             }
+            // If looking for everyone, we check orientation for a "smarter" default if possible
+            if (senderGender == 'male' || senderGender == 'man') {
+              effectiveTargetGender = [
+                'Woman'
+              ]; // Default hetero-leaning for men
+            } else if (senderGender == 'female' ||
+                senderGender == 'woman' ||
+                senderGender == 'femme') {
+              effectiveTargetGender = [
+                'Man'
+              ]; // Default hetero-leaning for women
+            }
           }
-          debugPrint('    💡 SMART DEFAULT: effectiveTargetGender=$effectiveTargetGender (targetGender was empty)');
+          debugPrint(
+              '    💡 SMART DEFAULT: effectiveTargetGender=$effectiveTargetGender (targetGender was empty)');
         }
 
         if (effectiveTargetGender.isNotEmpty) {
-          final userGender = (user['gender'] as String?)?.toLowerCase() ?? 'other';
+          final userGender =
+              (user['gender'] as String?)?.toLowerCase() ?? 'other';
           bool genderMatch = false;
           // Exact matches for targeting
-          if (effectiveTargetGender.contains('Man') && (userGender == 'male' || userGender == 'man')) genderMatch = true;
-          if (effectiveTargetGender.contains('Woman') && (userGender == 'female' || userGender == 'woman' || userGender == 'femme')) genderMatch = true;
-          if (effectiveTargetGender.contains('Non-binary') && (userGender == 'nonbinary' || userGender == 'non-binary')) genderMatch = true;
-          
+          if (effectiveTargetGender.contains('Man') &&
+              (userGender == 'male' || userGender == 'man')) {
+            genderMatch = true;
+          }
+          if (effectiveTargetGender.contains('Woman') &&
+              (userGender == 'female' ||
+                  userGender == 'woman' ||
+                  userGender == 'femme')) {
+            genderMatch = true;
+          }
+          if (effectiveTargetGender.contains('Non-binary') &&
+              (userGender == 'nonbinary' || userGender == 'non-binary')) {
+            genderMatch = true;
+          }
+
           if (!genderMatch) {
-            debugPrint('    ❌ Rejected: Gender mismatch (Target: $effectiveTargetGender, User: $userGender)');
+            debugPrint(
+                '    ❌ Rejected: Gender mismatch (Target: $effectiveTargetGender, User: $userGender)');
             return false;
           }
         }
@@ -164,13 +199,14 @@ class BottleMatchingService {
         if (minAge != null || maxAge != null) {
           final birthYear = user['birth_year'] as int?;
           if (birthYear == null) {
-            debugPrint('    ❌ Rejected: Age filter active but user has no birth_year');
+            debugPrint(
+                '    ❌ Rejected: Age filter active but user has no birth_year');
             return false;
           }
-          
+
           final currentYear = DateTime.now().year;
           final age = currentYear - birthYear;
-          
+
           if (minAge != null && age < minAge) {
             debugPrint('    ❌ Rejected: Age $age too young (min $minAge)');
             return false;
@@ -183,36 +219,47 @@ class BottleMatchingService {
 
         // 3. Department Targeting (Strict, but empty = All)
         if (targetDepartments.isNotEmpty) {
-           final userDepartment = user['department'] as String?;
-           if (userDepartment == null || !targetDepartments.contains(userDepartment)) {
-             debugPrint('    ❌ Rejected: Department mismatch ($userDepartment)');
-             return false;
-           }
+          final userDepartment = user['department'] as String?;
+          if (userDepartment == null ||
+              !targetDepartments.contains(userDepartment)) {
+            debugPrint('    ❌ Rejected: Department mismatch ($userDepartment)');
+            return false;
+          }
         }
 
         // 4. Relaxed Mutual Interest (Last priority, doesn't block if matching UI criteria)
         // We only check if there's a HARD conflict (e.g. sender is a man, but user ONLY wants women)
         // If user is "interested in everyone", it's always a pass.
-        final userInterestedIn = (user['interested_in'] as String? ?? 'everyone').toLowerCase();
+        final userInterestedIn =
+            (user['interested_in'] as String? ?? 'everyone').toLowerCase();
         if (userInterestedIn != 'everyone') {
-          final senderGender = (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
-          
-          if (userInterestedIn == 'women' && senderGender != 'woman' && senderGender != 'female') {
-            debugPrint('    ⚠️ Note: $userName prefers women, but sender is $senderGender. Match still possible.');
+          final senderGender =
+              (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
+
+          if (userInterestedIn == 'women' &&
+              senderGender != 'woman' &&
+              senderGender != 'female') {
+            debugPrint(
+                '    ⚠️ Note: $userName prefers women, but sender is $senderGender. Match still possible.');
             // We allow this unless we have BETTER matches, handled by scoring
-          } else if (userInterestedIn == 'men' && senderGender != 'man' && senderGender != 'male') {
-            debugPrint('    ⚠️ Note: $userName prefers men, but sender is $senderGender. Match still possible.');
+          } else if (userInterestedIn == 'men' &&
+              senderGender != 'man' &&
+              senderGender != 'male') {
+            debugPrint(
+                '    ⚠️ Note: $userName prefers men, but sender is $senderGender. Match still possible.');
           }
         }
-        
+
         debugPrint('    ✅ PASS: $userName matches targeting criteria');
         return true;
       }).toList();
 
-      debugPrint('📊 MATCHING: After filters, ${filtered.length} eligible users');
+      debugPrint(
+          '📊 MATCHING: After filters, ${filtered.length} eligible users');
 
       // Check for blocks
-      final filteredWithoutBlocks = await _filterBlockedUsers(senderId, filtered);
+      final filteredWithoutBlocks =
+          await _filterBlockedUsers(senderId, filtered);
 
       return filteredWithoutBlocks.cast<Map<String, dynamic>>();
     } catch (e) {
@@ -242,7 +289,9 @@ class BottleMatchingService {
         }
       }
 
-      return users.where((user) => !blockedUserIds.contains(user['id'])).toList();
+      return users
+          .where((user) => !blockedUserIds.contains(user['id']))
+          .toList();
     } catch (e) {
       debugPrint('Error filtering blocked users: $e');
       return users;
@@ -257,9 +306,11 @@ class BottleMatchingService {
     int score = 0;
 
     // 1. Shared interests (0-50 points)
-    final senderInterests = (sender['interests'] as List?)?.cast<String>() ?? [];
-    final recipientInterests = (recipient['interests'] as List?)?.cast<String>() ?? [];
-    
+    final senderInterests =
+        (sender['interests'] as List?)?.cast<String>() ?? [];
+    final recipientInterests =
+        (recipient['interests'] as List?)?.cast<String>() ?? [];
+
     final sharedInterests = senderInterests
         .where((interest) => recipientInterests.contains(interest))
         .length;
@@ -268,10 +319,11 @@ class BottleMatchingService {
     // 2. Expectation alignment (0-30 points)
     final senderExpectation = sender['expectation'] as String? ?? '';
     final recipientExpectation = recipient['expectation'] as String? ?? '';
-    
+
     if (senderExpectation == recipientExpectation) {
       score += 30;
-    } else if (_areExpectationsCompatible(senderExpectation, recipientExpectation)) {
+    } else if (_areExpectationsCompatible(
+        senderExpectation, recipientExpectation)) {
       score += 15;
     }
 
@@ -279,7 +331,7 @@ class BottleMatchingService {
     final lastActive = recipient['last_active'] != null
         ? DateTime.parse(recipient['last_active'] as String)
         : DateTime.now().subtract(const Duration(days: 365));
-    
+
     final hoursSinceActive = DateTime.now().difference(lastActive).inHours;
     if (hoursSinceActive < 24) {
       score += 20;
@@ -291,7 +343,8 @@ class BottleMatchingService {
 
     // 4. Balance factor (0-10 points)
     // Favor users who have received fewer bottles today
-    final bottlesReceivedToday = recipient['bottles_received_today'] as int? ?? 0;
+    final bottlesReceivedToday =
+        recipient['bottles_received_today'] as int? ?? 0;
     if (bottlesReceivedToday == 0) {
       score += 10;
     } else if (bottlesReceivedToday == 1) {
@@ -316,7 +369,8 @@ class BottleMatchingService {
       'relationship': ['relationship', 'serious', 'long-term'],
     };
 
-    return compatiblePairs[exp1.toLowerCase()]?.contains(exp2.toLowerCase()) ?? false;
+    return compatiblePairs[exp1.toLowerCase()]?.contains(exp2.toLowerCase()) ??
+        false;
   }
 
   /// Schedule bottle delivery (for "floating in sea" effect)

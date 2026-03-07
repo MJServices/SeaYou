@@ -21,15 +21,14 @@ class _EditBioScreenState extends State<EditBioScreen> {
   final TextEditingController _bioController = TextEditingController();
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
 
   String? _errorMessage;
   String? _voiceClipUrl;
 
-  bool get isFormValid =>
-      _bioController.text.trim().isNotEmpty && !_isSaving;
+  bool get isFormValid => _bioController.text.trim().isNotEmpty && !_isSaving;
 
   @override
   void initState() {
@@ -62,7 +61,8 @@ class _EditBioScreenState extends State<EditBioScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = AppLocalizations.of(context).tr('errors.load_bio_failed');
+          _errorMessage =
+              AppLocalizations.of(context).tr('errors.load_bio_failed');
         });
       }
     }
@@ -83,7 +83,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
       }
 
       final bio = _bioController.text.trim();
-      
+
       // Validate bio length
       if (bio.length > 500) {
         throw Exception('Bio must be 500 characters or less');
@@ -181,7 +181,8 @@ class _EditBioScreenState extends State<EditBioScreen> {
                         children: [
                           const SizedBox(height: 24),
                           Text(
-                            AppLocalizations.of(context).tr('profile.bio_label'),
+                            AppLocalizations.of(context)
+                                .tr('profile.bio_label'),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 16,
@@ -200,7 +201,8 @@ class _EditBioScreenState extends State<EditBioScreen> {
                                   : AppColors.grey,
                             ),
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context).tr('profile.bio_hint'),
+                              hintText: AppLocalizations.of(context)
+                                  .tr('profile.bio_hint'),
                               hintStyle: AppTextStyles.bodyText,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -231,11 +233,12 @@ class _EditBioScreenState extends State<EditBioScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          
+
                           // Voice Intro Section
                           if (_voiceClipUrl != null) ...[
                             Text(
-                              AppLocalizations.of(context).tr('profile.voice_intro'),
+                              AppLocalizations.of(context)
+                                  .tr('profile.voice_intro'),
                               style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 16,
@@ -250,7 +253,8 @@ class _EditBioScreenState extends State<EditBioScreen> {
                                 color: AppColors.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.3),
                                 ),
                               ),
                               child: VoicePlayer(
@@ -259,7 +263,7 @@ class _EditBioScreenState extends State<EditBioScreen> {
                               ),
                             ),
                             const SizedBox(height: 32),
-                          ] else 
+                          ] else
                             const SizedBox(height: 32),
                           const SizedBox(height: 32),
                         ],
@@ -269,7 +273,9 @@ class _EditBioScreenState extends State<EditBioScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: _isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm'),
+                      text: _isSaving
+                          ? AppLocalizations.of(context).tr('common.saving')
+                          : AppLocalizations.of(context).tr('common.confirm'),
                       isActive: isFormValid,
                       onPressed: isFormValid ? _saveBio : null,
                     ),
@@ -283,4 +289,3 @@ class _EditBioScreenState extends State<EditBioScreen> {
     );
   }
 }
-

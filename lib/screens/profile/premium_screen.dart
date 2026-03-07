@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:ui';
 
 /// Premium/Pro Screen
 /// Shows premium features and subscription options
@@ -70,13 +69,13 @@ class PremiumScreen extends StatelessWidget {
                                 ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Column(
+                              child: const Column(
                                 children: [
                                   Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'Premium',
                                         style: TextStyle(
                                           fontFamily: 'Montserrat',
@@ -88,7 +87,7 @@ class PremiumScreen extends StatelessWidget {
                                       Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.end,
-                                        children: const [
+                                        children: [
                                           Text(
                                             'NGN6500.00/month',
                                             style: TextStyle(
@@ -102,8 +101,8 @@ class PremiumScreen extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  const Row(
+                                  SizedBox(height: 4),
+                                  Row(
                                     children: [
                                       Text(
                                         'NGN50,000 per year',

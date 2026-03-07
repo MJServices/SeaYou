@@ -60,12 +60,14 @@
     "no_fantasies": "Aucune fantasme disponible",
     "non_premium_bubble": "Les fantasmes sont réservés aux membres PREMIUM.",
     "report": "Signaler",
-    "secret_whisper": "Murmure secrète",
+    "secret_whisper": "Murmure secret",
     "send": "Envoyer",
     "send_message": "Envoyer un message",
     "subtitle": "Fantasmes anonymisés des membres SeaYou",
     "swipe": "Swipez !",
-    "title": "Chambre des secrètes",
+    "replying_to_bio": "Réponse à la bio : ",
+    "replying_to_content": "Réponse à : ",
+    "title": "Chambre des Secrets",
     "type_message_hint": "Saisissez votre message...",
     "upgrade_elite": "Passez à Elite pour envoyer des messages anonymes",
     "whisper_hint": "Chuchotez votre premier message...",
@@ -83,32 +85,32 @@
     "empty_no_locked": "Vous n'avez aucune conversation verrouillée ici.",
     "empty_no_unlocked": "Poursuivez les conversations pour établir un lien.",
     "feeling_level_subtitle": "Envoyez des messages pour débloquer des étapes importantes.",
-    "feeling_level_title": "Niveau de sentiment",
+    "feeling_level_title": "Niveau de FEELING",
     "filter_all": "Tous",
     "filter_anon": "Anonyme",
     "filter_unlocked": "Déverrouillé",
     "last_seen": "Dernière observation",
     "milestone_100_reveal": "Vous pouvez maintenant révéler la photo de votre match !",
-    "milestone_75_button_naughty": "Découvrez la question de l'intimité",
-    "milestone_75_button_unlock": "Déverrouiller la conversation",
-    "milestone_75_congrats": "Félicitations 🎉",
-    "milestone_75_desc_naughty": "Contribuez à renforcer les liens en répondant à une dernière question sur l'intimité !",
-    "milestone_75_desc_premium": "Pour maintenir la connexion et profiter pleinement de l'expérience, veuillez passer à la version Premium.",
+    "milestone_75_button_naughty": "C'est parti !",
+    "milestone_75_button_unlock": "C'est parti !",
+    "milestone_75_congrats": "Félicitation 🎉",
+    "milestone_75_desc_naughty": "Une dernière question… un peu plus personnelle. Prêt à jouer le jeu ? 😉",
+    "milestone_75_desc_premium": "Pour continuer à discuter et découvrir votre cadeau, vous devez passer à la version SeaYou PREMIUM.",
     "milestone_75_line1": "Votre intuition est presque à 100% !",
     "milestone_75_line2": "Vous êtes sur le point de découvrir la personne avec qui vous discutez 👀",
     "milestone_75_line3": "La version gratuite de SeaYou s'arrête ici 😟",
     "milestone_75_line4": "Passez à SeaYou Premium pour poursuivre l'aventure et percer le mystère ✨",
     "milestone_75_reached_title": "🔒 Étape de 75 % atteinte !",
-    "milestone_audio": "Messagerie vocale déverrouillée (50 %)",
-    "milestone_bio": "Devis débloqué (25 %)",
+    "milestone_audio": "Message vocal déverrouillé (50 %)",
+    "milestone_bio": "Citation débloquée (25 %)",
     "milestone_continue": "Continuer",
-    "milestone_desc_100": "Vous avez atteint 100 % de sentiment ! Une connexion profonde.",
-    "milestone_desc_25": "Vous avez atteint 25 % de sentiment ! Vous avez débloqué la citation !",
-    "milestone_desc_50": "Vous avez atteint 50 % de sentiment ! Messagerie vocale déverrouillée !",
-    "milestone_desc_75": "Vous avez atteint 75 % de sentiment ! Un cadeau vous attend.",
-    "milestone_feather": "25 % - Devis débloqué",
+    "milestone_desc_100": "Vous avez atteint 100% de Feeling ! Le début d'une belle histoire !",
+    "milestone_desc_25": "Vous avez atteint 25 % de FEELING ! Vous avez débloqué la citation !",
+    "milestone_desc_50": "Vous avez atteint 50 % de FEELING ! Message vocal déverrouillé !",
+    "milestone_desc_75": "Vous avez atteint 75 % de FEELING ! Un cadeau vous attend.",
+    "milestone_feather": "25 % - Citation débloquée",
     "milestone_heart": "100% - Révélation de la photo",
-    "milestone_music": "50 % - Messagerie vocale déverrouillée",
+    "milestone_music": "50 % - Message vocal déverrouillé",
     "milestone_naughty": "Question coquine (75%)",
     "milestone_naughty_question": "75 % - Question intime",
     "milestone_no_bio": "Aucune biographie disponible",
@@ -116,12 +118,12 @@
     "milestone_playing": "Jouant...",
     "milestone_summary_100": "Photo révélée ✨",
     "milestone_summary_25": "Citation déverrouillée",
-    "milestone_summary_50": "Messagerie vocale déverrouillée",
+    "milestone_summary_50": "Message vocal déverrouillé",
     "milestone_summary_75": "Question d'intimité débloquée",
     "milestone_tap_play": "Appuyez pour jouer",
-    "milestone_title_100": "Étape importante pour le cœur !",
-    "milestone_title_25": "Citation déverrouillée !",
-    "milestone_title_50": "Messagerie vocale déverrouillée !",
+    "milestone_title_100": "Félicitations !",
+    "milestone_title_25": "Citation débloquée !",
+    "milestone_title_50": "Message vocal déverrouillé !",
     "milestone_title_75": "Question coquine débloquée !",
     "milestone_unlock_title": "🎁 Étape franchie !",
     "naughty_question_category_daring": "Audace",
@@ -153,6 +155,20 @@
     "time_yesterday": "Hier",
     "unblock_confirm": "Êtes-vous sûr de vouloir débloquer {userName} ?"
   },
+  "chat_profile": {
+    "title": "Profil",
+    "feeling_level": "Niveau de feeling: {percent}%",
+    "bio_unlocked": "Bio débloquée ({percent}%)",
+    "audio_unlocked": "Audio secret débloqué ({percent}%)",
+    "intimate_unlocked": "Réponse intime débloquée ({percent}%)",
+    "reveal_photo": "Révélation de la photo ({percent}%)",
+    "no_bio": "Aucune bio disponible",
+    "no_audio": "Aucun son disponible",
+    "block_user": "Bloquer {name}",
+    "block_warning": "Cette personne ne pourra plus vous envoyer de message. Elle ne saura pas que vous l'avez bloquée ou signalée.",
+    "confirm_block": "Confirmer le blocage",
+    "has_been_blocked": "{name} a été bloqué(e)"
+  },
   "common": {
     "all": "Tout",
     "audio": "Audio",
@@ -176,6 +192,9 @@
     "send": "Envoyer",
     "upgrade": "Mise à niveau",
     "uploading_sending": "Téléchargement et envoi...",
+    "anonymous_soul": "Âme anonyme",
+    "secret_soul": "L'Âme Secrète",
+    "door_of_desires": "La Porte des Désirs",
     "years": "années",
     "years_short": "ans"
   },
@@ -188,8 +207,8 @@
     "delete_account_description": "Êtes-vous sûr(e) de vouloir supprimer votre compte ? Cette action est définitive et irréversible. Toutes vos données, messages et matchs seront perdus.",
     "delete_account_title": "Supprimer le compte",
     "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
-    "logout_description": "Vous pouvez vous connecter à tout moment avec vos identifiants.",
-    "logout_title": "Signez hors de la mer",
+    "logout_description": "Vous pourrez vous reconnecter à tout moment avec vos identifiants.",
+    "logout_title": "Se déconnecter",
     "no": "Non",
     "ok": "OK",
     "unblock_confirm": "Êtes-vous sûr de vouloir débloquer {{userName}} ?",
@@ -202,7 +221,7 @@
         "close": "Fermer",
         "premium": "Passer à Premium"
       },
-      "description": "Ici vous trouverez tous les secrètes et fantasmes inavouables des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secrète ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
+      "description": "Ici vous trouverez tous les secrets et fantasmes inavouables des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secret ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
       "title": "Porte des Désirs"
     }
   },
@@ -272,13 +291,13 @@
     "new_messages_zero": "0 nouveau message",
     "ongoing_conversations": "Conversations en cours",
     "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
-    "secret_souls": "Chambre des secrètes",
+    "secret_souls": "Chambre des Secrets",
     "write_message": "Écrire un message"
   },
   "legal": {
     "privacy_policy_content": "Le contenu de notre politique de confidentialité s'affichera ici.\n\nCette page contient des informations sur la manière dont SeaYou collecte, utilise et protège les données des utilisateurs.",
     "privacy_policy_title": "politique de confidentialité",
-    "terms_content": "CONDITIONS GÉNÉRALES DE VENTE (CGV)\n\nSite de rencontre – Abonnements, Forfaits et Services numériques\n\nARTICLE 1 – IDENTITÉ DU FOURNISSEUR\n\nLes services sont fournis par :\n\nACRIONEX SAS\n\nSociété par actions simplifiée au capital de 100 €\n\nSiège social : 60, rue François 1er, 75008 Paris – France\n\nRCS : 100 555 002 Paris\n\n📩 Adresse électronique : contact@seayou-app.com\n\nCi-après dénommée « Acrionex » ou « la Société ».\n\nARTICLE 2 – OBJET DES CONDITIONS GÉNÉRALES\n\nLes présentes Conditions Générales de Vente définissent les conditions dans lesquelles Acrionex fournit, moyennant paiement, des services numériques immatériels accessibles via son site de rencontre, notamment :\n\nles abonnements payants,\n\nles packs optionnels (crédits, options, profils mis en avant, fonctionnalités ponctuelles),\n\ntout service numérique additionnel.\n\nARTICLE 3 – ACCEPTATION CONTRACTUELLE\n\nTout abonnement ou achat implique :\n\nl’acceptation expresse, préalable et sans réserve des présentes Conditions Générales,\n\nla reconnaissance de les avoir lues dans leur intégralité,\n\nl’acceptation de toutes les limitations de responsabilité,\n\nla pleine capacité juridique de l’utilisateur.\n\nLes présentes Conditions Générales prévalent sur tout autre document.\n\nARTICLE 4 – CONDITIONS D’ACCÈS\n\nLes services sont strictement réservés aux personnes :\n\nâgées de 18 ans ou plus,\n\nayant la capacité juridique.\n\nToute fausse déclaration entraînera la résiliation immédiate sans remboursement.\n\nARTICLE 5 – NATURE DES SERVICES (CLAUSE ESSENTIELLE)\n\nL’utilisateur reconnaît expressément que :\n\nles services fournis sont immatériels et numériques,\n\nAcrionex agit uniquement en tant que fournisseur de plateforme technique,\n\nAcrionex n’est partie à aucun échange, discussion ou réunion,\n\naucun service de conseil, de mise en relation ou de médiation humaine n’est fourni.\n\nARTICLE 6 – ABONNEMENTS\n\nLes abonnements donnent accès aux fonctionnalités avancées du site pour une période déterminée.\n\nAucune garantie n’est donnée concernant :\n\nle nombre d’interactions,\n\nles réponses,\n\nla compatibilité,\n\nla tenue d’une rencontre.\n\nARTICLE 7 – FORFAITS, CRÉDITS ET OPTIONS\n\nLes forfaits et options :\n\nsont personnels, non transférables et non revendables,\n\nn’ont aucune valeur monétaire,\n\nne sont pas remboursables,\n\nsont considérés comme entièrement utilisés dès leur activation, même partielle.\n\nARTICLE 8 – PRIX\n\nLes prix sont indiqués en euros, TVA comprise.\n\nAcrionex se réserve le droit de modifier ses prix à tout moment, sans effet rétroactif.\n\nARTICLE 9 – PAIEMENT\n\nLe paiement est dû immédiatement.\n\nToute transaction est définitive et sans appel.\n\nAcrionex ne conserve aucune information bancaire.\n\nTout paiement suspect pourra être refusé sans justification.\n\nARTICLE 10 – MISE EN SERVICE IMMÉDIATE\n\nLes services sont activés immédiatement après confirmation du paiement.\n\nLes données techniques (journaux, horodatages, historique) font foi de l’activation du service.\n\nARTICLE 11 – DROIT DE RÉTRACTATION\n\nConformément à l’article L221-28, 13° du Code de la consommation, l’utilisateur :\n\ndemande expressément l’exécution immédiate du service,\n\nrenonce à son droit de rétractation.\n\n➡️ Aucun retrait n'est possible après l'accès au service, même pour un montant minimal.\n\nARTICLE 12 – AUCUN REMBOURSEMENT\n\nAucun remboursement ne sera accordé, notamment en cas de :\n\ninsatisfaction,\n\nnon-respect des conditions,\n\nnon-utilisation,\n\nrésiliation anticipée,\n\nsuppression ou suspension du compte,\n\nerreur de l'utilisateur.\n\nARTICLE 13 – RÉSILIATION\n\n13.1 Par l'utilisateur\n\nLa résiliation est possible à tout moment et prend effet à la fin de la période en cours, sans remboursement.\n\n13.2 Par Acrionex\n\nAcrionex peut suspendre ou supprimer un compte sans préavis ni indemnisation en cas de non-respect des Conditions Générales d'Utilisation ou de comportement préjudiciable.\n\nARTICLE 14 – RECONNAISSANCE DU RISQUE ÉMOTIONNEL\n\nL'utilisateur reconnaît que l'utilisation d'un site de rencontre comporte un risque émotionnel subjectif.\n\nAcrionex décline toute responsabilité concernant :\n\nles sentiments,\n\nla déception,\n\nl’impact émotionnel ou psychologique.\n\nARTICLE 15 – FAUX PROFILS ET CONTENUS\n\nL’utilisateur reconnaît que :\n\nAcrionex ne peut garantir l’authenticité absolue des profils,\n\ncertains contenus peuvent être inexacts, embellis ou trompeurs.\n\nIl est de la responsabilité de l’utilisateur de faire preuve de vigilance.\n\nARTICLE 16 – RESPONSABILITÉ MAXIMALE\n\nLa responsabilité d’Acrionex est strictement limitée au moindre des montants suivants :\n\nles sommes versées par l’utilisateur au cours des 30 derniers jours,\n\nou un maximum de 50 €.\n\nTous les dommages indirects, moraux, émotionnels ou financiers sont exclus.\n\nARTICLE 17 – RENONCIATION AUX RECOURS COLLECTIFS\n\nL’utilisateur renonce expressément à tout recours collectif, action de groupe ou action conjointe contre Acrionex.\n\nARTICLE 18 – DÉLAI DE RÉCLAMATION\n\nToute réclamation doit être soumise dans un délai maximal de 30 jours calendaires à compter de la date de l'événement ayant donné lieu à la réclamation, faute de quoi elle sera irrecevable.\n\nARTICLE 19 – FORCE MAJEURE ET CYBER-RISQUES\n\nAcrionex ne pourra être tenue responsable en cas de :\n\nforce majeure,\n\ncyberattaque,\n\npanne de réseau,\n\nindisponibilité temporaire.\n\nARTICLE 20 – PREUVES ET ARCHIVAGE\n\nLes données informatiques conservées par Acrionex seront considérées comme une preuve irréfutable et lieront les parties.\n\nARTICLE 21 – INTERPRÉTATION\n\nToute clause ambiguë sera interprétée de la manière la plus favorable à Acrionex.\n\nARTICLE 22 – DIVISIBILITÉ\n\nSi une clause est jugée invalide, les autres clauses demeureront pleinement applicables.\n\nARTICLE 23 – DROIT APPLICABLE ET JURIDICTION\n\nLes présentes Conditions Générales sont régies par le droit français.\n\nLes tribunaux français sont exclusivement compétents.",
+    "terms_content": "CONDITIONS GÉNÉRALES DE VENTE (CGV)\n\nSite de rencontre – Abonnements, Forfaits et Services numériques\n\nARTICLE 1 – IDENTITÉ DU FOURNISSEUR\n\nLes services sont fournis par :\n\nACRIONEX SAS\n\nSociété par actions simplifiée au capital de 100 €\n\nSiège social : 60, rue François 1er, 75008 Paris – France\n\nRCS : 100 555 002 Paris\n\n📩 Adresse électronique : contact@seayou-app.com\n\nCi-après dénommée « Acrionex » ou « la Société ».\n\nARTICLE 2 – OBJET DES CONDITIONS GÉNÉRALES\n\nLes présentes Conditions Générales de Vente définissent les conditions dans lesquelles Acrionex fournit, moyennant paiement, des services numériques immatériels accessibles via son site de rencontre, notamment :\n\nles abonnements payants,\n\nles packs optionnels (crédits, options, profils mis en avant, fonctionnalités ponctuelles),\n\ntout service numérique additionnel.\n\nARTICLE 3 – ACCEPTATION CONTRACTUELLE\n\nTout abonnement ou achat implique :\n\nl’acceptation expresse, préalable et sans réserve des présentes Conditions Générales,\n\nla reconnaissance de les avoir lues dans leur intégralité,\n\nl’acceptation de toutes les limitations de responsabilité,\n\nla pleine capacité juridique de l’utilisateur.\n\nLes présentes Conditions Générales prévalent sur tout autre document.\n\nARTICLE 4 – CONDITIONS D’ACCÈS\n\nLes services sont strictement réservés aux personnes :\n\nâgées de 18 ans ou plus,\n\nayant la capacité juridique.\n\nToute fausse déclaration entraînera la résiliation immédiate sans remboursement.\n\nARTICLE 5 – NATURE DES SERVICES (CLAUSE ESSENTIELLE)\n\nL’utilisateur reconnaît expressément que :\n\nles services fournis sont immatériels et numériques,\n\nAcrionex agit uniquement en tant que fournisseur de plateforme technique,\n\nAcrionex n’est partie à aucun échange, discussion ou réunion,\n\naucun service de conseil, de mise en relation ou de médiation humaine n’est fourni.\n\nARTICLE 6 – ABONNEMENTS\n\nLes abonnements donnent accès aux fonctionnalités avancées du site pour une période déterminée.\n\nAucune garantie n’est donnée concernant :\n\nle nombre d’interactions,\n\nles réponses,\n\nla compatibilité,\n\nthe tenue d’une rencontre.\n\nARTICLE 7 – FORFAITS, CRÉDITS ET OPTIONS\n\nLes forfaits et options :\n\nsont personnels, non transférables et non revendables,\n\nn’ont aucune valeur monétaire,\n\nne sont pas remboursables,\n\nsont considérés comme entièrement utilisés dès leur activation, même partielle.\n\nARTICLE 8 – PRIX\n\nLes prix sont indiqués en euros, TVA comprise.\n\nAcrionex se réserve le droit de modifier ses prix à tout moment, sans effet rétroactif.\n\nARTICLE 9 – PAIEMENT\n\nLe paiement est dû immédiatement.\n\nToute transaction est définitive et sans appel.\n\nAcrionex ne conserve aucune information bancaire.\n\nTout paiement suspect pourra être refusé sans justification.\n\nARTICLE 10 – MISE EN SERVICE IMMÉDIATE\n\nLes services sont activés immédiatement après confirmation du paiement.\n\nLes données techniques (journaux, horodatages, historique) font foi de l’activation du service.\n\nARTICLE 11 – DROIT DE RÉTRACTATION\n\nConformément à l’article L221-28, 13° du Code de la consommation, l’utilisateur :\n\ndemande expressément l’exécution immédiate du service,\n\nrenonce à son droit de rétractation.\n\n➡️ Aucun retrait n'est possible après l'accès au service, même pour un montant minimal.\n\nARTICLE 12 – AUCUN REMBOURSEMENT\n\nAucun remboursement ne sera accordé, notamment en cas de :\n\ninsatisfaction,\n\nnon-respect des conditions,\n\nnon-utilisation,\n\nrésiliation anticipée,\n\nsuppression ou suspension du compte,\n\nerreur de l'utilisateur.\n\nARTICLE 13 – RÉSILIATION\n\n13.1 Par l'utilisateur\n\nLa résiliation est possible à tout moment et prend effet à la fin de la période en cours, sans remboursement.\n\n13.2 Par Acrionex\n\nAcrionex peut suspendre ou supprimer un compte sans préavis ni indemnisation en cas de non-respect des Conditions Générales d'Utilisation ou de comportement préjudiciable.\n\nARTICLE 14 – RECONNAISSANCE DU RISQUE ÉMOTIONNEL\n\nL'utilisateur reconnaît que l'utilisation d'un site de rencontre comporte un risque émotionnel subjectif.\n\nAcrionex décline toute responsabilité concernant :\n\nles sentiments,\n\nla déception,\n\nl’impact émotionnel ou psychologique.\n\nARTICLE 15 – FAUX PROFILS ET CONTENUS\n\nL’utilisateur reconnaît que :\n\nAcrionex ne peut garantir l’authenticité absolue des profils,\n\ncertains contenus peuvent être inexacts, embellis ou trompeurs.\n\nIl est de la responsabilité de l’utilisateur de faire preuve de vigilance.\n\nARTICLE 16 – RESPONSABILITÉ MAXIMALE\n\nLa responsabilité d’Acrionex est strictement limitée au moindre des montants suivants :\n\nles sommes versées par l’utilisateur au cours des 30 derniers jours,\n\nou un maximum de 50 €.\n\nTous les dommages indirects, moraux, émotionnels ou financiers sont exclus.\n\nARTICLE 17 – RENONCIATION AUX RECOURS COLLECTIFS\n\nL’utilisateur renonce expressément à tout recours collectif, action de groupe ou action conjointe contre Acrionex.\n\nARTICLE 18 – DÉLAI DE RÉCLAMATION\n\nToute réclamation doit être soumise dans un délai maximal de 30 jours calendaires à compter de la date de l'événement ayant donné lieu à la réclamation, faute de quoi elle sera irrecevable.\n\nARTICLE 19 – FORCE MAJEURE ET CYBER-RISQUES\n\nAcrionex ne pourra être tenue responsable en cas de :\n\nforce majeure,\n\ncyberattaque,\n\npanne de réseau,\n\nindisponibilité temporaire.\n\nARTICLE 20 – PREUVES ET ARCHIVAGE\n\nLes données informatiques conservées par Acrionex seront considérées comme une preuve irréfutable et lieront les parties.\n\nARTICLE 21 – INTERPRÉTATION\n\nToute clause ambiguë sera interprétée de la manière la plus favorable à Acrionex.\n\nARTICLE 22 – DIVISIBILITÉ\n\nSi une clause est jugée invalide, les autres clauses demeureront pleinement applicables.\n\nARTICLE 23 – DROIT APPLICABLE ET JURIDICTION\n\nLes présentes Conditions Générales sont régies par le droit français.\n\nLes tribunaux français sont exclusivement compétents.\n\n« Demande de résiliation d'abonnement »\n\nPour toute demande de résiliation de votre abonnement, veuillez envoyer un e-mail à : contact@seayou-app.com\n\nVeuillez inclure l'adresse e-mail utilisée lors de l'inscription ainsi que le motif de votre résiliation.",
     "terms_title": "Conditions d'utilisation"
   },
   "limits": {
@@ -481,20 +500,20 @@
       "age": "Âge",
       "age_hint": "Veuillez indiquer votre âge.",
       "bio": "Bio",
-      "bio_hint": "Ajouter une courte description biographique",
+      "bio_hint": "Décrivez-vous en quelques mots...",
       "city": "Ville",
-      "city_hint": "Entrez dans la ville",
+      "city_hint": "Entrez votre ville",
       "department": "Département",
       "department_hint": "Sélectionner",
-      "full_name": "Nom et prénom",
-      "full_name_hint": "Entrez votre nom",
+      "full_name": "Pseudo",
+      "full_name_hint": "Entrez votre pseudo",
       "mic_permission_required": "Autorisation d'utilisation du microphone requise",
       "recording": "Enregistrement : {time}",
       "recording_saved": "Enregistrement sauvegardé : {time}",
-      "secret_audio": "Ajouter un message vocal secrète",
+      "secret_audio": "Ajouter un message vocal secret",
       "secret_audio_duration": "Min : 5 secondes • Max : 15 secondes",
-      "secret_fantasy": "Fantasme secrète",
-      "secret_fantasy_hint": "Ajoutez votre fantasme secrète",
+      "secret_fantasy": "Fantasme secret",
+      "secret_fantasy_hint": "Ajoutez votre fantasme secret",
       "secret_fantasy_note": "Remarque : Ceci sera anonyme et ne sera visible que dans la Porte des Désirs.",
       "secret_quote": "Citation secrète",
       "secret_quote_hint": "Ajoutez votre citation secrète",
@@ -523,6 +542,8 @@
       "requirements_fantasy": ", Fantasme",
       "requirements_missing": "Obligatoire : Photo{quote}{fantasy}{audio}",
       "requirements_quote": ", Citation",
+      "secret_room_consent": "J'autorise cette photo à apparaître dans \"La Porte des Secrets\".",
+      "gallery_secret_room_info": "Toutes les autres photos importées seront automatiquement affichées dans La Porte des Secrets.",
       "take_photo": "Prenez une photo",
       "title": "Télécharger une photo",
       "upload_from_gallery": "Télécharger depuis la galerie"
@@ -540,7 +561,7 @@
       "bottles_locked": "Nouvelles bouteilles reçues inaccessibles, sauf s'il s'agit d'une réponse à votre propre message",
       "desires_locked": "Porte des Désirs verrouillée",
       "distance_limit": "Envoi des bouteilles uniquement en France entière",
-      "souls_locked": "Chambre des secrètes verrouillée"
+      "souls_locked": "Chambre des Secrets verrouillée"
     },
     "gate": {
       "message": "Cette zone est réservée aux membres PREMIUM.",
@@ -551,9 +572,9 @@
       "bottles_open_unlimited": "Ouverture illimitée des messages reçus",
       "bottles_unlimited": "Envois de bouteilles illimités",
       "desires_access": "Accès illimité à la porte des Désirs",
-      "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans la Chambre des secrètes et la Porte des Désirs",
+      "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans la Chambre des Secrets et la Porte des Désirs",
       "distance_flexible": "Envoi des bouteilles dans les départements que vous souhaitez",
-      "souls_access": "Accès illimité à la chambre des secrètes"
+      "souls_access": "Accès illimité à la Chambre des Secrets"
     },
     "upgrade": {
       "coming_soon": "Bientôt disponible !",
@@ -565,7 +586,7 @@
   },
   "profile": {
     "about_section": "À propos",
-    "add_secret_audio": "Ajouter un son secrète",
+    "add_secret_audio": "Ajouter un son secret",
     "audio_duration_hint": "Min : {min} secondes • Max : {max} secondes",
     "bio_hint": "Décrivez-vous",
     "bio_label": "Bio",
@@ -581,7 +602,7 @@
     "edit_photo": "Modifier la photo",
     "edit_quote": "Modifier ma citation",
     "edit_voice_message": "Modifier mon message vocal",
-    "fantasy_anonymous_hint": "Cela sera partagé anonymement dans la Chambre des secrètes.",
+    "fantasy_anonymous_hint": "Cela sera partagé anonymement dans la Chambre des Secrets.",
     "fantasy_label": "Mon fantasme",
     "fantasy_placeholder": "Partagez votre fantasme...",
     "fantasy_updated": "Fantasy a été mis à jour avec succès !",
@@ -623,13 +644,13 @@
     "voice_updated": "Message vocal mis à jour avec succès !"
   },
   "purchase_scrolls": {
-    "best_value": "Meilleure valeur",
+    "best_value": "le plus AVANTAGEUX",
     "count": "{count} rouleaux",
     "error": "Erreur : {error}",
     "popular": "Populaire",
-    "price_each": "{price} /cha",
+    "price_each": "{price} /chacun",
     "save_percent": "Économisez {percent}%",
-    "subtitle": "Jusqu'à 5 fois plus de chances de trouver la correspondance !",
+    "subtitle": "Jusqu'à 5x plus de chances de Matcher !",
     "success": "✨ Parchemins ajoutés !",
     "title": "Obtenez des parchemins"
   },
@@ -654,12 +675,12 @@
     "delete_photo": "Supprimer la photo",
     "gate": {
       "action": {
-        "access": "Accéder à la Chambre des secrètes",
+        "access": "Accéder à la Chambre des Secrets",
         "close": "Fermer",
         "premium": "Passer à Premium"
       },
-      "description": "Entrez dans un espace confidentiel où vous trouverez des photos, citations et messages vocaux des membres SeaYou, toujours 100% anonymes.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM. Souscrivez à un plan payant pour voir plus de contenu et engager des conversations.",
-      "title": "Chambre des secrètes"
+      "description": "Entrez dans un espace confidentiel où vous trouverez des photos, citations et messages vocaux des membres SeaYou, toujours 100% anonymes.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
+      "title": "Chambre des Secrets"
     },
     "main_photo_warning": {
       "cancel": "Annuler",
@@ -760,9 +781,9 @@
   },
   "tooltip": {
     "audio": {
-      "message": "Ce message vocal est obligatoire mais restera secrète et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Sentiment réciproque atteint les 50% \nC’est l’occasion de laisser deviner votre voix… sans tout révéler trop vite !",
+      "message": "Ce message vocal est obligatoire mais restera secret et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Sentiment réciproque atteint les 50% \nC’est l’occasion de laisser deviner votre voix… sans tout révéler trop vite !",
       "ok": "Compris",
-      "title": "Message vocal secrète"
+      "title": "Message vocal secret"
     },
     "bio": {
       "message": "Merci de faire une courte présentation de vous, tout en gardant une part de mystère …",
@@ -775,12 +796,12 @@
       "title": "Fantasme"
     },
     "photo": {
-      "message": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle. Elle ne sera dévoilée seulement si vous obtenez 100% de Sentiment respectif avec votre interlocuteur, et apparaîtra seulement ET si autorisé dans la catégorie « Les Âmes Secrètes » (SeaYou PREMIUM), mais aucune autre information ne sera divulguée sur votre identité. Vous pourrez ensuite ajouter jusqu’à 5 photos supplémentaires de votre choix.",
+      "message": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle. Elle ne sera dévoilée seulement si vous obtenez 100% de Sentiment respectif avec votre interlocuteur, et apparaîtra seulement ET si autorisé dans la catégorie « La Porte des Secrets » (SeaYou PREMIUM), mais aucune autre information ne sera divulguée sur votre identité. Vous pourrez ensuite ajouter jusqu’à 5 photos supplémentaires de votre choix.",
       "ok": "Compris",
       "title": "Photo obligatoire"
     },
     "quote": {
-      "message": "Ce message est obligatoire mais restera secrète et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Sentiment réciproque atteint les 25% \nÀ vous d’être mystérieux, drôle, profond… ou tout à la fois !",
+      "message": "Ce message est obligatoire mais restera secret et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Sentiment réciproque atteint les 25% \nÀ vous d’être mystérieux, drôle, profond… ou tout à la fois !",
       "ok": "Compris",
       "title": "Citation secrète"
     }
@@ -795,7 +816,7 @@
       "cta": "C'est parti !",
       "line1": "Les rencontres anonymes commencent ici. Envoyez des bouteilles selon les critères de correspondance.",
       "line2": "Les réponses ouvrent la conversation. Votre Sentiment augmente à chaque échange.",
-      "line3": "Un Sentiment plus élevé débloque des secrètes comme Citation (25%) et Voix (50%).",
+      "line3": "Un Sentiment plus élevé débloque des secrets comme Citation (25%) et Voix (50%).",
       "title": "Bienvenue sur SeaYou"
     },
     "signup": {
@@ -823,8 +844,8 @@
     "next": "Suivant",
     "processing": "Traitement de l'enregistrement...",
     "record": "Enregistrer",
-    "secret_description": "Ce message vocal est obligatoire, mais restera secrète et anonyme.\n\nIl ne sera révélé à votre interlocuteur que si le Sentiment mutuel atteint 50%.\n\nC'est l'opportunité de laisser deviner votre voix, sans tout révéler trop vite.",
-    "secret_title": "Message vocal secrète",
+    "secret_description": "Ce message vocal est obligatoire, mais restera secret et anonyme.\n\nIl ne sera révélé à votre interlocuteur que si le Sentiment mutuel atteint 50%.\n\nC'est l'opportunité de laisser deviner votre voix, sans tout révéler trop vite.",
+    "secret_title": "Message vocal secret",
     "skip": "Passer",
     "step_label": "2/4",
     "stop": "Stop",

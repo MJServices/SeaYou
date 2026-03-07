@@ -38,17 +38,20 @@ class _SentBottleVideoModalState extends State<SentBottleVideoModal> {
         debugPrint('❌ Error initializing video: $error');
         // If video fails, close modal automatically
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('${AppLocalizations.of(context).tr("system.animation_error")}: $error')),
-           );
-           widget.onComplete();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    '${AppLocalizations.of(context).tr("system.animation_error")}: $error')),
+          );
+          widget.onComplete();
         }
       });
   }
 
   void _checkVideoEnd() {
     // Only trigger once
-    if (!_hasCompleted && _controller.value.position >= _controller.value.duration) {
+    if (!_hasCompleted &&
+        _controller.value.position >= _controller.value.duration) {
       debugPrint('🎬 Video finished');
       _hasCompleted = true; // Prevent multiple calls
       widget.onComplete();
@@ -67,7 +70,8 @@ class _SentBottleVideoModalState extends State<SentBottleVideoModal> {
     return GestureDetector(
       onTap: widget.onComplete, // Tap to skip/close
       child: Scaffold(
-        backgroundColor: Colors.black, // Full screen black background for immersive feel
+        backgroundColor:
+            Colors.black, // Full screen black background for immersive feel
         body: Center(
           child: _initialized
               ? AspectRatio(

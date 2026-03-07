@@ -16,7 +16,7 @@ class InterestsScreen extends StatefulWidget {
   final bool isEditMode;
 
   const InterestsScreen({
-    super.key, 
+    super.key,
     required this.userProfile,
     this.isEditMode = false,
   });
@@ -89,18 +89,21 @@ class _InterestsScreenState extends State<InterestsScreen> {
     super.initState();
     if (widget.userProfile.interests != null) {
       _selectedInterests.addAll(widget.userProfile.interests!);
-      
+
       // Find interests that aren't in any category
       final allCategoryInterests = categories.values.expand((i) => i).toSet();
-      final customInterests = _selectedInterests.where((i) => !allCategoryInterests.contains(i)).toList();
-      
+      final customInterests = _selectedInterests
+          .where((i) => !allCategoryInterests.contains(i))
+          .toList();
+
       if (customInterests.isNotEmpty) {
         // Prepend "Your Interests" to categories
         final temp = <String, List<String>>{'Your Interests': customInterests};
         temp.addAll(categories);
         categories.clear();
         categories.addAll(temp);
-        categories.addAll(temp); // Duplicate to match replacement logic if needed, but categories.clear handles it
+        categories.addAll(
+            temp); // Duplicate to match replacement logic if needed, but categories.clear handles it
       }
     }
   }
@@ -123,9 +126,9 @@ class _InterestsScreenState extends State<InterestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: WarmGradientBackground(
-        child: Stack(
-          children: [
+        body: WarmGradientBackground(
+      child: Stack(
+        children: [
           SafeArea(
             child: Column(
               children: [
@@ -140,13 +143,15 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         padding: EdgeInsets.zero,
                       ),
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.interests.title'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.interests.title'),
                         style: AppTextStyles.displayText,
                       ),
                       if (!widget.isEditMode)
                         const SizedBox(width: 48)
                       else
-                        const SizedBox(width: 48), // Spacer to balance the back button
+                        const SizedBox(
+                            width: 48), // Spacer to balance the back button
                     ],
                   ),
                 ),
@@ -156,7 +161,8 @@ class _InterestsScreenState extends State<InterestsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        AppLocalizations.of(context).tr('onboarding.interests.subtitle'),
+                        AppLocalizations.of(context)
+                            .tr('onboarding.interests.subtitle'),
                         style: AppTextStyles.labelText,
                       ),
                       if (!widget.isEditMode)
@@ -175,7 +181,8 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            AppLocalizations.of(context).tr('onboarding.interests.categories.${entry.key.toLowerCase().replaceAll(' & ', '_').replaceAll(' ', '_')}'),
+                            AppLocalizations.of(context).tr(
+                                'onboarding.interests.categories.${entry.key.toLowerCase().replaceAll(' & ', '_').replaceAll(' ', '_')}'),
                             style: AppTextStyles.bodyText.copyWith(
                               color: AppColors.black,
                             ),
@@ -197,14 +204,16 @@ class _InterestsScreenState extends State<InterestsScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: CustomButton(
-                    text: widget.isEditMode 
-                        ? (_isSaving ? AppLocalizations.of(context).tr('common.saving') : AppLocalizations.of(context).tr('common.confirm')) 
+                    text: widget.isEditMode
+                        ? (_isSaving
+                            ? AppLocalizations.of(context).tr('common.saving')
+                            : AppLocalizations.of(context).tr('common.confirm'))
                         : AppLocalizations.of(context).tr('common.next'),
                     isActive: _selectedInterests.length >= 2,
                     onPressed: () async {
                       if (_isSaving) return;
                       widget.userProfile.interests = _selectedInterests;
-                      
+
                       if (widget.isEditMode) {
                         setState(() => _isSaving = true);
                         // Update DB
@@ -221,7 +230,9 @@ class _InterestsScreenState extends State<InterestsScreen> {
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${AppLocalizations.of(context).tr('notification.error')}: $e')),
+                              SnackBar(
+                                  content: Text(
+                                      '${AppLocalizations.of(context).tr('notification.error')}: $e')),
                             );
                           }
                         } finally {
@@ -247,8 +258,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
           ),
         ],
       ),
-    )
-    );
+    ));
   }
 
   Widget _buildInterestChip(String interest) {
@@ -266,7 +276,8 @@ class _InterestsScreenState extends State<InterestsScreen> {
               // Show message that limit is reached
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(AppLocalizations.of(context).tr('onboarding.interests.limit_reached')),
+                  content: Text(AppLocalizations.of(context)
+                      .tr('onboarding.interests.limit_reached')),
                   duration: const Duration(seconds: 2),
                   backgroundColor: const Color(0xFFFF6B6B),
                 ),
@@ -282,7 +293,8 @@ class _InterestsScreenState extends State<InterestsScreen> {
           borderRadius: BorderRadius.circular(40),
         ),
         child: Text(
-          AppLocalizations.of(context).tr('onboarding.interests.options.${interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')}'),
+          AppLocalizations.of(context).tr(
+              'onboarding.interests.options.${interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')}'),
           style: AppTextStyles.labelText.copyWith(
             color: isSelected ? AppColors.white : AppColors.darkGrey,
           ),

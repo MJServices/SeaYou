@@ -16,7 +16,7 @@ final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
 
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '',
@@ -46,14 +46,15 @@ void main() async {
   });
   // Check for active session
   final session = Supabase.instance.client.auth.currentSession;
-  final Widget initialScreen = session != null ? const HomeScreen() : const SplashScreen();
+  final Widget initialScreen =
+      session != null ? const HomeScreen() : const SplashScreen();
 
   runApp(SeaYouApp(home: initialScreen));
 }
 
 class SeaYouApp extends StatelessWidget {
   final Widget home;
-  
+
   const SeaYouApp({
     super.key,
     required this.home,

@@ -19,7 +19,7 @@ class UserProfile {
   int? birthYear; // Year of birth calculated from age
   bool isPremium;
   int scrollsCount;
-  
+
   // Usage tracking
   int bottlesSentToday;
   DateTime? lastBottleSentDate;
@@ -78,7 +78,8 @@ class UserProfile {
       'bottles_sent_today': bottlesSentToday,
       'last_bottle_sent_date': lastBottleSentDate?.toIso8601String(),
       'messages_sent_week': messagesSentWeek,
-      'last_message_sent_week_start': lastMessageSentWeekStart?.toIso8601String(),
+      'last_message_sent_week_start':
+          lastMessageSentWeekStart?.toIso8601String(),
     };
   }
 }

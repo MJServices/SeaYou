@@ -21,13 +21,15 @@ class LocationService {
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium, // Sufficient for regional matching (100-500m)
+          accuracy: LocationAccuracy
+              .medium, // Sufficient for regional matching (100-500m)
         ),
       );
 
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
-        debugPrint('📍 Updating location for user ${user.id}: ${position.latitude}, ${position.longitude}');
+        debugPrint(
+            '📍 Updating location for user ${user.id}: ${position.latitude}, ${position.longitude}');
         await _db.updateLocation(
           user.id,
           position.latitude,
@@ -65,7 +67,8 @@ class LocationService {
     }
 
     if (permission == LocationPermission.deniedForever) {
-      debugPrint('❌ Location permissions permanently denied - user must enable in settings');
+      debugPrint(
+          '❌ Location permissions permanently denied - user must enable in settings');
       return false;
     }
 

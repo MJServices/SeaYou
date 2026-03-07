@@ -8,9 +8,12 @@ class PurchaseScrollsScreen extends StatelessWidget {
   const PurchaseScrollsScreen({super.key});
 
   // TODO: Replace with your actual Stripe payment links for each scroll pack
-  static const String _scrolls3Link = 'https://buy.stripe.com/eVq9ATc6i1l786cdC62Nq01';
-  static const String _scrolls10Link = 'https://buy.stripe.com/eVq7sL1rEe7T86c7dI2Nq04';
-  static const String _scrolls30Link = 'https://buy.stripe.com/3cIeVd8U6e7T728gOi2Nq03';
+  static const String _scrolls3Link =
+      'https://buy.stripe.com/eVq9ATc6i1l786cdC62Nq01';
+  static const String _scrolls10Link =
+      'https://buy.stripe.com/eVq7sL1rEe7T86c7dI2Nq04';
+  static const String _scrolls30Link =
+      'https://buy.stripe.com/3cIeVd8U6e7T728gOi2Nq03';
 
   Future<void> _launchUrl(BuildContext context, String urlString) async {
     final user = Supabase.instance.client.auth.currentUser;
@@ -24,7 +27,8 @@ class PurchaseScrollsScreen extends StatelessWidget {
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open payment page. Please try again.')),
+          const SnackBar(
+              content: Text('Could not open payment page. Please try again.')),
         );
       }
     }
@@ -42,7 +46,8 @@ class PurchaseScrollsScreen extends StatelessWidget {
               _buildHeader(context),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   child: Column(
                     children: [
                       // Title
@@ -75,8 +80,9 @@ class PurchaseScrollsScreen extends StatelessWidget {
                       // Pack 1: 3 Scrolls
                       _buildPackCard(
                         context,
-                        title: tr.tr('purchase_scrolls.count', params: {'count': '3'}),
-                        price: '2,99 € /cha',
+                        title: tr.tr('purchase_scrolls.count',
+                            params: {'count': '3'}),
+                        price: '2,99 € /chacun',
                         onTap: () => _launchUrl(context, _scrolls3Link),
                         isPopular: false,
                         showBadge: false,
@@ -90,13 +96,15 @@ class PurchaseScrollsScreen extends StatelessWidget {
                       // Pack 2: 10 Scrolls (Popular)
                       _buildPackCard(
                         context,
-                        title: tr.tr('purchase_scrolls.count', params: {'count': '10'}),
-                        price: '1.49€ /cha',
+                        title: tr.tr('purchase_scrolls.count',
+                            params: {'count': '10'}),
+                        price: '1.49€ /chacun',
                         onTap: () => _launchUrl(context, _scrolls10Link),
                         isPopular: true,
                         showBadge: true,
                         badgeText: tr.tr('purchase_scrolls.popular'),
-                        badgeSideText: tr.tr('purchase_scrolls.save_percent', params: {'percent': '50'}),
+                        badgeSideText: tr.tr('purchase_scrolls.save_percent',
+                            params: {'percent': '50'}),
                         borderColor: const Color(0xFF7B1FA2),
                         buttonColor: const Color(0xFFE1BEE7),
                         buttonTextColor: Colors.black87,
@@ -107,13 +115,15 @@ class PurchaseScrollsScreen extends StatelessWidget {
                       // Pack 3: 30 Scrolls (Best Value)
                       _buildPackCard(
                         context,
-                        title: tr.tr('purchase_scrolls.count', params: {'count': '30'}),
-                        price: '1.20€ /cha',
+                        title: tr.tr('purchase_scrolls.count',
+                            params: {'count': '30'}),
+                        price: '1.20€ /chacun',
                         onTap: () => _launchUrl(context, _scrolls30Link),
                         isPopular: false,
                         showBadge: true,
                         badgeText: tr.tr('purchase_scrolls.best_value'),
-                        badgeSideText: tr.tr('purchase_scrolls.save_percent', params: {'percent': '60'}),
+                        badgeSideText: tr.tr('purchase_scrolls.save_percent',
+                            params: {'percent': '60'}),
                         borderColor: const Color(0xFFE0E0E0),
                         buttonColor: const Color(0xFFBBDEFB),
                         buttonTextColor: Colors.black87,
@@ -144,7 +154,8 @@ class PurchaseScrollsScreen extends StatelessWidget {
           Image.asset(
             'assets/images/scroll_icon.png',
             width: 40,
-            errorBuilder: (c, o, s) => const Icon(Icons.local_activity, color: Colors.amber, size: 40),
+            errorBuilder: (c, o, s) =>
+                const Icon(Icons.local_activity, color: Colors.amber, size: 40),
           ),
         ],
       ),
@@ -177,7 +188,13 @@ class PurchaseScrollsScreen extends StatelessWidget {
                   ? Border.all(color: borderColor, width: 1.5)
                   : Border.all(color: Colors.grey.shade300, width: 1),
           boxShadow: isPopular
-              ? [BoxShadow(color: (borderColor ?? Colors.purple).withOpacity(0.2), blurRadius: 8, spreadRadius: 2)]
+              ? [
+                  BoxShadow(
+                      color:
+                          (borderColor ?? Colors.purple).withValues(alpha: 0.2),
+                      blurRadius: 8,
+                      spreadRadius: 2)
+                ]
               : null,
         ),
         child: Column(
@@ -198,7 +215,8 @@ class PurchaseScrollsScreen extends StatelessWidget {
                   ),
                   if (badgeSideText.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
@@ -224,7 +242,8 @@ class PurchaseScrollsScreen extends StatelessWidget {
               children: [
                 // Quantity Box
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   decoration: BoxDecoration(
                     color: buttonColor,
                     borderRadius: BorderRadius.circular(10),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -11,20 +10,16 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../widgets/animated_waveform.dart';
 import '../i18n/app_localizations.dart';
-import 'sexual_orientation_screen.dart';
 import 'gender_identity_screen.dart';
-import 'home_screen.dart';
-import '../services/database_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../utils/french_departments.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   final String email;
   final String? selectedLanguage;
-  
+
   const ProfileInfoScreen({
-    super.key, 
+    super.key,
     required this.email,
     this.selectedLanguage,
   });
@@ -40,7 +35,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   final TextEditingController _aboutController = TextEditingController();
   final TextEditingController _secretQuoteController = TextEditingController();
   final TextEditingController _secretDesireController = TextEditingController();
-  
+
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isRecording = false;
@@ -70,7 +65,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     // Add listeners to update UI when text changes
     _nameController.addListener(_updateFormState);
     _ageController.addListener(_updateFormState);
-    _cityController.addListener(_updateFormState); 
+    _cityController.addListener(_updateFormState);
     _aboutController.addListener(_updateFormState);
     _secretQuoteController.addListener(_updateFormState);
     _secretDesireController.addListener(_updateFormState);
@@ -78,7 +73,6 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     // V7: Ensure player responds immediately
     _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
   }
-
 
   void _updateFormState() {
     setState(() {
@@ -89,9 +83,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: WarmGradientBackground(
-        child: Stack(
-          children: [
+        body: WarmGradientBackground(
+      child: Stack(
+        children: [
           SafeArea(
             child: Column(
               children: [
@@ -105,7 +99,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              AppLocalizations.of(context).tr('onboarding.profile_info.title'),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.profile_info.title'),
                               style: AppTextStyles.displayText,
                             ),
                             const Text(
@@ -116,27 +111,31 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          AppLocalizations.of(context).tr('onboarding.profile_info.full_name'),
+                          AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.full_name'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.darkGrey,
                           ),
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.full_name_hint'),
+                          hintText: AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.full_name_hint'),
                           controller: _nameController,
                           isActive: _nameController.text.isNotEmpty,
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          AppLocalizations.of(context).tr('onboarding.profile_info.age'),
+                          AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.age'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.darkGrey,
                           ),
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.age_hint'),
+                          hintText: AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.age_hint'),
                           controller: _ageController,
                           isActive: _ageController.text.isNotEmpty,
                           keyboardType: TextInputType.number,
@@ -151,14 +150,16 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    AppLocalizations.of(context).tr('onboarding.profile_info.city'),
+                                    AppLocalizations.of(context)
+                                        .tr('onboarding.profile_info.city'),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.darkGrey,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   CustomTextField(
-                                    hintText: AppLocalizations.of(context).tr('onboarding.profile_info.city_hint'),
+                                    hintText: AppLocalizations.of(context).tr(
+                                        'onboarding.profile_info.city_hint'),
                                     controller: _cityController,
                                     isActive: _cityController.text.isNotEmpty,
                                   ),
@@ -172,18 +173,22 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    AppLocalizations.of(context).tr('onboarding.profile_info.department'),
+                                    AppLocalizations.of(context).tr(
+                                        'onboarding.profile_info.department'),
                                     style: AppTextStyles.bodyText.copyWith(
                                       color: AppColors.darkGrey,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                        color: _selectedDepartment != null ? AppColors.primary : AppColors.grey,
+                                        color: _selectedDepartment != null
+                                            ? AppColors.primary
+                                            : AppColors.grey,
                                         width: 0.8,
                                       ),
                                     ),
@@ -191,8 +196,10 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                       child: DropdownButton<String>(
                                         value: _selectedDepartment,
                                         hint: Text(
-                                          AppLocalizations.of(context).tr('onboarding.profile_info.department_hint'),
-                                          style: AppTextStyles.bodyText.copyWith(
+                                          AppLocalizations.of(context).tr(
+                                              'onboarding.profile_info.department_hint'),
+                                          style:
+                                              AppTextStyles.bodyText.copyWith(
                                             color: AppColors.grey,
                                             fontSize: 12,
                                           ),
@@ -206,14 +213,18 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                         ),
                                         style: AppTextStyles.bodyText.copyWith(
                                           fontSize: 12,
-                                          color: _selectedDepartment != null ? AppColors.darkGrey : AppColors.grey,
+                                          color: _selectedDepartment != null
+                                              ? AppColors.darkGrey
+                                              : AppColors.grey,
                                         ),
-                                        items: frenchDepartments.map((String value) {
+                                        items: frenchDepartments
+                                            .map((String value) {
                                           return DropdownMenuItem<String>(
                                             value: value,
                                             child: Text(
                                               value,
-                                              style: AppTextStyles.bodyText.copyWith(
+                                              style: AppTextStyles.bodyText
+                                                  .copyWith(
                                                 fontSize: 12,
                                               ),
                                             ),
@@ -236,11 +247,12 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                          AppLocalizations.of(context).tr('onboarding.profile_info.bio'),
-                          style: AppTextStyles.bodyText.copyWith(
-                            color: AppColors.darkGrey,
-                          ),
-                        ),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.profile_info.bio'),
+                              style: AppTextStyles.bodyText.copyWith(
+                                color: AppColors.darkGrey,
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () {
@@ -251,13 +263,15 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                   tr.tr('tooltip.bio.ok'),
                                 );
                               },
-                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                              child: const Icon(Icons.info_outline,
+                                  size: 16, color: AppColors.primary),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.bio_hint'),
+                          hintText: AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.bio_hint'),
                           controller: _aboutController,
                           isActive: _aboutController.text.isNotEmpty,
                           maxLines: 3,
@@ -271,12 +285,13 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Secret Quote Section
                         Row(
                           children: [
                             Text(
-                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_quote'),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.profile_info.secret_quote'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -291,13 +306,15 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                   tr.tr('tooltip.quote.ok'),
                                 );
                               },
-                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                              child: const Icon(Icons.info_outline,
+                                  size: 16, color: AppColors.primary),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.secret_quote_hint'),
+                          hintText: AppLocalizations.of(context)
+                              .tr('onboarding.profile_info.secret_quote_hint'),
                           controller: _secretQuoteController,
                           isActive: _secretQuoteController.text.isNotEmpty,
                           maxLines: 2,
@@ -309,7 +326,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         Row(
                           children: [
                             Text(
-                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy'),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.profile_info.secret_fantasy'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -324,13 +342,15 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                   tr.tr('tooltip.fantasy.ok'),
                                 );
                               },
-                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                              child: const Icon(Icons.info_outline,
+                                  size: 16, color: AppColors.primary),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         CustomTextField(
-                          hintText: AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy_hint'),
+                          hintText: AppLocalizations.of(context).tr(
+                              'onboarding.profile_info.secret_fantasy_hint'),
                           controller: _secretDesireController,
                           isActive: _secretDesireController.text.isNotEmpty,
                           maxLines: 3,
@@ -342,7 +362,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                AppLocalizations.of(context).tr('onboarding.profile_info.secret_fantasy_note'),
+                                AppLocalizations.of(context).tr(
+                                    'onboarding.profile_info.secret_fantasy_note'),
                                 style: AppTextStyles.bodyText.copyWith(
                                   fontSize: 12,
                                   color: AppColors.darkGrey,
@@ -356,12 +377,13 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Secret Audio Section
                         Row(
                           children: [
                             Text(
-                              AppLocalizations.of(context).tr('onboarding.profile_info.secret_audio'),
+                              AppLocalizations.of(context)
+                                  .tr('onboarding.profile_info.secret_audio'),
                               style: AppTextStyles.bodyText.copyWith(
                                 color: AppColors.darkGrey,
                               ),
@@ -376,20 +398,22 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                                   tr.tr('tooltip.audio.ok'),
                                 );
                               },
-                              child: Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                              child: const Icon(Icons.info_outline,
+                                  size: 16, color: AppColors.primary),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          AppLocalizations.of(context).tr('onboarding.profile_info.secret_audio_duration'),
+                          AppLocalizations.of(context).tr(
+                              'onboarding.profile_info.secret_audio_duration'),
                           style: AppTextStyles.bodyText.copyWith(
                             color: AppColors.grey,
                             fontSize: 12,
                           ),
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Recording button
                         GestureDetector(
                           onTap: _toggleRecording,
@@ -398,8 +422,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _isRecording 
-                                  ? AppColors.primary 
+                              color: _isRecording
+                                  ? AppColors.primary
                                   : AppColors.primary.withValues(alpha: 0.2),
                             ),
                             child: Icon(
@@ -409,7 +433,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             ),
                           ),
                         ),
-                        
+
                         if (_isRecording || _secretAudioPath != null) ...[
                           const SizedBox(height: 16),
                           AnimatedWaveform(
@@ -420,20 +444,29 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             barWidth: 3,
                             spacing: 2,
                           ),
-                           Text(
-                             _isRecording 
-                                 ? AppLocalizations.of(context).tr('onboarding.profile_info.recording', params: {'time': _formatRecordingTime()})
-                                 : AppLocalizations.of(context).tr('onboarding.profile_info.recording_saved', params: {'time': _formatRecordingTime()}),
+                          Text(
+                            _isRecording
+                                ? AppLocalizations.of(context).tr(
+                                    'onboarding.profile_info.recording',
+                                    params: {'time': _formatRecordingTime()})
+                                : AppLocalizations.of(context).tr(
+                                    'onboarding.profile_info.recording_saved',
+                                    params: {'time': _formatRecordingTime()}),
                             style: AppTextStyles.bodyText.copyWith(
-                              color: (_recordingSeconds >= _minDuration) ? Colors.green : Colors.red,
+                              color: (_recordingSeconds >= _minDuration)
+                                  ? Colors.green
+                                  : Colors.red,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          if (_recordingSeconds < _minDuration && !_isRecording && _secretAudioPath != null) ...[
+                          if (_recordingSeconds < _minDuration &&
+                              !_isRecording &&
+                              _secretAudioPath != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              AppLocalizations.of(context).tr('onboarding.profile_info.voice_too_short'),
+                              AppLocalizations.of(context).tr(
+                                  'onboarding.profile_info.voice_too_short'),
                               style: const TextStyle(
                                 color: Colors.red,
                                 fontSize: 11,
@@ -448,7 +481,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                               child: Container(
                                 width: 56,
                                 height: 56,
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: AppColors.primary,
                                 ),
@@ -461,7 +494,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                             ),
                           ],
                         ],
-                        
+
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -475,28 +508,31 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                     onPressed: () async {
                       if (isFormValid) {
                         // V7: Ensure audio stops before navigation
-                        debugPrint('🎵 [ProfileInfo] NEXT CLICKED - Stopping audio');
+                        debugPrint(
+                            '🎵 [ProfileInfo] NEXT CLICKED - Stopping audio');
 
                         try {
                           await _audioPlayer.stop();
                           await _audioPlayer.release();
-                          debugPrint('🎵 [ProfileInfo] Audio released finished.');
+                          debugPrint(
+                              '🎵 [ProfileInfo] Audio released finished.');
                         } catch (e) {
                           debugPrint('🎵 [ProfileInfo] Release Error: $e');
                         }
 
-                          final userProfile = UserProfile(
-                            email: widget.email,
-                            fullName: _nameController.text,
-                            age: int.tryParse(_ageController.text),
-                            city: _cityController.text,
-                            department: _selectedDepartment,
-                            about: _aboutController.text,
-                            language: widget.selectedLanguage ?? "English (device's language)",
-                            secretDesire: _secretDesireController.text,
-                            secretQuote: _secretQuoteController.text,
-                            secretAudioUrl: _secretAudioPath,
-                          );
+                        final userProfile = UserProfile(
+                          email: widget.email,
+                          fullName: _nameController.text,
+                          age: int.tryParse(_ageController.text),
+                          city: _cityController.text,
+                          department: _selectedDepartment,
+                          about: _aboutController.text,
+                          language: widget.selectedLanguage ??
+                              "English (device's language)",
+                          secretDesire: _secretDesireController.text,
+                          secretQuote: _secretQuoteController.text,
+                          secretAudioUrl: _secretAudioPath,
+                        );
                         if (mounted) {
                           Navigator.push(
                             context,
@@ -516,8 +552,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
           ),
         ],
       ),
-    )
-    );
+    ));
   }
 
   void _toggleRecording() async {
@@ -534,7 +569,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).tr('onboarding.profile_info.mic_permission_required')),
+            content: Text(AppLocalizations.of(context)
+                .tr('onboarding.profile_info.mic_permission_required')),
             backgroundColor: Colors.red,
           ),
         );
@@ -544,17 +580,18 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
 
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final path = '${dir.path}/secret_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      
+      final path =
+          '${dir.path}/secret_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
       await _audioRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
           numChannels: 1,
-          autoGain: true,
-          echoCancel: true,
-          noiseSuppress: true,
+          autoGain: false,
+          echoCancel: false,
+          noiseSuppress: false,
         ),
         path: path,
       );
@@ -578,7 +615,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     try {
       final path = await _audioRecorder.stop();
       _recordingTimer?.cancel();
-      
+
       setState(() {
         _isRecording = false;
         _secretAudioPath = path;
@@ -598,7 +635,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       await _audioPlayer.setVolume(1.0); // Ensure audible
       await _audioPlayer.play(DeviceFileSource(_secretAudioPath!));
       if (mounted) setState(() => _isPlaying = true);
-      
+
       // Listen for completion
       _audioPlayer.onPlayerComplete.listen((_) {
         if (mounted) setState(() => _isPlaying = false);
@@ -631,12 +668,16 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: AppTextStyles.displayText.copyWith(fontSize: 18)),
-        content: Text(message, style: AppTextStyles.bodyText.copyWith(color: AppColors.darkGrey)),
+        title: Text(title,
+            style: AppTextStyles.displayText.copyWith(fontSize: 18)),
+        content: Text(message,
+            style: AppTextStyles.bodyText.copyWith(color: AppColors.darkGrey)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(okText, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            child: Text(okText,
+                style: const TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

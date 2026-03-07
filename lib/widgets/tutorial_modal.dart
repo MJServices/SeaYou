@@ -9,7 +9,7 @@ class TutorialModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tr = AppLocalizations.of(context);
-    
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
@@ -51,7 +51,8 @@ class TutorialModal extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                    icon:
+                        const Icon(Icons.close, color: Colors.white, size: 26),
                     onPressed: () => Navigator.of(context).pop(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -78,9 +79,9 @@ class TutorialModal extends StatelessWidget {
                         height: 1.5,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     // Line 1
                     Text(
                       tr.tr('tutorial.welcome.line1'),
@@ -92,9 +93,9 @@ class TutorialModal extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 14),
-                    
+
                     // Line 2
                     Text(
                       tr.tr('tutorial.welcome.line2'),
@@ -106,9 +107,9 @@ class TutorialModal extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 14),
-                    
+
                     // Line 3
                     Text(
                       tr.tr('tutorial.welcome.line3'),
@@ -120,9 +121,9 @@ class TutorialModal extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 14),
-                    
+
                     // Line 4
                     Text(
                       tr.tr('tutorial.welcome.line4'),
@@ -134,9 +135,9 @@ class TutorialModal extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 28),
-                    
+
                     // CTA
                     Center(
                       child: Text(

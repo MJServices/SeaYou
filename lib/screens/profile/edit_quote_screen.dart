@@ -20,14 +20,13 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
   final TextEditingController _quoteController = TextEditingController();
   final DatabaseService _databaseService = DatabaseService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
 
   String? _errorMessage;
 
-  bool get isFormValid =>
-      _quoteController.text.trim().isNotEmpty && !_isSaving;
+  bool get isFormValid => _quoteController.text.trim().isNotEmpty && !_isSaving;
 
   @override
   void initState() {
@@ -52,7 +51,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = AppLocalizations.of(context).tr('errors.load_quote_failed');
+          _errorMessage =
+              AppLocalizations.of(context).tr('errors.load_quote_failed');
         });
       }
     }
@@ -73,7 +73,7 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       }
 
       final quote = _quoteController.text.trim();
-      
+
       // Validate quote is not empty
       if (quote.isEmpty) {
         throw Exception('Quote cannot be empty');
@@ -86,7 +86,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).tr('profile.quote_updated')),
+          content:
+              Text(AppLocalizations.of(context).tr('profile.quote_updated')),
           backgroundColor: const Color(0xFF0AC5C5),
           duration: const Duration(seconds: 2),
         ),
@@ -159,7 +160,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Title
                                 Text(
-                                  AppLocalizations.of(context).tr('profile.quote_label'),
+                                  AppLocalizations.of(context)
+                                      .tr('profile.quote_label'),
                                   style: AppTextStyles.displayText.copyWith(
                                     fontSize: 20,
                                     color: AppColors.black,
@@ -169,7 +171,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Description
                                 Text(
-                                  AppLocalizations.of(context).tr('profile.quote_anonymous_hint'),
+                                  AppLocalizations.of(context)
+                                      .tr('profile.quote_anonymous_hint'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
@@ -193,8 +196,10 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                       color: AppColors.black,
                                     ),
                                     decoration: InputDecoration(
-                                      hintText: AppLocalizations.of(context).tr('profile.quote_placeholder'),
-                                      hintStyle: AppTextStyles.bodyText.copyWith(
+                                      hintText: AppLocalizations.of(context)
+                                          .tr('profile.quote_placeholder'),
+                                      hintStyle:
+                                          AppTextStyles.bodyText.copyWith(
                                         color: AppColors.grey,
                                       ),
                                       border: OutlineInputBorder(
@@ -218,7 +223,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
                                     decoration: BoxDecoration(
                                       color: Colors.red.shade50,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.red.shade200),
+                                      border: Border.all(
+                                          color: Colors.red.shade200),
                                     ),
                                     child: Text(
                                       _errorMessage!,
@@ -235,7 +241,8 @@ class _EditQuoteScreenState extends State<EditQuoteScreen> {
 
                                 // Save button
                                 CustomButton(
-                                  text: AppLocalizations.of(context).tr('common.confirm'),
+                                  text: AppLocalizations.of(context)
+                                      .tr('common.confirm'),
                                   onPressed: _saveQuote,
                                   isActive: isFormValid && !_isSaving,
                                 ),

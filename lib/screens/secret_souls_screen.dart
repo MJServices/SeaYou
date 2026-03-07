@@ -20,7 +20,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   final DatabaseService _db = DatabaseService();
   final PageController _pageController = PageController();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  
+
   final List<Map<String, dynamic>> _content = [];
   String _selectedFilter = 'all'; // all, photo, audio, quote
   int _currentIndex = 0;
@@ -38,7 +38,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   Future<void> _init() async {
     final user = AuthService().currentUser;
     if (user != null) {
-      final isPremiumOrWoman = await EntitlementsService().isPremiumOrWoman(user.id);
+      final isPremiumOrWoman =
+          await EntitlementsService().isPremiumOrWoman(user.id);
       if (mounted) {
         setState(() {
           _isPremium = isPremiumOrWoman;
@@ -51,8 +52,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     }
   }
 
-
-
   @override
   void dispose() {
     _pageController.dispose();
@@ -62,13 +61,14 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Future<void> _loadContent({int recursionCount = 0}) async {
     if (_loading) return;
-    if (recursionCount > 5) { // Limit recursion to avoid infinite loops
+    if (recursionCount > 5) {
+      // Limit recursion to avoid infinite loops
       setState(() => _loading = false);
       return;
     }
-    
+
     setState(() => _loading = true);
-    
+
     final user = AuthService().currentUser;
     if (user == null) {
       setState(() => _loading = false);
@@ -77,15 +77,16 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     // Get IDs of users we've already replied to
     final repliedPartnerIds = await _db.getRepliedPartnerIds(user.id);
-    debugPrint('🎬 SecretSoulsScreen: Replied Partners count: ${repliedPartnerIds.length}');
-    
+    debugPrint(
+        '🎬 SecretSoulsScreen: Replied Partners count: ${repliedPartnerIds.length}');
+
     final contentType = _selectedFilter == 'all' ? null : _selectedFilter;
     final newContent = await _db.getSecretSoulsContent(
       contentType: contentType,
       page: _page,
     );
     debugPrint('🎬 SecretSoulsScreen: Fetched from DB: ${newContent.length}');
-    
+
     if (newContent.isEmpty) {
       debugPrint('🎬 SecretSoulsScreen: DB returned empty, stopping.');
       setState(() => _loading = false);
@@ -97,7 +98,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       final itemUserId = item['user_id'] as String?;
       final isSelf = itemUserId == user.id;
       final alreadyMessaged = repliedPartnerIds.contains(itemUserId);
-      
+
       if (isSelf) {
         debugPrint('🎬 SecretSoulsScreen: Skipping self $itemUserId');
         return false;
@@ -105,16 +106,19 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
       // TEMPORARY: Allow users already messaged to show up so we can verify the DB content
       if (alreadyMessaged) {
-          debugPrint('🎬 SecretSoulsScreen: User $itemUserId already messaged, but SHOWING for verification');
+        debugPrint(
+            '🎬 SecretSoulsScreen: User $itemUserId already messaged, but SHOWING for verification');
       }
-      
+
       return itemUserId != null && !isSelf;
     }).toList();
-    
-    debugPrint('🎬 SecretSoulsScreen: Filtered count: ${filteredContent.length}');
-    
+
+    debugPrint(
+        '🎬 SecretSoulsScreen: Filtered count: ${filteredContent.length}');
+
     if (filteredContent.isEmpty && newContent.isNotEmpty) {
-      debugPrint('🎬 SecretSoulsScreen: All items filtered, trying recursion level ${recursionCount + 1}');
+      debugPrint(
+          '🎬 SecretSoulsScreen: All items filtered, trying recursion level ${recursionCount + 1}');
       // All items in this page were filtered out, try next page
       _page++;
       _loading = false; // Reset to allow next call
@@ -130,20 +134,20 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   void _changeFilter(String filter) {
     if (_selectedFilter == filter) return;
-    
+
     setState(() {
       _selectedFilter = filter;
       _content.clear();
       _page = 0;
       _currentIndex = 0;
     });
-    
+
     _loadContent();
   }
 
   void _loadMore() {
-     debugPrint('🎬 SecretSoulsScreen: _loadMore triggered');
-     _loadContent();
+    debugPrint('🎬 SecretSoulsScreen: _loadMore triggered');
+    _loadContent();
   }
 
   void _nextContent() {
@@ -168,14 +172,15 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Future<void> _sendMessage() async {
     if (_content.isEmpty) return;
-    
+
     final content = _content[_currentIndex];
     final user = AuthService().currentUser;
     if (user == null) return;
 
     // 1. Check for existing conversation
     // If we already have a chat, open it directly
-    final existingConvId = await _db.getConversationId(user.id, content['user_id'] as String);
+    final existingConvId =
+        await _db.getConversationId(user.id, content['user_id'] as String);
     if (existingConvId != null) {
       if (!mounted) return;
       Navigator.push(
@@ -183,13 +188,13 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         MaterialPageRoute(
           builder: (_) => ChatConversationScreen(
             conversationId: existingConvId,
-            contactName: 'Secret Soul',
+            contactName: AppLocalizations.of(context).tr('common.secret_soul'),
           ),
         ),
       );
       return;
     }
-    
+
     // 2. Check limits (Max 3 per week)
     final canSend = await _db.canSendMessageThisWeek(user.id);
     if (!canSend) {
@@ -215,9 +220,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
               // Header
               Row(
                 children: [
-                   const Icon(Icons.auto_awesome, size: 18, color: Color(0xFFD4B483)),
-                   const SizedBox(width: 8),
-                   Text(
+                  const Icon(Icons.auto_awesome,
+                      size: 18, color: Color(0xFFD4B483)),
+                  const SizedBox(width: 8),
+                  Text(
                     AppLocalizations.of(context).tr('chamber.secret_whisper'),
                     style: const TextStyle(
                       fontFamily: 'PlayfairDisplay',
@@ -229,7 +235,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.pop(dialogContext, null),
-                    child: Icon(Icons.close_rounded, size: 22, color: Colors.grey.withOpacity(0.6)),
+                    child: Icon(Icons.close_rounded,
+                        size: 22, color: Colors.grey.withValues(alpha: 0.6)),
                   ),
                 ],
               ),
@@ -247,7 +254,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             borderRadius: BorderRadius.circular(15),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
+                                color: Colors.black.withValues(alpha: 0.03),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -260,11 +267,12 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context).tr('chamber.type_message_hint'),
+                              hintText: AppLocalizations.of(context)
+                                  .tr('chamber.type_message_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
-                                fontSize: 13, 
-                                color: Colors.grey.withOpacity(0.7),
+                                fontSize: 13,
+                                color: Colors.grey.withValues(alpha: 0.7),
                                 fontStyle: FontStyle.italic,
                               ),
                               border: InputBorder.none,
@@ -273,7 +281,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             ),
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 14, 
+                              fontSize: 14,
                               color: Color(0xFF3E2723),
                               height: 1.4,
                             ),
@@ -289,9 +297,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             '${messageController.text.length}/200',
                             style: TextStyle(
                               fontFamily: 'Montserrat',
-                              fontSize: 10, 
+                              fontSize: 10,
                               fontWeight: FontWeight.w500,
-                              color: Colors.grey.withOpacity(0.8),
+                              color: Colors.grey.withValues(alpha: 0.8),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -305,19 +313,23 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: messageController.text.trim().isEmpty 
-                                    ? Colors.grey.withOpacity(0.2)
+                                color: messageController.text.trim().isEmpty
+                                    ? Colors.grey.withValues(alpha: 0.2)
                                     : const Color(0xFFD4B483),
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: messageController.text.trim().isEmpty ? [] : [
-                                  BoxShadow(
-                                    color: const Color(0xFFD4B483).withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
+                                boxShadow: messageController.text.trim().isEmpty
+                                    ? []
+                                    : [
+                                        BoxShadow(
+                                          color: const Color(0xFFD4B483)
+                                              .withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
                               ),
                               child: Text(
                                 AppLocalizations.of(context).tr('chamber.send'),
@@ -337,10 +349,11 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                AppLocalizations.of(context).tr('dialogs.cancel'),
+                                AppLocalizations.of(context)
+                                    .tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
-                                  color: Colors.grey.withOpacity(0.7),
+                                  color: Colors.grey.withValues(alpha: 0.7),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -369,29 +382,38 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       debugPrint('  Requester ID: ${user.id}');
       debugPrint('  Owner ID: ${content['user_id']}');
       debugPrint('  Message: $message');
-      
+
+      final l10n = AppLocalizations.of(context);
+      final contentTypeStr = content['content_type'] as String?;
+      final replyPrefix = contentTypeStr == 'bio'
+          ? l10n.tr('chamber.replying_to_bio')
+          : l10n.tr('chamber.replying_to_content');
+
       final bottleId = await _db.sendDirectBottle(
         senderId: user.id,
         receiverId: content['user_id'] as String,
         contentType: 'text', // Bottle content is text (the reply)
         message: message,
-        replyToContentType: content['content_type'] as String?,
+        replyToContentType: contentTypeStr,
         replyToContent: _getContentPreview(content),
+        replyPrefix: replyPrefix,
       );
-      
+
       debugPrint('📬 SECRET SOULS: Bottle ID returned: $bottleId');
-      
+
       if (bottleId != null) {
-        debugPrint('✅ SECRET SOULS: Bottle sent successfully, incrementing usage...');
+        debugPrint(
+            '✅ SECRET SOULS: Bottle sent successfully, incrementing usage...');
         // Increment usage
         await _db.incrementWeeklyMessages(user.id);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).tr('chamber.bottle_sent_success')),
-              backgroundColor: Color(0xFF4CAF50),
-              duration: Duration(seconds: 4),
+              content: Text(AppLocalizations.of(context)
+                  .tr('chamber.bottle_sent_success')),
+              backgroundColor: const Color(0xFF4CAF50),
+              duration: const Duration(seconds: 4),
             ),
           );
 
@@ -413,9 +435,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       } else {
         debugPrint('❌ SECRET SOULS: Bottle ID is NULL - send failed');
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).tr('errors.send_bottle_failed')),
+              content: Text(
+                  AppLocalizations.of(context).tr('errors.send_bottle_failed')),
               backgroundColor: Colors.red,
             ),
           );
@@ -438,13 +461,15 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         final tr = AppLocalizations.of(context);
         return Dialog(
           backgroundColor: const Color(0xFFFFF7E6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_clock_outlined, size: 50, color: Color(0xFFD4B483)),
+                const Icon(Icons.lock_clock_outlined,
+                    size: 50, color: Color(0xFFD4B483)),
                 const SizedBox(height: 16),
                 Text(
                   tr.tr('limits.weekly.title'),
@@ -469,16 +494,19 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const PurchaseScrollsScreen()),
-                      );
-                    },
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const PurchaseScrollsScreen()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE4C687),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
                   child: const Text('Obtenir des Parchemins'),
                 ),
@@ -515,7 +543,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildGate(BuildContext context) {
     final tr = AppLocalizations.of(context);
-    
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -526,9 +554,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           ),
           // Dark Overlay
           Container(
-            color: Colors.black.withOpacity(0.7),
+            color: Colors.black.withValues(alpha: 0.7),
           ),
-          
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -548,7 +576,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Description
                   Text(
                     tr.tr('secret_souls.gate.description'),
@@ -561,9 +589,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  
+
                   const Spacer(),
-                  
+
                   // Action Button
                   if (_isPremium)
                     // Direct Access (Premium)
@@ -581,7 +609,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFE4C687).withOpacity(0.4),
+                              color: const Color(0xFFE4C687)
+                                  .withValues(alpha: 0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -605,7 +634,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => const PremiumScreen()),
                         ).then((_) => _init());
                       },
                       child: Container(
@@ -618,7 +648,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFE4C687).withOpacity(0.3),
+                              color: const Color(0xFFE4C687)
+                                  .withValues(alpha: 0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -636,14 +667,15 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                         ),
                       ),
                     ),
-                    
+
                   const SizedBox(height: 16),
-                  
+
                   // Close Button
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 24),
                       child: Text(
                         tr.tr('secret_souls.gate.action.close'),
                         style: const TextStyle(
@@ -674,7 +706,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     }
 
     final tr = AppLocalizations.of(context);
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFF7E6), // Cream color from reference
       body: SafeArea(
@@ -730,9 +762,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Swipe Text
             Text(
               tr.tr('chamber.swipe'),
@@ -766,7 +798,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                AppLocalizations.of(context).tr('chamber.no_content'),
+                                AppLocalizations.of(context)
+                                    .tr('chamber.no_content'),
                                 style: const TextStyle(
                                   fontFamily: 'PlayfairDisplay',
                                   fontSize: 18,
@@ -796,37 +829,37 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
             ),
 
             // Send Message Button (Only for Quote and Audio)
-            if (_content.isNotEmpty && 
+            if (_content.isNotEmpty &&
                 _content[_currentIndex]['content_type'] != 'photo')
-            Padding(
-              padding: const EdgeInsets.fromLTRB(40, 20, 40, 40),
-              child: GestureDetector(
-                onTap: _content.isEmpty ? null : _sendMessage,
-                child: Container(
-                  width: double.infinity,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: _content.isEmpty
-                        ? const Color(0xFFE0E0E0)
-                        : const Color(0xFFE4C687), // Beige/Gold Button
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    tr.tr('chamber.send_message'),
-                    style: TextStyle(
-                      fontFamily: 'PlayfairDisplay',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(40, 20, 40, 40),
+                child: GestureDetector(
+                  onTap: _content.isEmpty ? null : _sendMessage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
                       color: _content.isEmpty
-                          ? const Color(0xFF9E9E9E)
-                          : Colors.white,
-                      letterSpacing: 0.5,
+                          ? const Color(0xFFE0E0E0)
+                          : const Color(0xFFE4C687), // Beige/Gold Button
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      tr.tr('chamber.send_message'),
+                      style: TextStyle(
+                        fontFamily: 'PlayfairDisplay',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _content.isEmpty
+                            ? const Color(0xFF9E9E9E)
+                            : Colors.white,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -843,12 +876,15 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF00BCD4) : const Color(0xFFE0E0E0), // Keep Cyan for selection or change to Gold? Reference shows Cyan.
+            color: isSelected
+                ? const Color(0xFF00BCD4)
+                : const Color(
+                    0xFFE0E0E0), // Keep Cyan for selection or change to Gold? Reference shows Cyan.
             // Reference image shows Cyan buttons "All" etc.
             width: 1,
           ),
           boxShadow: [
-             BoxShadow(
+            BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
@@ -858,10 +894,13 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'SF Pro Text', // Keep sans serif for tabs? Or match reference? Reference looks like sans serif "All".
+            fontFamily:
+                'SF Pro Text', // Keep sans serif for tabs? Or match reference? Reference looks like sans serif "All".
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: isSelected ? const Color(0xFF00BCD4) : const Color(0xFF5D4037), // Keep text color logic
+            color: isSelected
+                ? const Color(0xFF00BCD4)
+                : const Color(0xFF5D4037), // Keep text color logic
           ),
         ),
       ),
@@ -870,7 +909,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildContentCard(Map<String, dynamic> content) {
     final type = content['content_type'] as String;
-    
+
     // Parchment Background Container
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -878,9 +917,11 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         decoration: BoxDecoration(
           image: const DecorationImage(
             image: AssetImage('assets/images/soulpaper.jpg'),
-            fit: BoxFit.fill, // Or cover? Fill might stretch texture. Cover might crop.
+            fit: BoxFit
+                .fill, // Or cover? Fill might stretch texture. Cover might crop.
           ),
-          borderRadius: BorderRadius.circular(4), // Rough edges visual comes from image usually
+          borderRadius: BorderRadius.circular(
+              4), // Rough edges visual comes from image usually
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.2),
@@ -891,7 +932,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         ),
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(16.0), // Reduced from 40.0 to avoid edges but give more room
+            padding: const EdgeInsets.all(
+                16.0), // Reduced from 40.0 to avoid edges but give more room
             child: type == 'photo'
                 ? _buildPhotoCard(content)
                 : type == 'audio'
@@ -907,8 +949,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildPhotoCard(Map<String, dynamic> content) {
     // Check multiple potential keys for the photo URL
-    final photoUrl = (content['photo_url'] ?? content['url'] ?? content['asset_url']) as String?;
-    
+    final photoUrl = (content['photo_url'] ??
+        content['url'] ??
+        content['asset_url']) as String?;
+
     final department = content['department'] as String?;
     final city = content['city'] as String?;
     final fullName = content['full_name'] as String?;
@@ -925,16 +969,23 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         locationInfo = department;
       }
     }
-    
+
     String displayInfo = locationInfo;
-    if (firstName != null && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$firstName, $age - $locationInfo';
-      } else {
-        displayInfo = '$firstName, $age';
-      }
+    String finalName = firstName ?? '';
+    if (fullName == 'Secret Soul') {
+      finalName = AppLocalizations.of(context).tr('common.secret_soul');
     }
-    
+
+    if (finalName.isNotEmpty && age != null) {
+      if (locationInfo.isNotEmpty) {
+        displayInfo = '$finalName, $age - $locationInfo';
+      } else {
+        displayInfo = '$finalName, $age';
+      }
+    } else if (finalName.isNotEmpty) {
+      displayInfo = finalName;
+    }
+
     // White card style on top of parchment
     return Container(
       width: double.infinity,
@@ -966,7 +1017,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                         return Container(
                           color: const Color(0xFFEFEFEF),
                           child: const Center(
-                            child: CircularProgressIndicator(color: Color(0xFFD4B483)),
+                            child: CircularProgressIndicator(
+                                color: Color(0xFFD4B483)),
                           ),
                         );
                       },
@@ -983,16 +1035,20 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   : Container(
                       height: 200, // Placeholder height
                       color: const Color(0xFFEFEFEF),
-                      child: const Center(child: Text('No Image found', style: TextStyle(color: Colors.red))),
+                      child: const Center(
+                          child: Text('No Image found',
+                              style: TextStyle(color: Colors.red))),
                     ),
             ),
           ),
-          if (content['city'] != null && (content['city'] as String).isNotEmpty) ...[
+          if (content['city'] != null &&
+              (content['city'] as String).isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.location_on, size: 14, color: Color(0xFF737373)),
+                const Icon(Icons.location_on,
+                    size: 14, color: Color(0xFF737373)),
                 const SizedBox(width: 4),
                 Text(
                   displayInfo,
@@ -1013,7 +1069,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildAudioCard(Map<String, dynamic> content) {
     final audioUrl = content['audio_url'] as String?;
-    
+
     final department = content['department'] as String?;
     final city = content['city'] as String?;
     final fullName = content['full_name'] as String?;
@@ -1030,14 +1086,21 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         locationInfo = department;
       }
     }
-    
+
     String displayInfo = locationInfo;
-    if (firstName != null && age != null) {
+    String finalName = firstName ?? '';
+    if (fullName == 'Secret Soul') {
+      finalName = AppLocalizations.of(context).tr('common.secret_soul');
+    }
+
+    if (finalName.isNotEmpty && age != null) {
       if (locationInfo.isNotEmpty) {
-        displayInfo = '$firstName, $age - $locationInfo';
+        displayInfo = '$finalName, $age - $locationInfo';
       } else {
-        displayInfo = '$firstName, $age';
+        displayInfo = '$finalName, $age';
       }
+    } else if (finalName.isNotEmpty) {
+      displayInfo = finalName;
     }
 
     return SecretSoulAudioCard(audioUrl: audioUrl, locationInfo: displayInfo);
@@ -1045,7 +1108,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildBioCard(Map<String, dynamic> content) {
     final bioText = content['bio_text'] as String? ?? '';
-    
+
     final department = content['department'] as String?;
     final city = content['city'] as String?;
     final fullName = content['full_name'] as String?;
@@ -1061,16 +1124,23 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         locationInfo = department;
       }
     }
-    
+
     String displayInfo = locationInfo;
-    if (firstName != null && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$firstName, $age - $locationInfo';
-      } else {
-        displayInfo = '$firstName, $age';
-      }
+    String finalName = firstName ?? '';
+    if (fullName == 'Secret Soul') {
+      finalName = AppLocalizations.of(context).tr('common.secret_soul');
     }
-    
+
+    if (finalName.isNotEmpty && age != null) {
+      if (locationInfo.isNotEmpty) {
+        displayInfo = '$finalName, $age - $locationInfo';
+      } else {
+        displayInfo = '$finalName, $age';
+      }
+    } else if (finalName.isNotEmpty) {
+      displayInfo = finalName;
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1121,7 +1191,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   Widget _buildQuoteCard(Map<String, dynamic> content) {
     final quoteText = content['quote_text'] as String? ?? '';
-    
+
     final department = content['department'] as String?;
     final city = content['city'] as String?;
     final fullName = content['full_name'] as String?;
@@ -1138,7 +1208,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         locationInfo = department;
       }
     }
-    
+
     String displayInfo = locationInfo;
     if (firstName != null && age != null) {
       if (locationInfo.isNotEmpty) {
@@ -1147,7 +1217,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         displayInfo = '$firstName, $age';
       }
     }
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -1174,7 +1244,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           Text(
             quoteText,
             style: const TextStyle(
-              fontFamily: 'SF Pro Text', // Or Playfair? Reference quote looks sans-ish/italic? Reference says "Developer and music lover" in italic sans.
+              fontFamily:
+                  'SF Pro Text', // Or Playfair? Reference quote looks sans-ish/italic? Reference says "Developer and music lover" in italic sans.
               fontSize: 16,
               fontWeight: FontWeight.w400,
               fontStyle: FontStyle.italic,
@@ -1233,7 +1304,7 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
   void initState() {
     super.initState();
     _player = AudioPlayer();
-    
+
     // Ensure audio plays through the speaker (crucial for mobile)
     _player.setAudioContext(const AudioContext(
       iOS: AudioContextIOS(
@@ -1269,7 +1340,7 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
 
   Future<void> _togglePlay() async {
     if (widget.audioUrl == null) return;
-    
+
     try {
       if (_playerState == PlayerState.playing) {
         await _player.pause();
@@ -1315,7 +1386,7 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         // Semi-transparent cream to blend with parchment
-        color: const Color(0xCCFFF8E1), 
+        color: const Color(0xCCFFF8E1),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1),
         boxShadow: [
@@ -1334,10 +1405,10 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
             height: 60,
             alignment: Alignment.center,
             child: isPlaying
-                ? Icon(Icons.graphic_eq, size: 48, color: primaryColor) 
+                ? Icon(Icons.graphic_eq, size: 48, color: primaryColor)
                 : Icon(Icons.music_note, size: 48, color: accentColor),
           ),
-          
+
           const SizedBox(height: 16),
 
           // Progress Bar
@@ -1351,24 +1422,31 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
             ),
             child: Slider(
-              value: (_position.inMilliseconds.toDouble())
-                  .clamp(0, _duration.inMilliseconds.toDouble() > 0 ? _duration.inMilliseconds.toDouble() : 1.0),
+              value: (_position.inMilliseconds.toDouble()).clamp(
+                  0,
+                  _duration.inMilliseconds.toDouble() > 0
+                      ? _duration.inMilliseconds.toDouble()
+                      : 1.0),
               min: 0,
-              max: _duration.inMilliseconds.toDouble() > 0 ? _duration.inMilliseconds.toDouble() : 1.0,
+              max: _duration.inMilliseconds.toDouble() > 0
+                  ? _duration.inMilliseconds.toDouble()
+                  : 1.0,
               onChanged: (value) async {
                 final position = Duration(milliseconds: value.toInt());
                 await _player.seek(position);
               },
             ),
           ),
-          
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(_formatDuration(_position), style: TextStyle(color: primaryColor, fontSize: 12)),
-                Text(_formatDuration(_duration), style: TextStyle(color: primaryColor, fontSize: 12)),
+                Text(_formatDuration(_position),
+                    style: TextStyle(color: primaryColor, fontSize: 12)),
+                Text(_formatDuration(_duration),
+                    style: TextStyle(color: primaryColor, fontSize: 12)),
               ],
             ),
           ),
@@ -1382,7 +1460,7 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [
                     Color(0xFFE4C687), // Gold
                     Color(0xFFD4B483), // Darker Gold
@@ -1402,7 +1480,8 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
               child: _isLoading
                   ? const Padding(
                       padding: EdgeInsets.all(18.0),
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 3),
                     )
                   : Icon(
                       isPlaying ? Icons.pause : Icons.play_arrow_rounded,
@@ -1421,17 +1500,19 @@ class _SecretSoulAudioCardState extends State<SecretSoulAudioCard> {
               fontStyle: FontStyle.italic,
               color: primaryColor,
             ),
-            ),
+          ),
 
-          if (widget.locationInfo != null && widget.locationInfo!.isNotEmpty) ...[
+          if (widget.locationInfo != null &&
+              widget.locationInfo!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.location_on, size: 14, color: primaryColor.withValues(alpha: 0.7)),
+                Icon(Icons.location_on,
+                    size: 14, color: primaryColor.withValues(alpha: 0.7)),
                 const SizedBox(width: 4),
                 Text(
-                   widget.locationInfo!,
+                  widget.locationInfo!,
                   style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 12,

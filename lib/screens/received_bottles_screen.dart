@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/status_bar.dart';
 import '../services/database_service.dart';
 import '../models/bottle.dart';
@@ -9,6 +8,7 @@ import 'send_bottle_screen.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
 import '../widgets/warm_gradient_background.dart';
+import '../i18n/app_localizations.dart';
 
 class ReceivedBottlesScreen extends StatefulWidget {
   final ReceivedBottle? initialBottle;
@@ -21,7 +21,7 @@ class ReceivedBottlesScreen extends StatefulWidget {
 class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   final DatabaseService _db = DatabaseService();
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
-  
+
   List<ReceivedBottle> _bottles = [];
   bool _isLoading = true;
   String? _gender;
@@ -42,23 +42,35 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
 
   Future<void> _loadData() async {
     if (_currentUserId == null) return;
-    
+
     try {
-      final profile = await _db.getProfile(_currentUserId!);
+      final profile = await _db.getProfile(_currentUserId);
       if (profile != null) {
         _gender = profile['gender'];
-        _isPremium = profile['is_premium'] ?? false;
+        // Read tier (text) not is_premium (boolean) for correct premium check
+        final tier = profile['tier'] as String? ?? 'free';
+        _isPremium = tier == 'premium' || tier == 'elite';
       }
 
-      final allBottles = await _db.getAllReceivedBottles(_currentUserId!);
+      final allBottles = await _db.getAllReceivedBottles(_currentUserId);
+
+      // Only unreplied bottles, and deduplicate by sender (keep most recent per sender)
       final unreplied = allBottles.where((b) => !b.isReplied).toList();
+      final seenSenders = <String?>{};
+      final deduplicated = <ReceivedBottle>[];
+      for (final b in unreplied) {
+        if (!seenSenders.contains(b.senderId)) {
+          seenSenders.add(b.senderId);
+          deduplicated.add(b);
+        }
+      }
 
       if (mounted) {
         setState(() {
           if (widget.initialBottle != null) {
             _bottles = [widget.initialBottle!];
           } else {
-            _bottles = unreplied;
+            _bottles = deduplicated;
           }
           _isLoading = false;
         });
@@ -107,28 +119,28 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
         builder: (context) => VoiceChatModal(
           isReceived: true,
           audioUrl: bottle.audioUrl,
-            onReply: () async {
-              Navigator.pop(context);
-              // Immediate Disappearance: remove from local list before navigating
-              final bottleId = bottle.id;
-              setState(() {
-                _bottles.removeWhere((b) => b.id == bottleId);
-                if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
-                  _currentIndex = _bottles.length - 1;
-                }
-              });
+          onReply: () async {
+            Navigator.pop(context);
+            // Immediate Disappearance: remove from local list before navigating
+            final bottleId = bottle.id;
+            setState(() {
+              _bottles.removeWhere((b) => b.id == bottleId);
+              if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                _currentIndex = _bottles.length - 1;
+              }
+            });
 
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SendBottleScreen(
-                    replyToBottleId: bottleId,
-                    replyToUserId: bottle.senderId,
-                  ),
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SendBottleScreen(
+                  replyToBottleId: bottleId,
+                  replyToUserId: bottle.senderId,
                 ),
-              );
-              _loadData(); // Still refresh in background
-            },
+              ),
+            );
+            _loadData(); // Still refresh in background
+          },
         ),
       );
     } else if (bottle.contentType == 'photo') {
@@ -138,28 +150,28 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
           imageUrl: bottle.photoUrl ?? '',
           caption: bottle.caption ?? '',
           isReceived: true,
-            onReply: () async {
-              Navigator.pop(context);
-              // Immediate Disappearance
-              final bottleId = bottle.id;
-              setState(() {
-                _bottles.removeWhere((b) => b.id == bottleId);
-                if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
-                  _currentIndex = _bottles.length - 1;
-                }
-              });
+          onReply: () async {
+            Navigator.pop(context);
+            // Immediate Disappearance
+            final bottleId = bottle.id;
+            setState(() {
+              _bottles.removeWhere((b) => b.id == bottleId);
+              if (_currentIndex >= _bottles.length && _bottles.isNotEmpty) {
+                _currentIndex = _bottles.length - 1;
+              }
+            });
 
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SendBottleScreen(
-                    replyToBottleId: bottleId,
-                    replyToUserId: bottle.senderId,
-                  ),
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SendBottleScreen(
+                  replyToBottleId: bottleId,
+                  replyToUserId: bottle.senderId,
                 ),
-              );
-              _loadData();
-            },
+              ),
+            );
+            _loadData();
+          },
         ),
       );
     }
@@ -183,12 +195,13 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFFFF9800))),
+        body:
+            Center(child: CircularProgressIndicator(color: Color(0xFFFF9800))),
       );
     }
 
     if (_bottles.isEmpty) {
-       return Scaffold(
+      return Scaffold(
         body: WarmGradientBackground(
           child: Column(
             children: [
@@ -198,14 +211,17 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                 child: Center(
                   child: Text(
                     'No new bottles found.',
-                    style: TextStyle(fontFamily: 'Montserrat', fontSize: 16, color: Color(0xFF737373)),
+                    style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 16,
+                        color: Color(0xFF737373)),
                   ),
                 ),
               )
             ],
           ),
         ),
-       );
+      );
     }
 
     final bottle = _bottles[_currentIndex];
@@ -222,7 +238,8 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
             // Main Content Area - Fixed Layout (No Scroll)
             Expanded(
               child: GestureDetector(
-                behavior: HitTestBehavior.translucent, // Ensure swipes are caught even on empty space
+                behavior: HitTestBehavior
+                    .translucent, // Ensure swipes are caught even on empty space
                 onHorizontalDragEnd: (details) {
                   if (details.primaryVelocity! > 0) {
                     _prevBottle();
@@ -239,16 +256,16 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                       width: 160,
                       height: 160,
                       decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/homepage_bottle.png',
-                        width: 140,
-                        height: 140,
-                        fit: BoxFit.cover,
+                        shape: BoxShape.circle,
                       ),
-                    ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/homepage_bottle.png',
+                          width: 140,
+                          height: 140,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     // Counter REMOVED as requested
@@ -279,12 +296,15 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
                       onTap: () => _handleReply(bottle),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 10),
                         decoration: BoxDecoration(
                           // White border, transparent or semi-transparent fill
-                          border: Border.all(color: Colors.white, width: 2), 
-                          borderRadius: BorderRadius.circular(4), // Slightly rounded corners
-                          color: Colors.white.withOpacity(0.2), // Semi-transparent for "glass" feel
+                          border: Border.all(color: Colors.white, width: 2),
+                          borderRadius: BorderRadius.circular(
+                              4), // Slightly rounded corners
+                          color: Colors.white.withValues(
+                              alpha: 0.2), // Semi-transparent for "glass" feel
                         ),
                         child: Text(
                           isLocked ? 'Upgrade to Read' : 'Répondre',
@@ -328,12 +348,13 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
     String senderInfo = bottle.senderNickname ?? 'Unknown';
     if (bottle.senderAge != null) {
       senderInfo = '${bottle.senderNickname}, ${bottle.senderAge}';
-      
+
       String locationInfo = '';
       if (bottle.senderCity != null && bottle.senderCity!.isNotEmpty) {
         locationInfo = bottle.senderCity!;
       }
-      if (bottle.senderDepartment != null && bottle.senderDepartment!.isNotEmpty) {
+      if (bottle.senderDepartment != null &&
+          bottle.senderDepartment!.isNotEmpty) {
         final deptNum = bottle.senderDepartment!.split(' - ').first;
         if (locationInfo.isNotEmpty) {
           locationInfo = '$locationInfo ($deptNum)';
@@ -352,9 +373,11 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         // Transparent as requested
-        color: Colors.transparent, 
-        borderRadius: BorderRadius.circular(0), // Sharp or slight radius? Image looks sharp/minimal
-        border: Border.all(color: Colors.white, width: 3), // Prominent white border
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(
+            0), // Sharp or slight radius? Image looks sharp/minimal
+        border:
+            Border.all(color: Colors.white, width: 3), // Prominent white border
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -387,46 +410,49 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
             Container(
               height: 1,
               width: 60,
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 12),
           ],
-          
+
           Expanded(
             child: Center(
-              child: isLocked 
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.lock, color: Colors.orange, size: 40),
-                      const SizedBox(height: 16),
-                      const Text(
-                        "This message is locked.",
+              child: isLocked
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock, color: Colors.orange, size: 40),
+                        SizedBox(height: 16),
+                        Text(
+                          'This message is locked.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF151515),
+                          ),
+                        ),
+                      ],
+                    )
+                  : SingleChildScrollView(
+                      // Scroll *inside* card if text is long
+                      child: Text(
+                        bottle.contentType == 'text'
+                            ? _getTranslatedMessage(context, bottle.message)
+                            : (bottle.contentType == 'voice'
+                                ? '🎤 Voice Message'
+                                : '📷 Photo Message'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 20, // Bold large text
+                          fontWeight: FontWeight.w700,
                           color: Color(0xFF151515),
+                          height: 1.3,
                         ),
                       ),
-                    ],
-                  )
-                : SingleChildScrollView( // Scroll *inside* card if text is long
-                    child: Text(
-                      bottle.contentType == 'text' 
-                          ? (bottle.message ?? '')
-                          : (bottle.contentType == 'voice' ? '🎤 Voice Message' : '📷 Photo Message'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 20, // Bold large text
-                        fontWeight: FontWeight.w700, 
-                        color: Color(0xFF151515),
-                        height: 1.3,
-                      ),
                     ),
-                  ),
             ),
           ),
           const SizedBox(height: 16),
@@ -435,7 +461,8 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (bottle.senderCity != null || bottle.senderDepartment != null)
-                const Icon(Icons.location_on, size: 12, color: Color(0xFF737373)),
+                const Icon(Icons.location_on,
+                    size: 12, color: Color(0xFF737373)),
               if (bottle.senderCity != null || bottle.senderDepartment != null)
                 const SizedBox(width: 4),
               Flexible(
@@ -479,7 +506,7 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
     if (bottle.replyToContent != null && bottle.replyToContent!.isNotEmpty) {
       return '"${bottle.replyToContent}"';
     }
-    
+
     switch (bottle.replyToContentType) {
       case 'voice':
       case 'audio':
@@ -489,5 +516,19 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
       default:
         return '';
     }
+  }
+
+  String _getTranslatedMessage(BuildContext context, String? message) {
+    if (message == null) return '';
+    final l10n = AppLocalizations.of(context);
+
+    if (message.startsWith('Replying to bio: ')) {
+      return message.replaceFirst(
+          'Replying to bio: ', l10n.tr('chamber.replying_to_bio'));
+    } else if (message.startsWith('Replying to: ')) {
+      return message.replaceFirst(
+          'Replying to: ', l10n.tr('chamber.replying_to_content'));
+    }
+    return message;
   }
 }
