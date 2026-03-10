@@ -27,10 +27,9 @@ BEGIN
 
   -- Check block status between the two users
   SELECT EXISTS(
-    SELECT 1 FROM connections
-    WHERE status = 'blocked'
-    AND ((blocker_id = conv_user_a AND blocked_id = conv_user_b) OR
-         (blocker_id = conv_user_b AND blocked_id = conv_user_a))
+    SELECT 1 FROM user_blocks
+    WHERE ((blocker_id = conv_user_a AND blocked_id = conv_user_b) OR
+           (blocker_id = conv_user_b AND blocked_id = conv_user_a))
   ) INTO is_blocked;
 
   IF last_sender IS NULL THEN

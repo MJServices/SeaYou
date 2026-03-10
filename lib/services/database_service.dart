@@ -83,50 +83,97 @@ class DatabaseService {
 
   // --- Freemium/Premium Logic ---
 
-  /// Check if user can send a bottle today (Free: max 3).
-  Future<bool> canSendBottleToday(String userId, bool isPremium) async {
-    // 1. Premium users are always allowed
-    if (isPremium) return true;
-
+  /// Check if user has available scrolls (Premium daily free or purchased)
+  Future<bool> hasAvailableScrolls(String userId) async {
     try {
-      // 2. Fetch both limit data AND gender
       final res = await _supabase
           .from('profiles')
-          .select('bottles_sent_today, last_bottle_sent_date, gender')
+          .select(
+              'daily_free_scrolls, scrolls_count, last_scroll_refreshed_date')
           .eq('id', userId)
           .single();
 
-      final int count = res['bottles_sent_today'] ?? 0;
-      final String? dateStr = res['last_bottle_sent_date'];
-      final String gender = (res['gender'] as String?)?.toLowerCase() ?? '';
+      int dailyFree = res['daily_free_scrolls'] ?? 0;
+      final int regularScrolls = res['scrolls_count'] ?? 0;
+      final String? dateStr = res['last_scroll_refreshed_date'];
 
-      // 3. Women have unlimited sends (even if not technically 'premium' in entitlements)
-      if (gender == 'woman' || gender == 'female' || gender == 'femme') {
-        return true;
-      }
-
-      // 4. Check if it's a new day to reset counter
-      if (dateStr == null) return true;
-
-      final lastDate = DateTime.parse(dateStr).toLocal();
       final now = DateTime.now().toLocal();
-
-      if (lastDate.year != now.year ||
-          lastDate.month != now.month ||
-          lastDate.day != now.day) {
-        // We don't reset here (incrementDailyBottles handles it), just allow the send
-        return true;
+      bool isNewDay = true;
+      if (dateStr != null) {
+        final lastDate = DateTime.parse(dateStr).toLocal();
+        if (lastDate.year == now.year &&
+            lastDate.month == now.month &&
+            lastDate.day == now.day) {
+          isNewDay = false;
+        }
       }
 
-      // 5. Strict check for men/others
-      return count < 3;
+      if (isNewDay) {
+        // Fetch premium status to determine daily allocation.
+        // We check the 'profiles' table first as it's the source of truth for tier.
+        final profileRes = await _supabase
+            .from('profiles')
+            .select('tier, is_premium')
+            .eq('id', userId)
+            .single();
+
+        final String tier = profileRes['tier'] as String? ?? 'free';
+        final bool isPremiumFlag = profileRes['is_premium'] == true;
+        final bool isPremium = tier == 'premium' || isPremiumFlag;
+
+        dailyFree = isPremium ? 3 : 0;
+
+        // Update DB
+        await _supabase.from('profiles').update({
+          'daily_free_scrolls': dailyFree,
+          'last_scroll_refreshed_date': now.toUtc().toIso8601String(),
+        }).eq('id', userId);
+
+        // IMPORTANT: Since we refreshed, the 'regularScrolls' variable we fetched at the
+        // start of this function might be outdated or we might want to be absolutely
+        // sure we have the latest state. However, the logic (dailyFree + regularScrolls)
+        // is what we want.
+      }
+
+      // Final check: sum of both. regularScrolls was fetched at line 97.
+      return (dailyFree + regularScrolls) > 0;
     } catch (e) {
-      debugPrint('Error checking bottle limit: $e');
-      return false; // Strict fail: if we can't check, we don't allow (prevents bypass)
+      debugPrint('Error checking scrolls: $e');
+      // If there's an error, fallback to checking the profile one last time without refresh logic
+      try {
+        final res = await _supabase
+            .from('profiles')
+            .select('daily_free_scrolls, scrolls_count')
+            .eq('id', userId)
+            .single();
+        return ((res['daily_free_scrolls'] ?? 0) +
+                (res['scrolls_count'] ?? 0)) >
+            0;
+      } catch (_) {
+        return false;
+      }
     }
   }
 
-  /// Increment bottle sent count
+  /// Deduct 1 scroll (Prefers daily_free_scrolls first, then scrolls_count).
+  /// This calls our Postgres RPC function `use_scroll`.
+  Future<bool> deductScroll(String userId) async {
+    try {
+      final response =
+          await _supabase.rpc('use_scroll', params: {'user_id': userId});
+      return response == true;
+    } catch (e) {
+      debugPrint('Error deducting scroll: $e');
+      return false;
+    }
+  }
+
+  /// Check if user can send a bottle today (redirects to scroll check).
+  Future<bool> canSendBottleToday(String userId, bool isPremium) async {
+    return hasAvailableScrolls(userId);
+  }
+
+  /// Increment bottle sent count AND deduct a scroll
   Future<void> incrementDailyBottles(String userId) async {
     try {
       final res = await _supabase
@@ -1144,7 +1191,20 @@ class DatabaseService {
       });
       debugPrint('User $blockedId blocked by $blockerId');
 
-      // 2. Delete mutual conversations (bidirectional wipe)
+      // 2. Fetch mutual conversations and explicitly delete messages to avoid foreign key errors
+      final convs = await _supabase.from('conversations').select('id').or(
+          'and(user_a_id.eq.$blockerId,user_b_id.eq.$blockedId),and(user_a_id.eq.$blockedId,user_b_id.eq.$blockerId)');
+
+      if ((convs as List).isNotEmpty) {
+        final convIds = convs.map((c) => c['id']).toList();
+        await _supabase
+            .from('messages')
+            .delete()
+            .inFilter('conversation_id', convIds);
+        debugPrint('Deleted messages for conversations: $convIds');
+      }
+
+      // 3. Delete mutual conversations (bidirectional wipe)
       await _supabase.from('conversations').delete().or(
           'and(user_a_id.eq.$blockerId,user_b_id.eq.$blockedId),and(user_a_id.eq.$blockedId,user_b_id.eq.$blockerId)');
       debugPrint(
@@ -2019,7 +2079,7 @@ class DatabaseService {
         var sscQuery = _supabase
             .from('secret_souls_content')
             .select(
-                'id, user_id, content_type, photo_url, audio_url, quote_text, created_at')
+                'id, user_id, content_type, photo_url, audio_url, quote_text, created_at, profiles!inner(city, department, full_name, age, avatar_url)')
             .eq('is_visible', true)
             .neq('user_id', currentUserId ?? '');
 
@@ -2037,6 +2097,11 @@ class DatabaseService {
         for (final s in (sscItems as List)) {
           if (blockedIds.contains(s['user_id'])) continue;
 
+          // Check if this ssc photo is the main profile picture
+          final bool isMain = s['content_type'] == 'photo' &&
+              s['photo_url'] != null &&
+              s['photo_url'] == s['profiles']?['avatar_url'];
+
           items.add({
             'id': 'ssc_${s['id']}',
             'user_id': s['user_id'],
@@ -2044,10 +2109,11 @@ class DatabaseService {
             'photo_url': s['photo_url'],
             'audio_url': s['audio_url'],
             'quote_text': s['quote_text'],
-            'city': null,
-            'department': null,
-            'full_name': 'Secret Soul',
-            'age': null,
+            'is_main_profile_picture': isMain,
+            'city': s['profiles']?['city'],
+            'department': s['profiles']?['department'],
+            'full_name': s['profiles']?['full_name'],
+            'age': s['profiles']?['age'],
             'created_at': s['created_at'],
           });
         }
@@ -2101,7 +2167,7 @@ class DatabaseService {
           var query = _supabase
               .from('profile_photos')
               .select(
-                  'id, user_id, url, created_at, profiles!inner(city, department, full_name, age)')
+                  'id, user_id, url, created_at, is_first_face_photo, profiles!inner(city, department, full_name, age, avatar_url)')
               .eq('show_in_secret_souls', true)
               .neq('user_id', currentUserId ?? '');
 
@@ -2121,6 +2187,8 @@ class DatabaseService {
                 'user_id': p['user_id'],
                 'content_type': 'photo',
                 'photo_url': p['url'],
+                'is_main_profile_picture': p['is_first_face_photo'] == true ||
+                    p['url'] == p['profiles']?['avatar_url'],
                 'city': p['profiles']?['city'],
                 'department': p['profiles']?['department'],
                 'full_name': p['profiles']?['full_name'],

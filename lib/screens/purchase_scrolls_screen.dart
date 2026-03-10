@@ -9,11 +9,11 @@ class PurchaseScrollsScreen extends StatelessWidget {
 
   // TODO: Replace with your actual Stripe payment links for each scroll pack
   static const String _scrolls3Link =
-      'https://buy.stripe.com/eVq9ATc6i1l786cdC62Nq01';
+      'https://buy.stripe.com/test_5kQ00ifqJawN6Gv6kW4gg03';
   static const String _scrolls10Link =
-      'https://buy.stripe.com/eVq7sL1rEe7T86c7dI2Nq04';
+      'https://buy.stripe.com/test_dRm7sK2DX9sJfd1eRs4gg02';
   static const String _scrolls30Link =
-      'https://buy.stripe.com/3cIeVd8U6e7T728gOi2Nq03';
+      'https://buy.stripe.com/test_7sY00i2DX20h8OD8t44gg01';
 
   Future<void> _launchUrl(BuildContext context, String urlString) async {
     final user = Supabase.instance.client.auth.currentUser;

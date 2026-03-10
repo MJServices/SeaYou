@@ -52,43 +52,88 @@ serve(async (req: Request) => {
         `📦 Fulfillment started for User: ${userId}, PaymentLink: ${paymentLinkId}`,
       );
 
-      if (!userId) {
-        throw new Error("No client_reference_id (userId) found in session.");
-      }
-
       const supabaseClient = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       );
 
+      let identifiedUserId = userId;
+
+      // Fallback: If no client_reference_id, try to find user by email
+      if (!identifiedUserId && session.customer_details?.email) {
+        console.log(
+          `🔍 No client_reference_id. Searching for user by email: ${session.customer_details.email}`,
+        );
+        const { data: userData, error: userError } = await supabaseClient
+          .from("profiles")
+          .select("id")
+          .eq("email", session.customer_details.email)
+          .single();
+
+        if (userData) {
+          identifiedUserId = userData.id;
+          console.log(`✅ Found user by email: ${identifiedUserId}`);
+        } else {
+          console.warn(
+            `❓ Could not find user with email: ${session.customer_details.email}`,
+          );
+        }
+      }
+
+      if (!identifiedUserId) {
+        throw new Error(
+          "Could not identify user (no client_reference_id and no matching email).",
+        );
+      }
+
       // Reward mapping based on Payment Link IDs provided by user
-      if (paymentLinkId === "eVq9ATc6i1l786cdC62Nq01") {
+      if (
+        paymentLinkId === "test_5kQ00ifqJawN6Gv6kW4gg03" ||
+        paymentLinkId === "plink_1T8eTpAntToJSaE8ribE8lyv" ||
+        paymentLinkId === "plink_1T8eZBAntToJSaE8dSHr3qcl"
+      ) {
+        console.log(`💎 Processing 3 Scrolls pack...`);
         const { error } = await supabaseClient.rpc("increment_scrolls", {
-          user_id: userId,
+          user_id: identifiedUserId,
           amount: 3,
         });
         if (error) throw error;
-        console.log(`✅ Credited 3 scrolls to user ${userId}`);
-      } else if (paymentLinkId === "eVq7sL1rEe7T86c7dI2Nq04") {
+        console.log(`✅ Credited 3 scrolls to user ${identifiedUserId}`);
+      } else if (
+        paymentLinkId === "test_dRm7sK2DX9sJfd1eRs4gg02" ||
+        paymentLinkId === "plink_1T8eYzAntToJSaE8Ku0Cdsyj" ||
+        paymentLinkId === "plink_1T8eZSAntToJSaE8eO2hDeuz"
+      ) {
+        console.log(`💎 Processing 10 Scrolls pack...`);
         const { error } = await supabaseClient.rpc("increment_scrolls", {
-          user_id: userId,
+          user_id: identifiedUserId,
           amount: 10,
         });
         if (error) throw error;
-        console.log(`✅ Credited 10 scrolls to user ${userId}`);
-      } else if (paymentLinkId === "3cIeVd8U6e7T728gOi2Nq03") {
+        console.log(`✅ Credited 10 scrolls to user ${identifiedUserId}`);
+      } else if (
+        paymentLinkId === "test_7sY00i2DX20h8OD8t44gg01" ||
+        paymentLinkId === "plink_1T8eYgAntToJSaE8kYWHFrnv" ||
+        paymentLinkId === "plink_1T8eZkAntToJSaE8NIFKyTTm"
+      ) {
+        console.log(`💎 Processing 30 Scrolls pack...`);
         const { error } = await supabaseClient.rpc("increment_scrolls", {
-          user_id: userId,
+          user_id: identifiedUserId,
           amount: 30,
         });
         if (error) throw error;
-        console.log(`✅ Credited 30 scrolls to user ${userId}`);
-      } else if (paymentLinkId === "3cI28r0nAd3PdqwfKe2Nq02") {
+        console.log(`✅ Credited 30 scrolls to user ${identifiedUserId}`);
+      } else if (
+        paymentLinkId === "test_cNi4gybatdIZfd15gS4gg04" ||
+        paymentLinkId === "plink_1T8eZQAntToJSaE8ODuenmeU" ||
+        paymentLinkId === "test_14AaEWfqJ9sJc0P24G4gg00"
+      ) {
+        console.log(`👑 Processing Premium Upgrade...`);
         // Upgrade to Premium
         const { error: profileError } = await supabaseClient
           .from("profiles")
           .update({ is_premium: true, tier: "premium" })
-          .eq("id", userId);
+          .eq("id", identifiedUserId);
 
         if (profileError) throw profileError;
 
@@ -99,7 +144,7 @@ serve(async (req: Request) => {
         const { error: entitlementError } = await supabaseClient
           .from("entitlements")
           .upsert({
-            user_id: userId,
+            user_id: identifiedUserId,
             tier: "premium",
             source: "stripe",
             expires_at: expiresAt.toISOString(),
@@ -107,7 +152,7 @@ serve(async (req: Request) => {
           });
 
         if (entitlementError) throw entitlementError;
-        console.log(`✅ Upgraded user ${userId} to Premium`);
+        console.log(`✅ Upgraded user ${identifiedUserId} to Premium`);
       } else {
         console.warn(
           `❓ Unknown Payment Link ID: ${paymentLinkId}. No reward granted.`,
@@ -121,6 +166,7 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error(`❌ Webhook Error: ${err.message}`);
+    // Log the raw body/event if possible for high-level debug
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,

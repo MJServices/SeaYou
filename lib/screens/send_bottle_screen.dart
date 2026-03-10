@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'purchase_scrolls_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -800,50 +801,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       }
 
       // Check limits
-      final isPremiumOrWoman =
-          await EntitlementsService().isPremiumOrWoman(currentUser.id);
-      final canSend = await _databaseService.canSendBottleToday(
-          currentUser.id, isPremiumOrWoman);
+      final canSend =
+          await _databaseService.hasAvailableScrolls(currentUser.id);
 
       if (!canSend) {
         setState(() => _isSending = false);
         if (!mounted) return;
-
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(
-                AppLocalizations.of(context)
-                    .tr('send_bottle.daily_limit_title'),
-                style: const TextStyle(
-                    fontFamily: 'PlayfairDisplay',
-                    fontWeight: FontWeight.bold)),
-            content: Text(
-                AppLocalizations.of(context)
-                    .tr('send_bottle.daily_limit_message'),
-                style: const TextStyle(fontFamily: 'Montserrat')),
-            actions: [
-              TextButton(
-                  child:
-                      Text(AppLocalizations.of(context).tr('dialogs.cancel')),
-                  onPressed: () => Navigator.pop(context)),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0AC5C5)),
-                child: Text(AppLocalizations.of(context).tr('common.upgrade'),
-                    style: const TextStyle(color: Colors.white)),
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const PremiumScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
+        _showOutOfScrollsDialog(context);
         return;
       }
 
@@ -897,7 +861,17 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         uploadedAudioUrl = uploadStatus.url;
       }
 
-      // 1. Create sent bottle in database
+      // 1. Deduct scroll (Verify and consume)
+      final deducted = await _databaseService.deductScroll(currentUser.id);
+      if (!deducted) {
+        setState(() => _isSending = false);
+        if (!mounted) return;
+        // Show out of scrolls again if it somehow changed
+        _showOutOfScrollsDialog(context);
+        return;
+      }
+
+      // 2. Create sent bottle in database
       final bottleId = await _databaseService.createSentBottle(
         senderId: currentUser.id,
         contentType: contentType,
@@ -920,7 +894,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         throw Exception('Failed to create bottle');
       }
 
-      // Increment counter
+      // Increment counter (without deduction now, since it's done)
       await _databaseService.incrementDailyBottles(currentUser.id);
 
       // Check if this is a reply to a bottle
@@ -1182,5 +1156,43 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         );
       }
     }
+  }
+
+  void _showOutOfScrollsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Plus de Parchemins',
+              style: TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3E2723))),
+          content: const Text(
+              'Un parchemin est nécessaire pour envoyer une bouteille. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
+              style: TextStyle(
+                  fontFamily: 'Montserrat', color: Color(0xFF5D4037))),
+          actions: [
+            TextButton(
+                child: Text(AppLocalizations.of(context).tr('dialogs.cancel')),
+                onPressed: () => Navigator.pop(context)),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE4C687)),
+              child: const Text('Obtenir des Parchemins',
+                  style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const PurchaseScrollsScreen()),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 }

@@ -195,11 +195,11 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       return;
     }
 
-    // 2. Check limits (Max 3 per week)
-    final canSend = await _db.canSendMessageThisWeek(user.id);
-    if (!canSend) {
+    // 2. Check limits (Scrolls available)
+    final hasScrolls = await _db.hasAvailableScrolls(user.id);
+    if (!hasScrolls) {
       if (!mounted) return;
-      _showLimitReachedDialog();
+      _showOutOfScrollsDialog();
       return;
     }
 
@@ -389,6 +389,14 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           ? l10n.tr('chamber.replying_to_bio')
           : l10n.tr('chamber.replying_to_content');
 
+      // 3. Deduct scroll (Verify and consume)
+      final deducted = await _db.deductScroll(user.id);
+      if (!deducted) {
+        if (!mounted) return;
+        _showOutOfScrollsDialog();
+        return;
+      }
+
       final bottleId = await _db.sendDirectBottle(
         senderId: user.id,
         receiverId: content['user_id'] as String,
@@ -402,10 +410,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       debugPrint('📬 SECRET SOULS: Bottle ID returned: $bottleId');
 
       if (bottleId != null) {
-        debugPrint(
-            '✅ SECRET SOULS: Bottle sent successfully, incrementing usage...');
-        // Increment usage
-        await _db.incrementWeeklyMessages(user.id);
+        debugPrint('✅ SECRET SOULS: Bottle sent successfully...');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -454,7 +459,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     }
   }
 
-  void _showLimitReachedDialog() {
+  void _showOutOfScrollsDialog() {
     showDialog(
       context: context,
       builder: (context) {
@@ -468,12 +473,12 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_clock_outlined,
+                const Icon(Icons.history_edu,
                     size: 50, color: Color(0xFFD4B483)),
                 const SizedBox(height: 16),
-                Text(
-                  tr.tr('limits.weekly.title'),
-                  style: const TextStyle(
+                const Text(
+                  'Plus de Parchemins',
+                  style: TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -481,10 +486,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  tr.tr('limits.weekly.message'),
+                const Text(
+                  'Un parchemin est nécessaire pour répondre. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 14,
                     color: Color(0xFF5D4037),
@@ -513,7 +518,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(
-                    tr.tr('limits.weekly.ok'),
+                    tr.tr('dialogs.cancel'),
                     style: const TextStyle(color: Color(0xFF5D4037)),
                   ),
                 ),
@@ -953,6 +958,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         content['url'] ??
         content['asset_url']) as String?;
 
+    final isMainPhoto = content['is_main_profile_picture'] == true;
     final department = content['department'] as String?;
     final city = content['city'] as String?;
     final fullName = content['full_name'] as String?;
@@ -972,18 +978,21 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = locationInfo;
     String finalName = firstName ?? '';
-    if (fullName == 'Secret Soul') {
-      finalName = AppLocalizations.of(context).tr('common.secret_soul');
-    }
 
-    if (finalName.isNotEmpty && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$finalName, $age - $locationInfo';
-      } else {
-        displayInfo = '$finalName, $age';
+    // ANONYMITY LOGIC: If it's the main face photo, hide all info and call them "Secret Soul"
+    if (isMainPhoto) {
+      finalName = AppLocalizations.of(context).tr('common.secret_soul');
+      displayInfo = ''; // Hide location/age
+    } else {
+      if (finalName.isNotEmpty && age != null) {
+        if (locationInfo.isNotEmpty) {
+          displayInfo = '$finalName, $age - $locationInfo';
+        } else {
+          displayInfo = '$finalName, $age';
+        }
+      } else if (finalName.isNotEmpty) {
+        displayInfo = finalName;
       }
-    } else if (finalName.isNotEmpty) {
-      displayInfo = finalName;
     }
 
     // White card style on top of parchment
@@ -1089,9 +1098,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = locationInfo;
     String finalName = firstName ?? '';
-    if (fullName == 'Secret Soul') {
-      finalName = AppLocalizations.of(context).tr('common.secret_soul');
-    }
 
     if (finalName.isNotEmpty && age != null) {
       if (locationInfo.isNotEmpty) {
@@ -1127,9 +1133,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = locationInfo;
     String finalName = firstName ?? '';
-    if (fullName == 'Secret Soul') {
-      finalName = AppLocalizations.of(context).tr('common.secret_soul');
-    }
 
     if (finalName.isNotEmpty && age != null) {
       if (locationInfo.isNotEmpty) {
@@ -1210,11 +1213,12 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     }
 
     String displayInfo = locationInfo;
-    if (firstName != null && age != null) {
+    String finalName = firstName ?? '';
+    if (finalName.isNotEmpty && age != null) {
       if (locationInfo.isNotEmpty) {
-        displayInfo = '$firstName, $age - $locationInfo';
+        displayInfo = '$finalName, $age - $locationInfo';
       } else {
-        displayInfo = '$firstName, $age';
+        displayInfo = '$finalName, $age';
       }
     }
 

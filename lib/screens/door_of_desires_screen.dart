@@ -170,11 +170,11 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       return;
     }
 
-    // 2. Check limits (Max 3 per week)
-    final canSend = await _db.canSendMessageThisWeek(user.id);
-    if (!canSend) {
+    // 2. Check limits (Scrolls available)
+    final hasScrolls = await _db.hasAvailableScrolls(user.id);
+    if (!hasScrolls) {
       if (!mounted) return;
-      _showLimitReachedDialog();
+      _showOutOfScrollsDialog();
       return;
     }
 
@@ -361,6 +361,14 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       final l10n = AppLocalizations.of(context);
       final replyPrefix = l10n.tr('chamber.replying_to_content');
 
+      // 3. Deduct scroll (Verify and consume)
+      final deducted = await _db.deductScroll(user.id);
+      if (!deducted) {
+        if (!mounted) return;
+        _showOutOfScrollsDialog();
+        return;
+      }
+
       final bottleId = await _db.sendDirectBottle(
         senderId: user.id,
         receiverId: fantasy['user_id'] as String,
@@ -375,9 +383,6 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
       if (mounted) {
         if (bottleId != null) {
-          // Increment usage
-          await _db.incrementWeeklyMessages(user.id);
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(AppLocalizations.of(context)
@@ -426,7 +431,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
     }
   }
 
-  void _showLimitReachedDialog() {
+  void _showOutOfScrollsDialog() {
     showDialog(
       context: context,
       builder: (context) {
@@ -440,12 +445,12 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_clock_outlined,
+                const Icon(Icons.history_edu,
                     size: 50, color: Color(0xFF8A2BE2)),
                 const SizedBox(height: 16),
-                Text(
-                  tr.tr('limits.weekly.title'),
-                  style: const TextStyle(
+                const Text(
+                  'Plus de Parchemins',
+                  style: TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -453,10 +458,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  tr.tr('limits.weekly.message'),
+                const Text(
+                  'Un parchemin est nécessaire pour répondre. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 14,
                     color: Color(0xFF5D4037),
@@ -480,13 +485,12 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 12),
                   ),
-                  child: const Text(
-                      'Cliquez-ici !'), // Updated text to "Click Here!" (French)
+                  child: const Text('Obtenir des Parchemins'),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(
-                    tr.tr('limits.weekly.ok'),
+                    tr.tr('dialogs.cancel'),
                     style: const TextStyle(color: Color(0xFF5D4037)),
                   ),
                 ),

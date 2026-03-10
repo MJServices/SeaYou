@@ -17,7 +17,7 @@ class PremiumScreen extends StatefulWidget {
 class _PremiumScreenState extends State<PremiumScreen>
     with WidgetsBindingObserver {
   static const String _subscriptionLink =
-      'https://buy.stripe.com/3cI28r0nAd3PdqwfKe2Nq02';
+      'https://buy.stripe.com/test_cNi4gybatdIZfd15gS4gg04';
   static const String _manageSubscriptionLink =
       'https://billing.stripe.com/p/login/9B66oHgmyaVH4U0dC62Nq00';
 
@@ -100,9 +100,10 @@ class _PremiumScreenState extends State<PremiumScreen>
 
     // For the subscription link, append parameters. For management portal, just open it.
     String enrichedUrl = urlString;
-    if (urlString == _subscriptionLink) {
+    if (urlString.contains('buy.stripe.com')) {
+      final separator = urlString.contains('?') ? '&' : '?';
       enrichedUrl = '$urlString'
-          '?client_reference_id=${user.id}'
+          '${separator}client_reference_id=${user.id}'
           '&prefilled_email=${Uri.encodeComponent(user.email ?? '')}';
     }
 

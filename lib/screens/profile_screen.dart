@@ -13,6 +13,7 @@ import 'profile/terms_of_service_screen.dart';
 import 'profile/privacy_policy_screen.dart';
 import 'premium_screen.dart';
 import 'sexual_orientation_screen.dart';
+import 'edit_expectations_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/sign_out_modal.dart';
 import '../widgets/delete_account_modal.dart';
@@ -46,6 +47,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<String> _sexualOrientations = [];
   List<String> _interests = [];
   bool _isPremium = false;
+  String? _expectation;
+  String? _interestedIn;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
 
   @override
@@ -75,6 +78,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (profile['interests'] != null) {
             _interests = List<String>.from(profile['interests']);
           }
+
+          _expectation = profile['expectation'];
+          _interestedIn = profile['interested_in'];
 
           _isLoading = false;
         });
@@ -108,6 +114,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (profile['interests'] != null) {
             _interests = List<String>.from(profile['interests']);
           }
+
+          _expectation = profile['expectation'];
+          _interestedIn = profile['interested_in'];
 
           _isLoading = false;
         });
@@ -349,6 +358,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       const ManageGalleryPhotosScreen(),
                                 ),
                               );
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // What I am looking for
+                          _buildSectionItem(
+                            title: AppLocalizations.of(context)
+                                .tr('onboarding.expectations.title'),
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => EditExpectationsScreen(
+                                    userProfile: {
+                                      'expectation': _expectation,
+                                      'interested_in': _interestedIn,
+                                    },
+                                  ),
+                                ),
+                              );
+
+                              if (result == true) {
+                                _loadProfile();
+                              }
                             },
                           ),
                           const SizedBox(height: 16),
