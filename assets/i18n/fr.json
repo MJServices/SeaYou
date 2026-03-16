@@ -106,61 +106,82 @@
     "milestone_continue": "Continuer",
     "milestone_desc_100": "Vous avez atteint 100% de Feeling ! Le début d'une belle histoire !",
     "milestone_desc_25": "Vous avez atteint 25 % de FEELING ! Vous avez débloqué la citation !",
-    "milestone_desc_50": "Vous avez atteint 50 % de FEELING ! Message vocal déverrouillé !",
+    "milestone_desc_50": "Vous avez atteint 50 % de FEELING !",
     "milestone_desc_75": "Vous avez atteint 75 % de FEELING ! Un cadeau vous attend.",
     "milestone_feather": "25 % - Citation débloquée",
     "milestone_heart": "100% - Révélation de la photo",
     "milestone_music": "50 % - Message vocal déverrouillé",
     "milestone_naughty": "Question coquine (75%)",
-    "milestone_naughty_question": "75 % - Question intime",
+    "milestone_naughty_question": "75 % - Question coquine",
     "milestone_no_bio": "Aucune biographie disponible",
     "milestone_photo": "Révélation de la photo (100%)",
     "milestone_playing": "Jouant...",
     "milestone_summary_100": "Photo révélée ✨",
     "milestone_summary_25": "Citation déverrouillée",
     "milestone_summary_50": "Message vocal déverrouillé",
-    "milestone_summary_75": "Question d'intimité débloquée",
+    "milestone_summary_75": "Question coquine débloquée",
     "milestone_tap_play": "Appuyez pour jouer",
     "milestone_title_100": "Félicitations !",
     "milestone_title_25": "Citation débloquée !",
     "milestone_title_50": "Message vocal déverrouillé !",
     "milestone_title_75": "Question coquine débloquée !",
     "milestone_unlock_title": "🎁 Étape franchie !",
-    "naughty_question_category_daring": "Audace",
-    "naughty_question_category_naughty": "Vilain",
-    "naughty_question_category_sweet": "Doux",
+    "naughty_question_category_daring": "Audacieuse",
+    "naughty_question_category_naughty": "Osée",
+    "naughty_question_category_sweet": "Délicate",
     "naughty_question_hint": "Partagez vos réflexions...",
-    "naughty_question_main_title": "Question sur l'intimité",
+    "naughty_question_main_title": "Question Intime !",
     "naughty_question_no_questions": "Aucune question disponible.",
     "naughty_question_partner_choice": "Choix du partenaire",
-    "naughty_question_selection_title": "Étape importante de l'obligation",
+    "naughty_question_selection_title": "",
     "naughty_question_submit": "Soumettre la réponse",
     "naughty_question_submitting": "Soumission...",
-    "naughty_question_subtitle": "Pour approfondir votre relation, choisissez une lettre pour révéler une question et partagez vos réflexions.",
+    "naughty_question_subtitle": "Choisissez un parchemin pour révéler une question et approfondir votre connexion",
     "naughty_question_your_answer": "VOTRE RÉPONSE",
     "online_status": "En ligne",
     "partner_info": "{age} ans · {department}",
     "photo_reveal": {
       "button": "Révéler la photo",
       "close": "Fermer",
-      "desc": "Vous avez tous les deux atteint un niveau de sentiment de 100 % ! Prêts à révéler le mystère ?",
-      "feeling_overlay": "100% de sentiment !",
+      "desc": "Vous avez tous les deux atteint un Feeling de 100% !\nPrêts à révéler le mystère ?",
+      "feeling_overlay": "100% !",
       "match_found": "Voici votre match ! ✨",
       "title": "Révélation de la photo"
     },
+    "restricted_message": "Message restreint (Premium)",
     "search_clear": "Clair",
     "search_done": "Fait",
     "search_placeholder": "Rechercher des conversations...",
     "start_chatting_hint": "Commencez à discuter...",
     "time_yesterday": "Hier",
-    "unblock_confirm": "Êtes-vous sûr de vouloir débloquer {userName} ?"
+    "unblock_confirm": "Êtes-vous sûr de vouloir débloquer {userName} ?",
+    "mood": {
+      "title": "Choisissez votre humeur",
+      "subtitle": "Cela changera la couleur de vos messages",
+      "curieux": "Curieux",
+      "taquin": "Taquin",
+      "romantique": "Romantique",
+      "joyeux": "Joyeux",
+      "changed": "Humeur changée en {mood}"
+    },
+    "attachment": {
+      "take_photo": "Prendre une photo",
+      "from_gallery": "Choisir dans la galerie"
+    },
+    "voice_message": {
+      "title": "Message vocal",
+      "hint": "Appuyez pour commencer l'enregistrement",
+      "recording": "Enregistrement...",
+      "send": "Envoyer",
+      "record": "Enregistrer"
+    }
   },
   "chat_profile": {
     "title": "Profil",
     "feeling_level": "Niveau de feeling: {percent}%",
-    "bio_unlocked": "Bio débloquée ({percent}%)",
-    "audio_unlocked": "Audio secret débloqué ({percent}%)",
-    "intimate_unlocked": "Réponse intime débloquée ({percent}%)",
+    "bio_unlocked": "Citation débloquée ({percent}%)",
+    "audio_unlocked": "Message vocal débloqué ({percent}%)",
+    "intimate_unlocked": "Réponse COQUINE débloquée ({percent}%)",
     "reveal_photo": "Révélation de la photo ({percent}%)",
     "no_bio": "Aucune bio disponible",
     "no_audio": "Aucun son disponible",
@@ -221,7 +242,7 @@
         "close": "Fermer",
         "premium": "Passer à Premium"
       },
-      "description": "Ici vous trouverez tous les secrets et fantasmes inavouables des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement au propriétaire du secret ou du fantasme, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
+      "description": "Ici vous trouverez tous les secrets et fantasmes inavouables des membres SeaYou.\n\nLes contenus apparaissent aléatoirement, sous couvert d'anonymat total.\n\nVous pouvez envoyer un message directement à l'auteur, dans un cadre 100% anonyme des deux côtés.\n\nCet espace est exclusivement réservé aux membres SeaYou PREMIUM.",
       "title": "Porte des Désirs"
     }
   },
@@ -285,10 +306,10 @@
     "discovery_card_title": "3 nouveaux messages",
     "door_of_desires": "Porte des Désirs",
     "greeting": "Salut",
-    "new_messages_count": "{count} nouveaux messages",
-    "new_messages_one": "{{count}} nouveau message",
-    "new_messages_other": "{{count}} nouveaux messages",
-    "new_messages_zero": "0 nouveau message",
+    "new_messages_count": "Nouveaux messages reçus",
+    "new_messages_one": "Nouveau message",
+    "new_messages_other": "Nouveaux messages reçus",
+    "new_messages_zero": "Aucun nouveau message",
     "ongoing_conversations": "Conversations en cours",
     "premium_cta": "DÉCOUVRIR SEAYOU PREMIUM",
     "secret_souls": "Chambre des Secrets",
@@ -416,8 +437,8 @@
         "concerts": "Concerts",
         "cozy_moments": "Moments chaleureux",
         "crafting": "Artisanat",
-        "creative_spirit": "esprit créatif",
-        "dancing": "Dansant",
+        "creative_spirit": "Esprit créatif",
+        "dancing": "Danse",
         "design": "Design",
         "digital_art": "Art numérique",
         "documentries": "Documentaires",
@@ -443,7 +464,7 @@
         "jet_ski": "Jet Ski",
         "k_dramas": "K-dramas",
         "karaoke": "Karaoké",
-        "motorcycling": "motocyclisme",
+        "motorcycling": "Moto",
         "movies": "Films",
         "music": "Musique",
         "music_production": "Production musicale",
@@ -460,7 +481,7 @@
         "pole_dance": "Pole Dance",
         "pubs": "Pubs",
         "ramen": "Ramen",
-        "reading": "En lisant",
+        "reading": "Lecture",
         "reality_shows": "Téléréalité",
         "restaurants": "Restaurants",
         "road_trips": "Road trips",
@@ -542,8 +563,8 @@
       "requirements_fantasy": ", Fantasme",
       "requirements_missing": "Obligatoire : Photo{quote}{fantasy}{audio}",
       "requirements_quote": ", Citation",
-      "secret_room_consent": "J'autorise cette photo à apparaître dans \"La Porte des Secrets\".",
-      "gallery_secret_room_info": "Toutes les autres photos importées seront automatiquement affichées dans La Porte des Secrets.",
+      "secret_room_consent": "J'autorise cette photo à apparaître dans \"La Chambre des Secrets\".",
+      "gallery_secret_room_info": "Toutes les autres photos importées seront automatiquement affichées dans La Chambre des Secrets.",
       "take_photo": "Prenez une photo",
       "title": "Télécharger une photo",
       "upload_from_gallery": "Télécharger depuis la galerie"
@@ -575,6 +596,24 @@
       "direct_message": "Possibilité d'envoyer des messages directs aux membres SeaYou dans la Chambre des Secrets et la Porte des Désirs",
       "distance_flexible": "Envoi des bouteilles dans les départements que vous souhaitez",
       "souls_access": "Accès illimité à la Chambre des Secrets"
+    },
+    "features": {
+      "messages": {
+        "title": "Messages illimités",
+        "description": "Envoyez un nombre illimité de messages par jour sans la limite quotidienne de 3 bouteilles."
+      },
+      "mood": {
+        "title": "Accès complet à l'humeur",
+        "description": "Accès complet aux cinq humeurs différentes au lieu des deux habituelles."
+      },
+      "chamber": {
+        "title": "Chambre des Secrets",
+        "description": "Capacité de voir toutes les photos, voix et citations des membres"
+      },
+      "desires": {
+        "title": "Porte des Désirs",
+        "description": "Consultez tous les fantasmes secrets et obtenez la possibilité d'envoyer un message anonyme directement."
+      }
     },
     "upgrade": {
       "coming_soon": "Bientôt disponible !",
@@ -614,6 +653,9 @@
     "help_center_issue_hint": "Décrivez le type d'aide dont vous avez besoin.",
     "help_center_success": "Demande d'aide envoyée !",
     "interests_section": "Centres d'intérêt",
+    "out_of_scrolls_title": "Plus de Parchemins",
+    "out_of_scrolls_message": "Un parchemin est nécessaire pour répondre. Les membres Premium reçoivent 3 parchemins gratuits par jour !",
+    "get_scrolls": "Obtenir des Parchemins",
     "manage_subscription": "Gérer mon abonnement",
     "must_be_at_least": "Doit être d'au moins {min} secondes",
     "new_password": "Nouveau mot de passe",
@@ -703,11 +745,11 @@
     "photo_limit_reached": "Maximum de 6 photos atteint",
     "popup": {
       "description": "Entrez dans un espace confidentiel où vous trouverez des photos, citations et messages vocaux des membres SeaYou, toujours 100% anonymes.\n\nChaque contenu est une empreinte intime, destinée à être ressentie avant d'être comprise.\n\nAvec SeaYou PREMIUM, vous pouvez contacter directement les auteurs de citations et messages vocaux pour initier des échanges authentiques, subtils et respectueux.",
-      "title": "Secret Souls"
+      "title": "Chambre des Secrets"
     },
     "set_as_main_photo": "Définir comme photo principale",
-    "title": "Secret Souls",
-    "toggle_label": "Afficher dans Secret Souls"
+    "title": "Chambre des Secrets",
+    "toggle_label": "Afficher dans la Chambre des Secrets"
   },
   "send_bottle": {
     "choose_mood": "Choisissez votre humeur",
@@ -718,11 +760,18 @@
     "mood_romantique": "Romantique",
     "mood_taquin": "Taquin",
     "no_matches_found": "Aucun utilisateur compatible trouvé. Votre bouteille vous sera envoyée dès qu'une personne correspondant à vos préférences vous sera trouvée.",
+    "pending_title": "Votre bouteille est en attente…",
+    "pending_message": "Nous n’avons pas encore trouvé la personne qui correspond à vos critères. Elle sera envoyée automatiquement dès qu’une belle rencontre se présentera.",
     "start_typing": "Commencez à taper",
     "targeting_criteria": "Critères de ciblage",
     "targeting_summary_all": "Tous",
     "targeting_summary_depts": "{count} départements",
-    "targeting_summary_france": "France"
+    "targeting_summary_france": "France",
+    "out_of_scrolls_title": "Plus de Parchemins",
+    "out_of_scrolls_message": "Un parchemin est nécessaire pour envoyer une bouteille. Les membres Premium reçoivent 3 parchemins gratuits par jour !",
+    "get_scrolls_button": "Obtenir des Parchemins",
+    "reply_sent_success": "Réponse envoyée ! Consultez votre onglet de connexions pour voir la conversation.",
+    "sea_soul_name": "Âme de la Mer"
   },
   "settings": {
     "accept_bottles_from": "Accepter les bouteilles provenant de :",
@@ -796,14 +845,14 @@
       "title": "Fantasme"
     },
     "photo": {
-      "message": "Cette photo de votre vrai visage est obligatoire mais restera confidentielle. Elle ne sera dévoilée seulement si vous obtenez 100% de Sentiment respectif avec votre interlocuteur, et apparaîtra seulement ET si autorisé dans la catégorie « La Porte des Secrets » (SeaYou PREMIUM), mais aucune autre information ne sera divulguée sur votre identité. Vous pourrez ensuite ajouter jusqu’à 5 photos supplémentaires de votre choix.",
+      "message": "Cette photo de votre vrai visage est obligatoire, mais ne sera dévoilée uniquement si vous obtenez 100% de feeling avec votre interlocuteur, et apparaitra seulement ET si autorisé dans « La chambre des secrets» ( SeaYou PREMIUM )\nVous pourrez ensuite ajouter jusqu'à 5 photos supplémentaires de votre choix.",
       "ok": "Compris",
       "title": "Photo obligatoire"
     },
     "quote": {
-      "message": "Ce message est obligatoire mais restera secret et anonyme, il ne sera divulgué à votre interlocuteur uniquement si le Sentiment réciproque atteint les 25% \nÀ vous d’être mystérieux, drôle, profond… ou tout à la fois !",
+      "message": "Ecrivez une phrase qui révèle une part de votre personnalité, elle ne sera dévoilée à votre interlocuteur uniquement si le Feeling réciproque atteint 50%. A vous d’être mystérieux(se), drôle, profond... ou tout à la fois !",
       "ok": "Compris",
-      "title": "Citation secrète"
+      "title": "Citation"
     }
   },
   "tutorial": {
@@ -829,7 +878,7 @@
       "line1": "Ici, vos premières rencontres seront 100% anonymes.",
       "line2": "Vous vous découvrirez progressivement, à travers des conversations.",
       "line3": "Chaque message sera envoyé comme une bouteille jetée à la mer, de manière anonyme et sécurisée, uniquement aux personnes correspondant à vos critères.",
-      "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant d'augmenter votre Sentiment à travers vos échanges, et plus votre Sentiment monte, plus vous débloquez des révélations exclusives…",
+      "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant le d'augmenter Feeling à travers vos échanges, et plus votre Feeling monte, plus vous débloquez des révélations exclusives…",
       "line5": "À vous de jouer !",
       "subtitle": "Le premier lieu de rencontre 3.0, où les âmes se choisissent avant le physique.",
       "title": "Bienvenue sur SeaYou !"

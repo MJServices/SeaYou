@@ -3,6 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'database_service.dart';
 
+enum MatchLeniency {
+  strict,
+  balanced,
+  relaxed,
+  global,
+}
+
 /// Service for intelligent bottle matching algorithm
 /// Matches bottles to compatible users based on preferences, interests, and activity
 class BottleMatchingService {
@@ -39,18 +46,43 @@ class BottleMatchingService {
       final List<String> targetDepartments =
           (bottle['target_departments'] as List?)?.cast<String>() ?? [];
 
-      // 2. Find eligible recipients
-      final eligibleUsers = await _getEligibleRecipients(
-        senderId: senderId,
-        senderProfile: senderProfile,
-        minAge: minAge,
-        maxAge: maxAge,
-        targetGender: targetGender,
-        targetDepartments: targetDepartments,
-      );
+      // 2. Multi-stage matching with increasing leniency
+      List<Map<String, dynamic>> eligibleUsers = [];
+      MatchLeniency selectedLeniency = MatchLeniency.strict;
+
+      final leniencyLevels = [
+        MatchLeniency.strict,
+        MatchLeniency.balanced,
+        MatchLeniency.relaxed,
+        MatchLeniency.global,
+      ];
+
+      for (final leniency in leniencyLevels) {
+        debugPrint('🔍 Attempting matching with leniency: ${leniency.name}');
+        eligibleUsers = await _getEligibleRecipients(
+          senderId: senderId,
+          senderProfile: senderProfile,
+          minAge: minAge,
+          maxAge: maxAge,
+          targetGender: targetGender,
+          targetDepartments: targetDepartments,
+          leniency: leniency,
+        );
+
+        if (eligibleUsers.isNotEmpty) {
+          selectedLeniency = leniency;
+          debugPrint(
+              '✅ Found ${eligibleUsers.length} users with ${leniency.name} leniency');
+          break;
+        }
+      }
 
       if (eligibleUsers.isEmpty) {
-        debugPrint('No eligible recipients found');
+        debugPrint('❌ No eligible recipients found even after global fallback');
+        // Update status to pending
+        await _supabase.from('sent_bottles').update({
+          'status': 'pending',
+        }).eq('id', bottleId);
         return null;
       }
 
@@ -77,7 +109,7 @@ class BottleMatchingService {
       final matchScore = selectedMatch['score'] as int;
 
       debugPrint(
-          'Matched bottle $bottleId to user $recipientId with score $matchScore');
+          'Matched bottle $bottleId to user $recipientId with score $matchScore (Leniency: ${selectedLeniency.name})');
 
       // 5. Update bottle with recipient info
       await _supabase.from('sent_bottles').update({
@@ -93,7 +125,7 @@ class BottleMatchingService {
     }
   }
 
-  /// Get list of eligible recipients based on sender's preferences
+  /// Get list of eligible recipients based on sender's preferences and leniency level
   Future<List<Map<String, dynamic>>> _getEligibleRecipients({
     required String senderId,
     required Map<String, dynamic> senderProfile,
@@ -101,15 +133,30 @@ class BottleMatchingService {
     int? maxAge,
     List<String> targetGender = const [],
     List<String> targetDepartments = const [],
+    MatchLeniency leniency = MatchLeniency.strict,
   }) async {
     try {
-      final lookingFor =
-          senderProfile['interested_in'] as String? ?? 'everyone';
+      final lookingFor = senderProfile['interested_in'] as String? ?? 'everyone';
       final senderOrientation =
           senderProfile['sexual_orientation'] as List? ?? [];
 
       debugPrint(
-          '📊 MATCHING: Sender interested_in=$lookingFor, orientation=$senderOrientation');
+          '📊 MATCHING: Sender interested_in=$lookingFor, orientation=$senderOrientation, leniency=${leniency.name}');
+
+      // Adjust limits based on leniency
+      int dailyLimit = 5;
+      int activeDays = 30;
+
+      if (leniency == MatchLeniency.balanced) {
+        dailyLimit = 10;
+        activeDays = 60;
+      } else if (leniency == MatchLeniency.relaxed) {
+        dailyLimit = 20;
+        activeDays = 90;
+      } else if (leniency == MatchLeniency.global) {
+        dailyLimit = 50;
+        activeDays = 180;
+      }
 
       // Build query for eligible users
       var query = _supabase
@@ -120,24 +167,20 @@ class BottleMatchingService {
           .neq('id', senderId)
           .eq('is_active', true)
           .eq('receive_bottles', true)
-          .lt('bottles_received_today', 5) // Fair distribution limit
+          .lt('bottles_received_today', dailyLimit)
           .gte(
               'last_active',
               DateTime.now()
-                  .subtract(const Duration(days: 30))
-                  .toIso8601String()); // Widened to 30 days
+                  .subtract(Duration(days: activeDays))
+                  .toIso8601String());
 
       final results = await query as List<dynamic>;
-      debugPrint('📊 MATCHING: Query returned ${results.length} active users');
+      debugPrint(
+          '📊 MATCHING: Query (limit=$dailyLimit, days=$activeDays) returned ${results.length} active users');
 
-      // Filter by targeting criteria (Strict UI Filters)
       final filtered = results.where((user) {
-        final String userName = user['full_name'] ?? 'Unknown';
 
-        debugPrint('  🔍 Checking user: $userName (${user['id']})');
-
-        // 1. Gender Targeting (Strict)
-        // If targetGender is empty, we apply a smart default based on sender's orientation
+        // 1. Gender Targeting (Strict always, as per user request)
         List<String> effectiveTargetGender = List.from(targetGender);
         if (effectiveTargetGender.isEmpty) {
           final senderGender =
@@ -151,28 +194,20 @@ class BottleMatchingService {
           } else if (lookingFor == 'women') {
             effectiveTargetGender = ['Woman'];
           } else if (lookingFor == 'everyone') {
-            // If looking for everyone, we check orientation for a "smarter" default if possible
             if (senderGender == 'male' || senderGender == 'man') {
-              effectiveTargetGender = [
-                'Woman'
-              ]; // Default hetero-leaning for men
+              effectiveTargetGender = ['Woman'];
             } else if (senderGender == 'female' ||
                 senderGender == 'woman' ||
                 senderGender == 'femme') {
-              effectiveTargetGender = [
-                'Man'
-              ]; // Default hetero-leaning for women
+              effectiveTargetGender = ['Man'];
             }
           }
-          debugPrint(
-              '    💡 SMART DEFAULT: effectiveTargetGender=$effectiveTargetGender (targetGender was empty)');
         }
 
         if (effectiveTargetGender.isNotEmpty) {
           final userGender =
               (user['gender'] as String?)?.toLowerCase() ?? 'other';
           bool genderMatch = false;
-          // Exact matches for targeting
           if (effectiveTargetGender.contains('Man') &&
               (userGender == 'male' || userGender == 'man')) {
             genderMatch = true;
@@ -189,73 +224,40 @@ class BottleMatchingService {
           }
 
           if (!genderMatch) {
-            debugPrint(
-                '    ❌ Rejected: Gender mismatch (Target: $effectiveTargetGender, User: $userGender)');
             return false;
           }
         }
 
-        // 2. Age Targeting (Strict)
-        if (minAge != null || maxAge != null) {
-          final birthYear = user['birth_year'] as int?;
-          if (birthYear == null) {
-            debugPrint(
-                '    ❌ Rejected: Age filter active but user has no birth_year');
-            return false;
-          }
+        // 2. Age Targeting (Relaxed in relaxed/global levels)
+        if (leniency.index < MatchLeniency.relaxed.index) {
+          if (minAge != null || maxAge != null) {
+            final birthYear = user['birth_year'] as int?;
+            if (birthYear == null) return false;
 
-          final currentYear = DateTime.now().year;
-          final age = currentYear - birthYear;
+            final currentYear = DateTime.now().year;
+            final age = currentYear - birthYear;
 
-          if (minAge != null && age < minAge) {
-            debugPrint('    ❌ Rejected: Age $age too young (min $minAge)');
-            return false;
-          }
-          if (maxAge != null && age > maxAge) {
-            debugPrint('    ❌ Rejected: Age $age too old (max $maxAge)');
-            return false;
+            if (minAge != null && age < minAge) return false;
+            if (maxAge != null && age > maxAge) return false;
           }
         }
 
-        // 3. Department Targeting (Strict, but empty = All)
-        if (targetDepartments.isNotEmpty) {
-          final userDepartment = user['department'] as String?;
-          if (userDepartment == null ||
-              !targetDepartments.contains(userDepartment)) {
-            debugPrint('    ❌ Rejected: Department mismatch ($userDepartment)');
-            return false;
+        // 3. Department Targeting (Relaxed in balanced/relaxed/global levels)
+        if (leniency.index < MatchLeniency.balanced.index) {
+          if (targetDepartments.isNotEmpty) {
+            final userDepartment = user['department'] as String?;
+            if (userDepartment == null ||
+                !targetDepartments.contains(userDepartment)) {
+              return false;
+            }
           }
         }
 
-        // 4. Relaxed Mutual Interest (Last priority, doesn't block if matching UI criteria)
-        // We only check if there's a HARD conflict (e.g. sender is a man, but user ONLY wants women)
-        // If user is "interested in everyone", it's always a pass.
-        final userInterestedIn =
-            (user['interested_in'] as String? ?? 'everyone').toLowerCase();
-        if (userInterestedIn != 'everyone') {
-          final senderGender =
-              (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
-
-          if (userInterestedIn == 'women' &&
-              senderGender != 'woman' &&
-              senderGender != 'female') {
-            debugPrint(
-                '    ⚠️ Note: $userName prefers women, but sender is $senderGender. Match still possible.');
-            // We allow this unless we have BETTER matches, handled by scoring
-          } else if (userInterestedIn == 'men' &&
-              senderGender != 'man' &&
-              senderGender != 'male') {
-            debugPrint(
-                '    ⚠️ Note: $userName prefers men, but sender is $senderGender. Match still possible.');
-          }
-        }
-
-        debugPrint('    ✅ PASS: $userName matches targeting criteria');
         return true;
       }).toList();
 
       debugPrint(
-          '📊 MATCHING: After filters, ${filtered.length} eligible users');
+          '📊 MATCHING: After filters and leniency, ${filtered.length} eligible users');
 
       // Check for blocks
       final filteredWithoutBlocks =

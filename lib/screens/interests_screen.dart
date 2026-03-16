@@ -294,7 +294,7 @@ class _InterestsScreenState extends State<InterestsScreen> {
         ),
         child: Text(
           AppLocalizations.of(context).tr(
-              'onboarding.interests.options.${interest.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')}'),
+              'onboarding.interests.options.${interest.trim().toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')}'),
           style: AppTextStyles.labelText.copyWith(
             color: isSelected ? AppColors.white : AppColors.darkGrey,
           ),

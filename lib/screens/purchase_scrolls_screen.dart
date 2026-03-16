@@ -3,9 +3,66 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/database_service.dart';
+import 'dart:async';
 
-class PurchaseScrollsScreen extends StatelessWidget {
+class PurchaseScrollsScreen extends StatefulWidget {
   const PurchaseScrollsScreen({super.key});
+
+  @override
+  State<PurchaseScrollsScreen> createState() => _PurchaseScrollsScreenState();
+}
+
+class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
+  int _initialTotalScrolls = 0;
+  StreamSubscription<Map<String, dynamic>>? _profileSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialScrolls();
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadInitialScrolls() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final profile = await DatabaseService().getProfile(userId);
+      if (profile != null) {
+        setState(() {
+          _initialTotalScrolls = (profile['scrolls_count'] as int? ?? 0) +
+              (profile['daily_free_scrolls'] as int? ?? 0);
+        });
+      }
+    }
+  }
+
+  void _setupProfileSubscription() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      _profileSubscription?.cancel();
+      _profileSubscription =
+          DatabaseService().subscribeProfile(userId).listen((data) async {
+        if (mounted) {
+          final currentTotal = (data['scrolls_count'] as int? ?? 0) +
+              (data['daily_free_scrolls'] as int? ?? 0);
+
+          if (currentTotal > _initialTotalScrolls) {
+            debugPrint('📜 Scrolls purchase detected via realtime!');
+            await closeInAppWebView();
+            if (mounted) {
+              Navigator.of(context).pop(true);
+            }
+          }
+        }
+      });
+    }
+  }
 
   // TODO: Replace with your actual Stripe payment links for each scroll pack
   static const String _scrolls3Link =
@@ -15,17 +72,21 @@ class PurchaseScrollsScreen extends StatelessWidget {
   static const String _scrolls30Link =
       'https://buy.stripe.com/test_7sY00i2DX20h8OD8t44gg01';
 
-  Future<void> _launchUrl(BuildContext context, String urlString) async {
+  Future<void> _launchUrl(String urlString) async {
     final user = Supabase.instance.client.auth.currentUser;
     String enrichedUrl = urlString;
     if (user != null) {
+      final separator = urlString.contains('?') ? '&' : '?';
       enrichedUrl = '$urlString'
-          '?client_reference_id=${user.id}'
+          '${separator}client_reference_id=${user.id}'
           '&prefilled_email=${Uri.encodeComponent(user.email ?? '')}';
     }
+
+    _setupProfileSubscription(); // Start listening before launch
+
     final Uri url = Uri.parse(enrichedUrl);
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('Could not open payment page. Please try again.')),
@@ -83,7 +144,7 @@ class PurchaseScrollsScreen extends StatelessWidget {
                         title: tr.tr('purchase_scrolls.count',
                             params: {'count': '3'}),
                         price: '2,99 € /chacun',
-                        onTap: () => _launchUrl(context, _scrolls3Link),
+                        onTap: () => _launchUrl(_scrolls3Link),
                         isPopular: false,
                         showBadge: false,
                         badgeText: '',
@@ -99,7 +160,7 @@ class PurchaseScrollsScreen extends StatelessWidget {
                         title: tr.tr('purchase_scrolls.count',
                             params: {'count': '10'}),
                         price: '1.49€ /chacun',
-                        onTap: () => _launchUrl(context, _scrolls10Link),
+                        onTap: () => _launchUrl(_scrolls10Link),
                         isPopular: true,
                         showBadge: true,
                         badgeText: tr.tr('purchase_scrolls.popular'),
@@ -118,7 +179,7 @@ class PurchaseScrollsScreen extends StatelessWidget {
                         title: tr.tr('purchase_scrolls.count',
                             params: {'count': '30'}),
                         price: '1.20€ /chacun',
-                        onTap: () => _launchUrl(context, _scrolls30Link),
+                        onTap: () => _launchUrl(_scrolls30Link),
                         isPopular: false,
                         showBadge: true,
                         badgeText: tr.tr('purchase_scrolls.best_value'),

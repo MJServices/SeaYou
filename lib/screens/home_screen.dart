@@ -518,9 +518,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const SizedBox(height: 16),
                                 // Message count
                                 Text(
-                                  AppLocalizations.of(context)
-                                      .tr('home.new_messages_count')
-                                      .replaceAll('{count}', '$_receivedCount'),
+                                  _receivedCount == 0
+                                      ? AppLocalizations.of(context)
+                                          .tr('home.new_messages_zero')
+                                      : AppLocalizations.of(context)
+                                          .tr('home.new_messages_one'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 14,

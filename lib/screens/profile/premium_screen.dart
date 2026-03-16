@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Premium/Pro Screen
 /// Shows premium features and subscription options
@@ -134,26 +135,26 @@ class PremiumScreen extends StatelessWidget {
                             // Features List
                             _buildFeature(
                               '♾️',
-                              'Unlimited Messages',
-                              'Send an unlimited number of messages per day without the 3 bottles daily limit.',
+                              AppLocalizations.of(context).tr('premium.features.messages.title'),
+                              AppLocalizations.of(context).tr('premium.features.messages.description'),
                             ),
                             const SizedBox(height: 16),
                             _buildFeature(
                               '😊',
-                              'Full Access to Mood',
-                              'Complete access to the five different moods instead of the usual two.',
+                              AppLocalizations.of(context).tr('premium.features.mood.title'),
+                              AppLocalizations.of(context).tr('premium.features.mood.description'),
                             ),
                             const SizedBox(height: 16),
                             _buildFeature(
                               '🔧',
-                              'Secret Souls',
-                              'Ability to view all members pictures, voices and quotes ',
+                              AppLocalizations.of(context).tr('premium.features.chamber.title'),
+                              AppLocalizations.of(context).tr('premium.features.chamber.description'),
                             ),
                             const SizedBox(height: 16),
                             _buildFeature(
                               '🧩',
-                              'Door of Desires',
-                              'View all secret fantasies and gain ability to send anonymous message directly.',
+                              AppLocalizations.of(context).tr('premium.features.desires.title'),
+                              AppLocalizations.of(context).tr('premium.features.desires.description'),
                             ),
 
                             const SizedBox(height: 24),

@@ -234,12 +234,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      AppLocalizations.of(context).tr('auth.terms_message'),
-                      style: AppTextStyles.labelText,
-                      textAlign: TextAlign.center,
-                    ),
                     const SizedBox(height: 32),
                   ],
                 ),

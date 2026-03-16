@@ -765,7 +765,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ...content.map((item) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                item,
+                AppLocalizations.of(context).tr(
+                    'onboarding.sexual_orientation.options.${item.trim().toLowerCase()}'),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 16,
@@ -847,11 +848,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _translateInterest(BuildContext context, String interest) {
     final slug = interest
+        .trim()
         .toLowerCase()
         .replaceAll(' ', '_')
-        .replaceAll('-', '_')
-        .replaceAll('/', '_')
-        .replaceAll('&', '_');
+        .replaceAll('-', '_');
     return AppLocalizations.of(context)
         .tr('onboarding.interests.options.$slug');
   }

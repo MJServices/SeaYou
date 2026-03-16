@@ -45,7 +45,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   bool _isRecording = false;
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
-  String? _selectedImagePath;
   File? _selectedImageFile;
   final ImagePicker _imagePicker = ImagePicker();
   final DatabaseService _databaseService = DatabaseService();
@@ -230,7 +229,6 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
       if (image != null) {
         setState(() {
-          _selectedImagePath = image.path;
           _selectedImageFile = File(image.path);
           _updatePreviewState();
         });
@@ -995,7 +993,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => ChatConversationScreen(
-                contactName: 'Sea Soul',
+                contactName: AppLocalizations.of(context).tr('send_bottle.sea_soul_name'),
                 conversationId: conversationId!,
                 isUnlocked: false,
               ),
@@ -1003,11 +1001,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           );
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                  'Reply sent! Check your Connections tab to see the conversation.'),
-              backgroundColor: Color(0xFF0AC5C5),
-              duration: Duration(seconds: 4),
+                  AppLocalizations.of(context).tr('send_bottle.reply_sent_success')),
+              backgroundColor: const Color(0xFF0AC5C5),
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -1021,22 +1019,22 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       );
 
       if (recipientId == null) {
-        // No match found
+        // No match found - bottle is now in 'pending' status
         if (mounted) {
           setState(() {
             _isSending = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppLocalizations.of(context)
-                  .tr('send_bottle.no_matches_found')),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 4),
-            ),
-          );
 
           // Close preview modal if open
           if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+
+          // Show Pending Dialog
+          await _showPendingDialog(context);
+
+          // Return home as it's a successful 'pending' send
+          if (mounted) {
             Navigator.pop(context);
           }
         }
@@ -1087,14 +1085,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         // Clear all input fields
         _messageController.clear();
         _captionController.clear();
-        _selectedImagePath = null;
         _selectedImageFile = null;
         _voicePath = null;
         _selectedMood = 'Dreamy';
         // Type is always 'Text' now - removed _selectedType
         _canPreview = false;
 
-        if (isReply && conversationId != null) {
+        if (isReply) {
           // Close preview modal
           Navigator.pop(context);
           // Navigate back and show success message
@@ -1102,11 +1099,11 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           Navigator.pop(context); // Close bottle detail screen
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                  'Reply sent! Check your Connections tab to see the conversation.'),
-              backgroundColor: Color(0xFF0AC5C5),
-              duration: Duration(seconds: 3),
+                  AppLocalizations.of(context).tr('send_bottle.reply_sent_success')),
+              backgroundColor: const Color(0xFF0AC5C5),
+              duration: const Duration(seconds: 3),
             ),
           );
         } else {
@@ -1158,19 +1155,54 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     }
   }
 
+  Future<void> _showPendingDialog(BuildContext context) {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            AppLocalizations.of(context).tr('send_bottle.pending_title'),
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            AppLocalizations.of(context).tr('send_bottle.pending_message'),
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                AppLocalizations.of(context).tr('chat.milestone_continue'),
+                style: const TextStyle(
+                  color: Color(0xFF0AC5C5),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showOutOfScrollsDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Plus de Parchemins',
-              style: TextStyle(
+          title: Text(AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_title'),
+              style: const TextStyle(
                   fontFamily: 'PlayfairDisplay',
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF3E2723))),
-          content: const Text(
-              'Un parchemin est nécessaire pour envoyer une bouteille. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
-              style: TextStyle(
+          content: Text(
+              AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_message'),
+              style: const TextStyle(
                   fontFamily: 'Montserrat', color: Color(0xFF5D4037))),
           actions: [
             TextButton(
@@ -1179,8 +1211,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE4C687)),
-              child: const Text('Obtenir des Parchemins',
-                  style: TextStyle(color: Colors.white)),
+              child: Text(AppLocalizations.of(context).tr('send_bottle.get_scrolls_button'),
+                  style: const TextStyle(color: Colors.white)),
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(

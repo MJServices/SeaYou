@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
@@ -20,6 +21,13 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
   bool get isFormValid =>
       _emailController.text.isNotEmpty && _issueController.text.isNotEmpty;
+
+  String? _encodeQueryParameters(Map<String, String> params) {
+    return params.entries
+        .map((MapEntry<String, String> e) =>
+            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+  }
 
   @override
   void dispose() {
@@ -203,15 +211,41 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       text: l10n.tr('common.send'),
                       isActive: isFormValid,
                       onPressed: isFormValid
-                          ? () {
-                              // Send help request
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      l10n.tr('profile.help_center_success')),
-                                ),
+                          ? () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final navigator = Navigator.of(context);
+                              final successMsg =
+                                  l10n.tr('profile.help_center_success');
+
+                              final Uri emailLaunchUri = Uri(
+                                scheme: 'mailto',
+                                path: 'contact@seayou-app.com',
+                                query: _encodeQueryParameters(<String, String>{
+                                  'subject': 'SeaYou Support Request',
+                                  'body':
+                                      'User Email: ${_emailController.text}\n\nIssue:\n${_issueController.text}',
+                                }),
                               );
-                              Navigator.pop(context);
+
+                              if (await canLaunchUrl(emailLaunchUri)) {
+                                await launchUrl(emailLaunchUri);
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text(successMsg)),
+                                  );
+                                  navigator.pop();
+                                }
+                              } else {
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Could not launch email application'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
                             }
                           : null,
                     ),

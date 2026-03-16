@@ -631,17 +631,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 text: buttonText,
                 onPressed: onPressed,
               ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  l10n.tr('common.back'),
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    color: Color(0xFF737373),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1998,9 +1987,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                                     _isTyping = value.isNotEmpty;
                                   });
                                 },
-                                decoration: const InputDecoration(
-                                  hintText: 'Send a bottle',
-                                  hintStyle: TextStyle(
+                                decoration: InputDecoration(
+                                  hintText: AppLocalizations.of(context).tr('chat.start_chatting_hint'),
+                                  hintStyle: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
@@ -2092,7 +2081,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         : () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const PremiumScreen()),
+              MaterialPageRoute(
+                builder: (context) => PremiumScreen(
+                  onPremiumActivated: () {
+                    // Payment done → pop back to chat and refresh
+                    Navigator.of(context).pop();
+                    _loadPremiumStatus();
+                  },
+                ),
+              ),
             ).then((_) {
               _loadPremiumStatus();
             });
@@ -2541,7 +2538,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   void _showPremiumPaywall() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const PremiumScreen()),
+      MaterialPageRoute(
+        builder: (context) => PremiumScreen(
+          onPremiumActivated: () {
+            // Payment done → pop back to chat and refresh
+            Navigator.of(context).pop();
+            _checkPremiumStatus();
+          },
+        ),
+      ),
     ).then((_) async {
       // Refresh status after returning from premium screen
       await _checkPremiumStatus();
@@ -2823,9 +2828,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Choose Your Mood',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).tr('chat.mood.title'),
+              style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -2833,9 +2838,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'This will change the color of your messages',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).tr('chat.mood.subtitle'),
+              style: const TextStyle(
                 fontFamily: 'Montserrat',
                 fontSize: 14,
                 color: Color(0xFF737373),
@@ -2871,7 +2876,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Mood changed to $mood'),
+            content: Text(AppLocalizations.of(context).tr('chat.mood.changed', params: {'mood': AppLocalizations.of(context).tr('chat.mood.${mood.toLowerCase()}')})),
             duration: const Duration(seconds: 2),
             backgroundColor: const Color(0xFF0AC5C5),
           ),
@@ -2909,7 +2914,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                mood,
+                AppLocalizations.of(context).tr('chat.mood.${mood.toLowerCase()}'),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 18,
@@ -2938,8 +2943,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Color(0xFF0AC5C5)),
-              title: const Text('Take Photo',
-                  style: TextStyle(fontFamily: 'Montserrat')),
+              title: Text(AppLocalizations.of(context).tr('chat.attachment.take_photo'),
+                  style: const TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
                 _takePhoto();
@@ -2948,8 +2953,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             ListTile(
               leading:
                   const Icon(Icons.photo_library, color: Color(0xFF0AC5C5)),
-              title: const Text('Choose from Gallery',
-                  style: TextStyle(fontFamily: 'Montserrat')),
+              title: Text(AppLocalizations.of(context).tr('chat.attachment.from_gallery'),
+                  style: const TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
                 _chooseFromGallery();
@@ -3187,9 +3192,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Recording...',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('chat.voice_message.recording'),
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
@@ -3211,9 +3216,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Voice Message',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('chat.voice_message.title'),
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
@@ -3221,9 +3226,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Tap to start recording',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('chat.voice_message.hint'),
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 14,
                     color: Color(0xFF737373),
@@ -3300,7 +3305,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           ),
                           child: Center(
                             child: Text(
-                              _isRecording ? 'Send' : 'Record',
+                              _isRecording ? AppLocalizations.of(context).tr('chat.voice_message.send') : AppLocalizations.of(context).tr('chat.voice_message.record'),
                               style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 16,

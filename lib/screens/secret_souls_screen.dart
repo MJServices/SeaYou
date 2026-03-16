@@ -145,31 +145,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     _loadContent();
   }
 
-  void _loadMore() {
-    debugPrint('🎬 SecretSoulsScreen: _loadMore triggered');
-    _loadContent();
-  }
-
-  void _nextContent() {
-    if (_currentIndex < _content.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (!_loading) {
-      _loadContent();
-    }
-  }
-
-  void _previousContent() {
-    if (_currentIndex > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
   Future<void> _sendMessage() async {
     if (_content.isEmpty) return;
 
@@ -205,6 +180,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     // 3. Show message input dialog
     final messageController = TextEditingController();
+    if (!mounted) return;
     final message = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
@@ -224,7 +200,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                       size: 18, color: Color(0xFFD4B483)),
                   const SizedBox(width: 8),
                   Text(
-                    AppLocalizations.of(context).tr('chamber.secret_whisper'),
+                    AppLocalizations.of(dialogContext).tr('chamber.secret_whisper'),
                     style: const TextStyle(
                       fontFamily: 'PlayfairDisplay',
                       fontSize: 17,
@@ -242,7 +218,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
               ),
               const SizedBox(height: 16),
               StatefulBuilder(
-                builder: (context, setDialogState) {
+                builder: (modalContext, setDialogState) {
+                  final l10n = AppLocalizations.of(modalContext);
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -267,8 +244,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context)
-                                  .tr('chamber.type_message_hint'),
+                              hintText: l10n.tr('chamber.type_message_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13,
@@ -308,7 +284,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             onTap: () {
                               final msg = messageController.text.trim();
                               if (msg.isNotEmpty) {
-                                Navigator.pop(dialogContext, msg);
+                                Navigator.pop(modalContext, msg);
                               }
                             },
                             child: AnimatedContainer(
@@ -332,7 +308,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                                       ],
                               ),
                               child: Text(
-                                AppLocalizations.of(context).tr('chamber.send'),
+                                l10n.tr('chamber.send'),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w700,
@@ -345,12 +321,11 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                           const SizedBox(height: 6),
                           // Subtle Cancel
                           GestureDetector(
-                            onTap: () => Navigator.pop(dialogContext, null),
+                            onTap: () => Navigator.pop(modalContext, null),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                AppLocalizations.of(context)
-                                    .tr('dialogs.cancel'),
+                                l10n.tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   color: Colors.grey.withValues(alpha: 0.7),
@@ -958,52 +933,36 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         content['url'] ??
         content['asset_url']) as String?;
 
-    final isMainPhoto = content['is_main_profile_picture'] == true;
     final department = content['department'] as String?;
-    final city = content['city'] as String?;
-    final fullName = content['full_name'] as String?;
-    final firstName = fullName?.split(' ').first;
     final age = content['age'];
 
-    String locationInfo = city ?? '';
+    String displayInfo = '';
+    if (age != null) {
+      displayInfo = '$age';
+    }
+
     if (department != null && department.isNotEmpty) {
-      // Extract "06" from "06 - Alpes-Maritimes"
       final deptNum = department.split(' - ').first;
-      if (city != null && city.isNotEmpty) {
-        locationInfo = '$city ($deptNum)';
+      if (displayInfo.isNotEmpty) {
+        displayInfo = '$displayInfo, $deptNum';
       } else {
-        locationInfo = department;
+        displayInfo = deptNum;
       }
     }
 
-    String displayInfo = locationInfo;
-    String finalName = firstName ?? '';
-
-    // ANONYMITY LOGIC: If it's the main face photo, hide all info and call them "Secret Soul"
-    if (isMainPhoto) {
-      finalName = AppLocalizations.of(context).tr('common.secret_soul');
-      displayInfo = ''; // Hide location/age
-    } else {
-      if (finalName.isNotEmpty && age != null) {
-        if (locationInfo.isNotEmpty) {
-          displayInfo = '$finalName, $age - $locationInfo';
-        } else {
-          displayInfo = '$finalName, $age';
-        }
-      } else if (finalName.isNotEmpty) {
-        displayInfo = finalName;
-      }
-    }
-
-    // White card style on top of parchment
+    // Semi-transparent cream style to blend with parchment
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xCCFFF8E1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFD4B483).withValues(alpha: 0.5),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -1080,33 +1039,20 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     final audioUrl = content['audio_url'] as String?;
 
     final department = content['department'] as String?;
-    final city = content['city'] as String?;
-    final fullName = content['full_name'] as String?;
-    final firstName = fullName?.split(' ').first;
     final age = content['age'];
 
-    String locationInfo = city ?? '';
-    if (department != null && department.isNotEmpty) {
-      // Extract "06" from "06 - Alpes-Maritimes"
-      final deptNum = department.split(' - ').first;
-      if (city != null && city.isNotEmpty) {
-        locationInfo = '$city ($deptNum)';
-      } else {
-        locationInfo = department;
-      }
+    String displayInfo = '';
+    if (age != null) {
+      displayInfo = '$age';
     }
 
-    String displayInfo = locationInfo;
-    String finalName = firstName ?? '';
-
-    if (finalName.isNotEmpty && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$finalName, $age - $locationInfo';
+    if (department != null && department.isNotEmpty) {
+      final deptNum = department.split(' - ').first;
+      if (displayInfo.isNotEmpty) {
+        displayInfo = '$displayInfo, $deptNum';
       } else {
-        displayInfo = '$finalName, $age';
+        displayInfo = deptNum;
       }
-    } else if (finalName.isNotEmpty) {
-      displayInfo = finalName;
     }
 
     return SecretSoulAudioCard(audioUrl: audioUrl, locationInfo: displayInfo);
@@ -1116,79 +1062,86 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     final bioText = content['bio_text'] as String? ?? '';
 
     final department = content['department'] as String?;
-    final city = content['city'] as String?;
-    final fullName = content['full_name'] as String?;
-    final firstName = fullName?.split(' ').first;
     final age = content['age'];
 
-    String locationInfo = city ?? '';
+    String displayInfo = '';
+    if (age != null) {
+      displayInfo = '$age';
+    }
+
     if (department != null && department.isNotEmpty) {
       final deptNum = department.split(' - ').first;
-      if (city != null && city.isNotEmpty) {
-        locationInfo = '$city ($deptNum)';
+      if (displayInfo.isNotEmpty) {
+        displayInfo = '$displayInfo, $deptNum';
       } else {
-        locationInfo = department;
+        displayInfo = deptNum;
       }
     }
 
-    String displayInfo = locationInfo;
-    String finalName = firstName ?? '';
-
-    if (finalName.isNotEmpty && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$finalName, $age - $locationInfo';
-      } else {
-        displayInfo = '$finalName, $age';
-      }
-    } else if (finalName.isNotEmpty) {
-      displayInfo = finalName;
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.person_outline,
-          size: 40,
-          color: Color(0xFFD4B483),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xCCFFF8E1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFD4B483).withValues(alpha: 0.5),
+          width: 1,
         ),
-        const SizedBox(height: 16),
-        Text(
-          bioText,
-          style: const TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            fontStyle: FontStyle.italic,
-            color: Color(0xFF3E2723),
-            height: 1.5,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        if (displayInfo.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.location_on,
-                size: 14,
-                color: Color(0xFF737373),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                displayInfo,
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF737373),
-                ),
-              ),
-            ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
-      ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_outline,
+            size: 40,
+            color: Color(0xFFD4B483),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            bioText,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFF3E2723),
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (displayInfo.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.location_on,
+                  size: 14,
+                  color: Color(0xFF737373),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  displayInfo,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF737373),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1196,29 +1149,19 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     final quoteText = content['quote_text'] as String? ?? '';
 
     final department = content['department'] as String?;
-    final city = content['city'] as String?;
-    final fullName = content['full_name'] as String?;
-    final firstName = fullName?.split(' ').first;
     final age = content['age'];
 
-    String locationInfo = city ?? '';
-    if (department != null && department.isNotEmpty) {
-      // Extract "06" from "06 - Alpes-Maritimes"
-      final deptNum = department.split(' - ').first;
-      if (city != null && city.isNotEmpty) {
-        locationInfo = '$city ($deptNum)';
-      } else {
-        locationInfo = department;
-      }
+    String displayInfo = '';
+    if (age != null) {
+      displayInfo = '$age';
     }
 
-    String displayInfo = locationInfo;
-    String finalName = firstName ?? '';
-    if (finalName.isNotEmpty && age != null) {
-      if (locationInfo.isNotEmpty) {
-        displayInfo = '$finalName, $age - $locationInfo';
+    if (department != null && department.isNotEmpty) {
+      final deptNum = department.split(' - ').first;
+      if (displayInfo.isNotEmpty) {
+        displayInfo = '$displayInfo, $deptNum';
       } else {
-        displayInfo = '$finalName, $age';
+        displayInfo = deptNum;
       }
     }
 
@@ -1226,11 +1169,15 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xCCFFF8E1),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFD4B483).withValues(alpha: 0.5),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),

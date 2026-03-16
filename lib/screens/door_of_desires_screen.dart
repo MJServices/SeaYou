@@ -74,9 +74,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       return;
     }
 
-    // Get IDs of users we've already replied to
-    final repliedPartnerIds = await _db.getRepliedPartnerIds(currentUserId);
-
+    // Load fantasies
     final newFantasies = await _db.listFantasies(page: _page);
 
     // Filter out anyone they've already messaged
@@ -180,6 +178,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
     // 3. Show message input dialog (like Secret Souls)
     final messageController = TextEditingController();
+    if (!mounted) return;
     final message = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
@@ -199,7 +198,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       size: 18, color: Color(0xFF8A2BE2)),
                   const SizedBox(width: 8),
                   Text(
-                    AppLocalizations.of(context).tr('chamber.anonymous_soul'),
+                    AppLocalizations.of(dialogContext).tr('chamber.anonymous_soul'),
                     style: const TextStyle(
                       fontFamily: 'PlayfairDisplay',
                       fontSize: 17,
@@ -217,7 +216,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               ),
               const SizedBox(height: 16),
               StatefulBuilder(
-                builder: (context, setDialogState) {
+                builder: (modalContext, setDialogState) {
+                  final l10n = AppLocalizations.of(modalContext);
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -242,8 +242,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context)
-                                  .tr('chamber.whisper_hint'),
+                              hintText: l10n.tr('chamber.whisper_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13,
@@ -283,7 +282,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             onTap: () {
                               final msg = messageController.text.trim();
                               if (msg.isNotEmpty) {
-                                Navigator.pop(dialogContext, msg);
+                                Navigator.pop(modalContext, msg);
                               }
                             },
                             child: AnimatedContainer(
@@ -307,7 +306,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                                       ],
                               ),
                               child: Text(
-                                AppLocalizations.of(context).tr('chamber.send'),
+                                l10n.tr('chamber.send'),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.w700,
@@ -320,12 +319,11 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                           const SizedBox(height: 6),
                           // Subtle Cancel
                           GestureDetector(
-                            onTap: () => Navigator.pop(dialogContext, null),
+                            onTap: () => Navigator.pop(modalContext, null),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                AppLocalizations.of(context)
-                                    .tr('dialogs.cancel'),
+                                l10n.tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   color: Colors.grey.withValues(alpha: 0.7),
@@ -448,9 +446,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 const Icon(Icons.history_edu,
                     size: 50, color: Color(0xFF8A2BE2)),
                 const SizedBox(height: 16),
-                const Text(
-                  'Plus de Parchemins',
-                  style: TextStyle(
+                Text(
+                  tr.tr('profile.out_of_scrolls_title'),
+                  style: const TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -458,10 +456,10 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Un parchemin est nécessaire pour répondre. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
+                Text(
+                  tr.tr('profile.out_of_scrolls_message'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 14,
                     color: Color(0xFF5D4037),
@@ -485,7 +483,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 12),
                   ),
-                  child: const Text('Obtenir des Parchemins'),
+                  child: Text(tr.tr('profile.get_scrolls')),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -883,42 +881,22 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
                                       final department =
                                           profile['department'] as String?;
-                                      final city = profile['city'] as String?;
-                                      final fullName =
-                                          profile['full_name'] as String?;
-                                      final firstName =
-                                          fullName?.split(' ').first;
                                       final age = profile['age'];
 
-                                      String locationInfo = city ?? '';
+                                      String displayInfo = '';
+                                      if (age != null) {
+                                        displayInfo = '$age';
+                                      }
+
                                       if (department != null &&
                                           department.isNotEmpty) {
                                         final deptNum =
                                             department.split(' - ').first;
-                                        if (city != null && city.isNotEmpty) {
-                                          locationInfo = '$city ($deptNum)';
+                                        if (displayInfo.isNotEmpty) {
+                                          displayInfo = '$displayInfo, $deptNum';
                                         } else {
-                                          locationInfo = department;
+                                          displayInfo = deptNum;
                                         }
-                                      }
-
-                                      String displayInfo = locationInfo;
-                                      String finalName = firstName ?? '';
-                                      if (fullName == 'Secret Soul' ||
-                                          fullName == 'Door of Desires') {
-                                        finalName = AppLocalizations.of(context)
-                                            .tr('common.secret_soul');
-                                      }
-
-                                      if (finalName.isNotEmpty && age != null) {
-                                        if (locationInfo.isNotEmpty) {
-                                          displayInfo =
-                                              '$finalName, $age - $locationInfo';
-                                        } else {
-                                          displayInfo = '$finalName, $age';
-                                        }
-                                      } else if (finalName.isNotEmpty) {
-                                        displayInfo = finalName;
                                       }
 
                                       if (displayInfo.isEmpty) {

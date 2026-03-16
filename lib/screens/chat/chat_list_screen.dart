@@ -26,6 +26,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final DatabaseService _db = DatabaseService();
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
   String? _avatarUrl;
+  String? _userGender;
+  bool _isPremium = false;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
   int _archivedCount = 0;
 
@@ -33,21 +35,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void initState() {
     super.initState();
     _loadConversations();
+    _loadUserProfile();
     _subscribeProfile();
     _loadArchivedCount();
   }
 
-  Future<void> _loadUserAvatar() async {
+  Future<void> _loadUserProfile() async {
     if (_currentUserId == null) return;
     try {
       final profile = await _db.getProfile(_currentUserId);
       if (profile != null && mounted) {
         setState(() {
           _avatarUrl = profile['avatar_url'];
+          _userGender = profile['gender'] as String?;
+          final tier = profile['tier'] as String? ?? 'free';
+          _isPremium = tier == 'premium' || tier == 'elite';
+          debugPrint('👤 ChatList: Loaded User Profile: Gender=$_userGender, Tier=$tier, Premium=$_isPremium');
         });
       }
     } catch (e) {
-      debugPrint('Error loading avatar: $e');
+      debugPrint('Error loading user profile: $e');
     }
   }
 
@@ -376,6 +383,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  bool _isUserPremiumLocked(int feelingPercent) {
+    if (feelingPercent < 75) return false;
+    final gender = _userGender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
+    if (isFemale) return false; // Females not locked by paywall
+    return !_isPremium; // Males locked if not premium
+  }
+
   Widget _buildEmptyState() {
     String emptyMessage = _selectedFilter == 'Anon'
         ? AppLocalizations.of(context).tr('chat.empty_no_locked')
@@ -501,9 +516,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
               })
             : '';
 
+        final isLocked = _isUserPremiumLocked(conversation.feelingPercent);
         final isUnlocked = conversation.feelingPercent >= 100;
-        final lastMessage = conversation.lastMessage ??
-            AppLocalizations.of(context).tr('chat.start_chatting_hint');
+        final lastMessage = isLocked 
+            ? AppLocalizations.of(context).tr('chat.restricted_message')
+            : (conversation.lastMessage ?? AppLocalizations.of(context).tr('chat.start_chatting_hint'));
+        final displayFeelingPercent = isLocked ? 75 : conversation.feelingPercent;
         final time = _formatTime(conversation.lastMessageTime);
         final hasUnread = conversation.unreadCount > 0;
 
@@ -572,7 +590,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ),
                       const SizedBox(height: 4),
                       FeelingProgress(
-                        percent: conversation.feelingPercent,
+                        percent: displayFeelingPercent,
                         compact: true,
                       ),
                       const SizedBox(height: 4),

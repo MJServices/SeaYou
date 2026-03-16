@@ -4,11 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../i18n/app_localizations.dart';
 import 'purchase_scrolls_screen.dart';
 import '../services/iap_service.dart';
+import '../services/database_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'dart:async';
 
 class PremiumScreen extends StatefulWidget {
-  const PremiumScreen({super.key});
+  final VoidCallback? onPremiumActivated;
+
+  const PremiumScreen({super.key, this.onPremiumActivated});
 
   @override
   State<PremiumScreen> createState() => _PremiumScreenState();
@@ -27,6 +30,7 @@ class _PremiumScreenState extends State<PremiumScreen>
   bool _stripeOpened =
       false; // tracks whether Stripe was opened to show refresh button
   StreamSubscription<PurchaseDetails>? _purchaseSubscription;
+  StreamSubscription<Map<String, dynamic>>? _profileSubscription;
 
   @override
   void initState() {
@@ -41,12 +45,15 @@ class _PremiumScreenState extends State<PremiumScreen>
         _loadPremiumStatus();
       }
     });
+
+    _setupProfileSubscription();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _purchaseSubscription?.cancel();
+    _profileSubscription?.cancel();
     super.dispose();
   }
 
@@ -91,6 +98,43 @@ class _PremiumScreenState extends State<PremiumScreen>
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _setupProfileSubscription() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      _profileSubscription?.cancel();
+      _profileSubscription =
+          DatabaseService().subscribeProfile(userId).listen((data) async {
+        if (mounted) {
+          final tier = data['tier'] as String? ?? 'free';
+          final isNowPremium = tier == 'premium' || tier == 'elite';
+
+          if (isNowPremium && !_isPremium) {
+            debugPrint('💎 Premium status detected via realtime!');
+            await closeInAppWebView();
+            if (mounted) {
+              setState(() {
+                _isPremium = true;
+                _isLoading = false;
+              });
+              if (widget.onPremiumActivated != null) {
+                // Custom return navigation (e.g. back to chat)
+                widget.onPremiumActivated!();
+              } else {
+                // Default: just pop back
+                Navigator.of(context).pop(true);
+              }
+            }
+          } else if (data.containsKey('tier')) {
+            // Update status even if not premium (e.g. downgraded or already premium)
+            setState(() {
+              _isPremium = isNowPremium;
+            });
+          }
+        }
+      });
     }
   }
 

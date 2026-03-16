@@ -109,19 +109,8 @@ class DatabaseService {
       }
 
       if (isNewDay) {
-        // Fetch premium status to determine daily allocation.
-        // We check the 'profiles' table first as it's the source of truth for tier.
-        final profileRes = await _supabase
-            .from('profiles')
-            .select('tier, is_premium')
-            .eq('id', userId)
-            .single();
-
-        final String tier = profileRes['tier'] as String? ?? 'free';
-        final bool isPremiumFlag = profileRes['is_premium'] == true;
-        final bool isPremium = tier == 'premium' || isPremiumFlag;
-
-        dailyFree = isPremium ? 3 : 0;
+        // Both free and premium users get 3 daily scrolls
+        dailyFree = 3;
 
         // Update DB
         await _supabase.from('profiles').update({
@@ -1182,51 +1171,57 @@ class DatabaseService {
     required String blockerId,
     required String blockedId,
   }) async {
+    // Step 1: Insert the block record — this is the ONLY critical step.
+    // If this fails, we rethrow so the UI can show the error.
     try {
-      // 1. Add the block record
       await _supabase.from('user_blocks').insert({
         'blocker_id': blockerId,
         'blocked_id': blockedId,
         'created_at': DateTime.now().toIso8601String(),
       });
-      debugPrint('User $blockedId blocked by $blockerId');
+      debugPrint('✅ User $blockedId blocked by $blockerId');
+    } catch (e) {
+      debugPrint('❌ Error inserting block record: $e');
+      rethrow; // Only rethrow on the critical step
+    }
 
-      // 2. Fetch mutual conversations and explicitly delete messages to avoid foreign key errors
-      final convs = await _supabase.from('conversations').select('id').or(
-          'and(user_a_id.eq.$blockerId,user_b_id.eq.$blockedId),and(user_a_id.eq.$blockedId,user_b_id.eq.$blockerId)');
+    // Steps 2-5: Non-critical cleanup. Failures here are logged but NOT rethrown.
+    // The block already exists, so UI should show success regardless.
 
-      if ((convs as List).isNotEmpty) {
-        final convIds = convs.map((c) => c['id']).toList();
-        await _supabase
-            .from('messages')
-            .delete()
-            .inFilter('conversation_id', convIds);
-        debugPrint('Deleted messages for conversations: $convIds');
-      }
-
-      // 3. Delete mutual conversations (bidirectional wipe)
+    // 2. Delete mutual conversations
+    try {
       await _supabase.from('conversations').delete().or(
           'and(user_a_id.eq.$blockerId,user_b_id.eq.$blockedId),and(user_a_id.eq.$blockedId,user_b_id.eq.$blockerId)');
-      debugPrint(
-          'Deleted mutual conversations between $blockerId and $blockedId');
+      debugPrint('✅ Deleted mutual conversations between $blockerId and $blockedId');
+    } catch (e) {
+      debugPrint('⚠️ Could not delete conversations (non-fatal): $e');
+    }
 
-      // 3. Delete any bottles sent between these two users (Inbox clearing)
+    // 3. Delete received bottles between the two users
+    try {
       await _supabase.from('received_bottles').delete().or(
           'and(receiver_id.eq.$blockerId,sender_id.eq.$blockedId),and(receiver_id.eq.$blockedId,sender_id.eq.$blockerId)');
+      debugPrint('✅ Deleted mutual received bottles');
+    } catch (e) {
+      debugPrint('⚠️ Could not delete received bottles (non-fatal): $e');
+    }
 
-      // 4. Delete sent bottles matching
+    // 4. Delete sent bottles
+    try {
       await _supabase.from('sent_bottles').delete().or(
           'and(matched_recipient_id.eq.$blockerId,sender_id.eq.$blockedId),and(matched_recipient_id.eq.$blockedId,sender_id.eq.$blockerId)');
+      debugPrint('✅ Deleted mutual sent bottles');
+    } catch (e) {
+      debugPrint('⚠️ Could not delete sent bottles (non-fatal): $e');
+    }
 
-      // 5. Delete matches (Orphaned matches)
+    // 5. Delete orphaned matches
+    try {
       await _supabase.from('matches').delete().or(
           'and(recipient_id.eq.$blockerId,sender_id.eq.$blockedId),and(recipient_id.eq.$blockedId,sender_id.eq.$blockerId)');
-
-      debugPrint(
-          'Deleted mutual received bottles, sent bottles, and matches between $blockerId and $blockedId');
+      debugPrint('✅ Deleted mutual matches');
     } catch (e) {
-      debugPrint('Error blocking user: $e');
-      rethrow;
+      debugPrint('⚠️ Could not delete matches (non-fatal): $e');
     }
   }
 
@@ -1953,6 +1948,39 @@ class DatabaseService {
     }
   }
 
+  Stream<Map<String, dynamic>> subscribeProfile(String userId) {
+    try {
+      debugPrint('🔌 Setting up realtime subscription for profile: $userId');
+      final controller = StreamController<Map<String, dynamic>>();
+      final channel = _supabase.channel('profile_$userId');
+
+      channel
+          .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'profiles',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: userId,
+        ),
+        callback: (payload) {
+          debugPrint('🔔 Profile update received via realtime!');
+          controller.add(payload.newRecord.cast<String, dynamic>());
+        },
+      )
+          .subscribe((status, error) {
+        debugPrint('📡 Profile subscription status: $status');
+        if (error != null) debugPrint('❌ Profile subscription error: $error');
+      });
+
+      return controller.stream;
+    } catch (e) {
+      debugPrint('❌ Error subscribing to profile: $e');
+      return const Stream.empty();
+    }
+  }
+
   // ==================== TIERS ====================
 
   Future<String> getUserTier(String userId) async {
@@ -1991,6 +2019,27 @@ class DatabaseService {
       final blockedIds = await getBlockedUserIds(currentUserId ?? '');
       debugPrint('🔍 SecretSouls: Blocked IDs: ${blockedIds.length}');
 
+      // 1.1 Get current user's preferences for reciprocal matching
+      final viewerProfile = await getProfile(currentUserId ?? '');
+      final String? viewerGender = viewerProfile?['gender']; // 'male', 'female', 'nonbinary'
+      final String? viewerInterestedIn = viewerProfile?['interested_in']; // 'Men', 'Women', 'Non-binary', 'Everyone'
+
+      debugPrint('🔍 SecretSouls: Viewer gender=$viewerGender, interestedIn=$viewerInterestedIn');
+
+      // Helper: Does the viewer want to see this creator's content?
+      // Only the viewer's preference matters here — this is a public discovery screen.
+      // The creator's interested_in is irrelevant for what others can see about them.
+      bool isCompatible(String? creatorGender, String? creatorInterestedIn) {
+        final vInterest = viewerInterestedIn ?? 'Everyone';
+        if (vInterest == 'Everyone') return true;
+        if (vInterest == 'Men' && creatorGender == 'male') return true;
+        if (vInterest == 'Women' && creatorGender == 'female') return true;
+        if (vInterest == 'Non-binary' && creatorGender == 'nonbinary') return true;
+        // If gender not set, include it (don't exclude unspecified)
+        if (creatorGender == null) return true;
+        return false;
+      }
+
       // 2. Fetch Quotes/Bios (if all, quote, or bio)
       if (contentType == null ||
           contentType == 'quote' ||
@@ -2002,7 +2051,7 @@ class DatabaseService {
           var profileQuery = _supabase
               .from('profiles')
               .select(
-                  'id, secret_quote, about, city, department, full_name, age, created_at')
+                  'id, secret_quote, about, city, department, full_name, age, created_at, gender, interested_in')
               .or('secret_quote.not.is.null,about.not.is.null')
               .order('created_at', ascending: false)
               .range(start, end);
@@ -2014,6 +2063,9 @@ class DatabaseService {
           for (final q in (profileItems as List)) {
             if (q['id'] == currentUserId) continue;
             if (blockedIds.contains(q['id'])) continue;
+
+            // Reciprocal Matching Check
+            if (!isCompatible(q['gender'], q['interested_in'])) continue;
 
             String? quoteText;
             String? bioText;
@@ -2078,8 +2130,7 @@ class DatabaseService {
             '🔍 SecretSouls: Fetching from secret_souls_content (range: $start-$end)...');
         var sscQuery = _supabase
             .from('secret_souls_content')
-            .select(
-                'id, user_id, content_type, photo_url, audio_url, quote_text, created_at, profiles!inner(city, department, full_name, age, avatar_url)')
+            .select('id, user_id, content_type, photo_url, audio_url, quote_text, created_at')
             .eq('is_visible', true)
             .neq('user_id', currentUserId ?? '');
 
@@ -2094,28 +2145,46 @@ class DatabaseService {
         debugPrint(
             '🔍 SecretSouls: Raw secret_souls_content fetched: ${(sscItems as List).length}');
 
-        for (final s in (sscItems as List)) {
-          if (blockedIds.contains(s['user_id'])) continue;
+        if ((sscItems as List).isNotEmpty) {
+          // Batch-fetch profiles for all user_ids to avoid N+1 queries
+          final userIds = sscItems.map((s) => s['user_id'] as String).toSet().toList();
+          final profilesData = await _supabase
+              .from('profiles')
+              .select('id, city, department, full_name, age, avatar_url, gender, interested_in')
+              .filter('id', 'in', userIds);
 
-          // Check if this ssc photo is the main profile picture
-          final bool isMain = s['content_type'] == 'photo' &&
-              s['photo_url'] != null &&
-              s['photo_url'] == s['profiles']?['avatar_url'];
+          final Map<String, Map<String, dynamic>> profileMap = {
+            for (var p in (profilesData as List)) p['id'] as String: p as Map<String, dynamic>
+          };
 
-          items.add({
-            'id': 'ssc_${s['id']}',
-            'user_id': s['user_id'],
-            'content_type': s['content_type'],
-            'photo_url': s['photo_url'],
-            'audio_url': s['audio_url'],
-            'quote_text': s['quote_text'],
-            'is_main_profile_picture': isMain,
-            'city': s['profiles']?['city'],
-            'department': s['profiles']?['department'],
-            'full_name': s['profiles']?['full_name'],
-            'age': s['profiles']?['age'],
-            'created_at': s['created_at'],
-          });
+          for (final s in sscItems) {
+            if (blockedIds.contains(s['user_id'])) continue;
+
+            final profile = profileMap[s['user_id']];
+
+            // Matching check (viewer-side only)
+            if (!isCompatible(profile?['gender'], profile?['interested_in'])) continue;
+
+            // Check if this gallery photo is the main profile picture
+            final bool isMain = s['content_type'] == 'photo' &&
+                s['photo_url'] != null &&
+                s['photo_url'] == profile?['avatar_url'];
+
+            items.add({
+              'id': 'ssc_${s['id']}',
+              'user_id': s['user_id'],
+              'content_type': s['content_type'],
+              'photo_url': s['photo_url'],
+              'audio_url': s['audio_url'],
+              'quote_text': s['quote_text'],
+              'is_main_profile_picture': isMain,
+              'city': profile?['city'],
+              'department': profile?['department'],
+              'full_name': profile?['full_name'],
+              'age': profile?['age'],
+              'created_at': s['created_at'],
+            });
+          }
         }
       } catch (e) {
         debugPrint('❌ ERROR fetching secret_souls_content: $e');
@@ -2128,7 +2197,7 @@ class DatabaseService {
           var query = _supabase
               .from('profiles')
               .select(
-                  'id, secret_audio_url, city, department, full_name, age, created_at')
+                  'id, secret_audio_url, city, department, full_name, age, created_at, gender, interested_in')
               .not('secret_audio_url', 'is', null)
               .order('created_at', ascending: false)
               .range(start, end);
@@ -2140,6 +2209,10 @@ class DatabaseService {
           final audios = (itemsToFetch as List).where((a) {
             if (a['id'] == currentUserId) return false;
             if (blockedIds.contains(a['id'])) return false;
+            
+            // Reciprocal Matching Check
+            if (!isCompatible(a['gender'], a['interested_in'])) return false;
+
             return true;
           }).toList();
           debugPrint('🔍 SecretSouls: Filtered audios: ${audios.length}');
@@ -2167,7 +2240,7 @@ class DatabaseService {
           var query = _supabase
               .from('profile_photos')
               .select(
-                  'id, user_id, url, created_at, is_first_face_photo, profiles!inner(city, department, full_name, age, avatar_url)')
+                  'id, user_id, url, created_at, is_first_face_photo, profiles!inner(city, department, full_name, age, avatar_url, gender, interested_in)')
               .eq('show_in_secret_souls', true)
               .neq('user_id', currentUserId ?? '');
 
@@ -2182,7 +2255,10 @@ class DatabaseService {
           debugPrint(
               '🔍 SecretSouls: Raw photos fetched: ${(photos as List).length}');
 
-          items.addAll((photos as List).map((p) => {
+          items.addAll((photos as List).where((p) {
+            // Reciprocal Matching Check
+            return isCompatible(p['profiles']?['gender'], p['profiles']?['interested_in']);
+          }).map((p) => {
                 'id': 'photo_${p['id']}',
                 'user_id': p['user_id'],
                 'content_type': 'photo',
@@ -2353,7 +2429,7 @@ class DatabaseService {
             'user_b_id': ownerId,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
-            'title': 'Secret Souls',
+            'title': 'Chamber of Secrets',
             'mask_a': 'Secret',
             'mask_b': 'Soul',
           })
@@ -2380,7 +2456,7 @@ class DatabaseService {
         await _supabase.from('notifications').insert({
           'user_id': ownerId,
           'type': 'secret_souls_message',
-          'title': 'New Secret Souls Message',
+          'title': 'New Chamber Message',
           'message': 'Someone wants to connect with you anonymously',
           'data': {'conversation_id': convId, 'content_id': contentId},
           'created_at': DateTime.now().toIso8601String(),
@@ -2491,50 +2567,32 @@ class DatabaseService {
       final currentUserId = _supabase.auth.currentUser?.id;
       final blockedIds = await getBlockedUserIds(currentUserId ?? '');
       final List<Map<String, dynamic>> allItems = [];
+      final Set<String> addedUserIds = {}; // Track users to avoid duplicates
 
       int start = page * pageSize;
       int end = (page + 1) * pageSize - 1;
 
-      // 1. Fetch from profiles (secret_desire)
-      try {
-        var query = _supabase
-            .from('profiles')
-            .select(
-                'id, secret_desire, city, department, full_name, age, created_at')
-            .not('secret_desire', 'is', null);
+      // 0. Get current user's preferences
+      final viewerProfile = await getProfile(currentUserId ?? '');
+      final String? viewerInterestedIn = viewerProfile?['interested_in'];
 
-        if (!includeSelf) {
-          query = query.neq('id', currentUserId ?? '');
-        }
-
-        if (blockedIds.isNotEmpty) {
-          query = query.not('id', 'in', blockedIds);
-        }
-
-        final profileItems =
-            await query.order('created_at', ascending: false).range(start, end);
-
-        for (var p in (profileItems as List)) {
-          allItems.add({
-            'id': 'prof_${p['id']}',
-            'user_id': p['id'],
-            'fantasy_text': p['secret_desire'],
-            'type': 'profile_desire',
-            'city': p['city'],
-            'department': p['department'],
-            'full_name': p['full_name'],
-            'age': p['age'],
-            'created_at': p['created_at'],
-          });
-        }
-      } catch (e) {
-        debugPrint('❌ Error fetching profile desires: $e');
+      // Helper: Does the viewer want to see this creator's content?
+      // Only the viewer's preference matters here — this is a public discovery screen.
+      bool isCompatible(String? creatorGender, String? creatorInterestedIn) {
+        final vInterest = viewerInterestedIn ?? 'Everyone';
+        if (vInterest == 'Everyone') return true;
+        if (vInterest == 'Men' && creatorGender == 'male') return true;
+        if (vInterest == 'Women' && creatorGender == 'female') return true;
+        if (vInterest == 'Non-binary' && creatorGender == 'nonbinary') return true;
+        // If gender not set, include it (don't exclude unspecified)
+        if (creatorGender == null) return true;
+        return false;
       }
 
-      // 2. Fetch from fantasies table
+      // 1. Fetch from fantasies table (Explicit fantasies)
       try {
         var fQuery = _supabase.from('fantasies').select(
-            'id, user_id, text, created_at, profiles!inner(city, department, full_name, age)');
+            'id, user_id, text, created_at, profiles!inner(city, department, full_name, age, gender, interested_in)');
 
         if (!includeSelf) {
           fQuery = fQuery.neq('user_id', currentUserId ?? '');
@@ -2549,9 +2607,19 @@ class DatabaseService {
             .range(start, end);
 
         for (var f in (fantasyItems as List)) {
+          final userId = f['user_id'];
+          if (addedUserIds.contains(userId)) continue;
+
+          // Reciprocal Matching Check
+          if (!isCompatible(
+              f['profiles']?['gender'], f['profiles']?['interested_in'])) {
+            continue;
+          }
+
+          addedUserIds.add(userId);
           allItems.add({
             'id': 'fan_${f['id']}',
-            'user_id': f['user_id'],
+            'user_id': userId,
             'fantasy_text': f['text'],
             'type': 'fantasy',
             'city': f['profiles']?['city'],
@@ -2565,11 +2633,12 @@ class DatabaseService {
         debugPrint('❌ Error fetching fantasies table: $e');
       }
 
-      // 3. Fetch from secret_souls_content (Fantasy type)
+      // 2. Fetch from secret_souls_content (Fantasy type)
       try {
         var sscQuery = _supabase
             .from('secret_souls_content')
-            .select('id, user_id, content_type, quote_text, created_at')
+            .select(
+                'id, user_id, content_type, quote_text, created_at, profiles!inner(city, department, full_name, age, gender, interested_in)')
             .eq('is_visible', true)
             .eq('content_type', 'fantasy');
 
@@ -2577,27 +2646,82 @@ class DatabaseService {
           sscQuery = sscQuery.neq('user_id', currentUserId ?? '');
         }
 
+        if (blockedIds.isNotEmpty) {
+          sscQuery = sscQuery.filter('user_id', 'not.in', blockedIds);
+        }
+
         final sscItems = await sscQuery
             .order('created_at', ascending: false)
             .range(start, end);
 
         for (var s in (sscItems as List)) {
-          if (blockedIds.contains(s['user_id'])) continue;
+          final userId = s['user_id'];
+          if (addedUserIds.contains(userId)) continue;
 
+          // Reciprocal Matching Check
+          if (!isCompatible(
+              s['profiles']?['gender'], s['profiles']?['interested_in'])) {
+            continue;
+          }
+
+          addedUserIds.add(userId);
           allItems.add({
             'id': 'ssc_${s['id']}',
-            'user_id': s['user_id'],
+            'user_id': userId,
             'fantasy_text': s['quote_text'],
             'type': 'ssc_fantasy',
-            'city': null,
-            'department': null,
-            'full_name': 'Secret Soul',
-            'age': null,
+            'city': s['profiles']?['city'],
+            'department': s['profiles']?['department'],
+            'full_name': s['profiles']?['full_name'] ?? 'Secret Soul',
+            'age': s['profiles']?['age'],
             'created_at': s['created_at'],
           });
         }
       } catch (e) {
         debugPrint('❌ Error fetching secret_souls_content fantasies: $e');
+      }
+
+      // 3. Fetch from profiles (secret_desire - fallback)
+      try {
+        var query = _supabase
+            .from('profiles')
+            .select(
+                'id, secret_desire, city, department, full_name, age, created_at, gender, interested_in')
+            .not('secret_desire', 'is', null);
+
+        if (!includeSelf) {
+          query = query.neq('id', currentUserId ?? '');
+        }
+
+        if (blockedIds.isNotEmpty) {
+          query = query.not('id', 'in', blockedIds);
+        }
+
+        final profileItems =
+            await query.order('created_at', ascending: false).range(start, end);
+
+        for (var p in (profileItems as List)) {
+          final userId = p['id'];
+          if (addedUserIds.contains(userId)) continue;
+
+          // Reciprocal Matching Check
+          if (!isCompatible(p['gender'], p['interested_in'])) continue;
+
+          addedUserIds.add(userId);
+          allItems.add({
+            'id': 'prof_${p['id']}',
+            'user_id': userId,
+            'fantasy_text': p['secret_desire'],
+            'type': 'profile_desire',
+            'city': p['city'],
+            'department': p['department'],
+            'full_name': p['full_name'],
+            'age': p['age'],
+            'created_at': p['created_at'],
+          });
+        }
+      } catch (e) {
+        debugPrint('❌ Error fetching profile desires: $e');
       }
 
       // 4. Sort aggregated results
@@ -2687,7 +2811,7 @@ class DatabaseService {
         'user_id': userId,
         'url': url,
         'is_face': false,
-        'show_in_secret_souls': false,
+        'show_in_secret_souls': true,
         'created_at': DateTime.now().toIso8601String(),
       });
       return url;
@@ -2813,7 +2937,6 @@ class DatabaseService {
 
       // Basic check if it's a supabase URL
       if (photoUrl.contains('supabase')) {
-        final uri = Uri.parse(photoUrl);
         // Extract path after /public/
         // This logic depends on the exact URL structure
         // A safer way: if we stored the 'path' in the DB, we could use that.

@@ -281,7 +281,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _partnerProfile?['about'] as String? ??
+            _partnerProfile?['secret_quote'] as String? ??
                 AppLocalizations.of(context).tr('chat_profile.no_bio'),
             style: const TextStyle(
               fontFamily: 'Montserrat',
