@@ -4,12 +4,11 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'profile_info_screen.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
 import '../i18n/app_localizations.dart';
+import '../services/onboarding_service.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
@@ -40,23 +39,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   @override
   void initState() {
     super.initState();
-    _checkRedirect();
     _passwordController.addListener(_validatePassword);
   }
 
-  Future<void> _checkRedirect() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      final profile = await DatabaseService().getProfile(user.id);
-      if (profile != null && profile['full_name'] != null && mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
-      }
-    }
-  }
 
   void _validatePassword() {
     final password = _passwordController.text;
@@ -82,12 +67,6 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
-                      ),
                       const SizedBox(height: 16),
                       Text(
                         AppLocalizations.of(context)
@@ -146,41 +125,96 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                         isActive: isPasswordValid,
                         onPressed: () async {
                           try {
-                            // Check if we need to re-authenticate with temp password
-                            if (AuthService().currentUser == null &&
-                                widget.tempPassword != null) {
-                              print(
-                                  'AUTH_DEBUG: Session missing, re-authenticating with temp password...');
-                              await AuthService().signInWithPassword(
-                                  widget.email, widget.tempPassword!);
+                            debugPrint('AUTH_DEBUG: Create Password button pressed.');
+                            
+                            User? currentUser = AuthService().currentUser;
+                            debugPrint('AUTH_DEBUG: Initial currentUser: ${currentUser?.id}');
+                            
+                            // FAIL-SAFE: Retry and Silent Re-Login
+                            int retryCount = 0;
+                            while (currentUser == null && retryCount < 3) {
+                              debugPrint('AUTH_DEBUG: Session missing. Attempting recovery (Attempt #${retryCount + 1})...');
+                              
+                              // 1. Try Refresh
+                              try {
+                                final refreshRes = await Supabase.instance.client.auth.refreshSession();
+                                currentUser = refreshRes.user;
+                                if (currentUser != null) debugPrint('AUTH_DEBUG: refreshSession SUCCESS.');
+                              } catch (e) {
+                                debugPrint('AUTH_DEBUG: refreshSession error: $e');
+                              }
+
+                              // 2. Try Disk Session
+                              if (currentUser == null) {
+                                final session = Supabase.instance.client.auth.currentSession;
+                                currentUser = session?.user;
+                                if (currentUser != null) debugPrint('AUTH_DEBUG: disk session check SUCCESS.');
+                              }
+
+                              // 3. SILENT RE-LOGIN (The "Backdoor")
+                              if (currentUser == null) {
+                                debugPrint('AUTH_DEBUG: Attempting silent re-login with tempPassword...');
+                                final tempStored = await OnboardingService().getTempPassword();
+                                if (tempStored != null) {
+                                  try {
+                                    final authRes = await AuthService().signInWithPassword(widget.email, tempStored);
+                                    currentUser = authRes.user;
+                                    debugPrint('AUTH_DEBUG: SILENT RE-LOGIN SUCCESS! (via tempPassword)');
+                                  } catch (e) {
+                                    debugPrint('AUTH_DEBUG: Silent re-login failed: $e');
+                                  }
+                                } else {
+                                  debugPrint('AUTH_DEBUG: No tempPassword found in storage.');
+                                }
+                              }
+                              
+                              if (currentUser == null) {
+                                await Future.delayed(const Duration(seconds: 1));
+                              }
+                              retryCount++;
                             }
 
-                            await AuthService()
-                                .updatePassword(_passwordController.text);
-                            if (context.mounted) {
-                              if (widget.isRecovery) {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => const HomeScreen()),
-                                  (route) => false,
-                                );
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ProfileInfoScreen(
-                                      email: widget.email,
-                                      selectedLanguage: widget.selectedLanguage,
-                                    ),
+                            if (currentUser == null) {
+                              debugPrint('AUTH_DEBUG: CRITICAL: All session recovery attempts failed.');
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Unable to verify your session for ${widget.email}. Please go back and re-verify your email.'),
+                                    backgroundColor: Colors.red,
+                                    duration: const Duration(seconds: 8),
                                   ),
                                 );
                               }
+                              return;
+                            }
+
+                            debugPrint('AUTH_DEBUG: Updating password for: ${currentUser.email}');
+                            await AuthService().updatePassword(_passwordController.text);
+                            
+                            if (!mounted) return;
+                            debugPrint('AUTH_DEBUG: Password updated successfully.');
+
+                            await OnboardingService().saveStep(OnboardingStep.profileInfo);
+                            final profile = await DatabaseService().getProfile(currentUser.id);
+                            
+                            if (mounted) {
+                              await OnboardingService().resumeOnboarding(
+                                context, 
+                                profile,
+                                currentStep: OnboardingStep.createPassword,
+                                forcedStep: OnboardingStep.profileInfo,
+                                user: currentUser,
+                              );
                             }
                           } catch (e) {
+                            debugPrint('AUTH_DEBUG: Password update failed: $e');
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
+                                SnackBar(
+                                  content: Text('Failed to set password: $e\n(Account: ${widget.email})'),
+                                  backgroundColor: Colors.red,
+                                  duration: const Duration(seconds: 6),
+                                ),
                               );
                             }
                           }

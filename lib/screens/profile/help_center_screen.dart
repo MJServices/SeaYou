@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/warm_gradient_background.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
 import '../../widgets/custom_button.dart';
 import '../../i18n/app_localizations.dart';
+import '../../services/database_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Help Center Screen - Contact support for technical issues
 class HelpCenterScreen extends StatefulWidget {
@@ -18,16 +19,12 @@ class HelpCenterScreen extends StatefulWidget {
 class _HelpCenterScreenState extends State<HelpCenterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _issueController = TextEditingController();
+  bool _isSubmitting = false;
 
   bool get isFormValid =>
-      _emailController.text.isNotEmpty && _issueController.text.isNotEmpty;
-
-  String? _encodeQueryParameters(Map<String, String> params) {
-    return params.entries
-        .map((MapEntry<String, String> e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
-  }
+      _emailController.text.isNotEmpty && 
+      _emailController.text.contains('@') &&
+      _issueController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -208,42 +205,45 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: CustomButton(
-                      text: l10n.tr('common.send'),
-                      isActive: isFormValid,
-                      onPressed: isFormValid
+                      text: _isSubmitting ? l10n.tr('common.processing') : l10n.tr('common.send'),
+                      isActive: isFormValid && !_isSubmitting,
+                      onPressed: isFormValid && !_isSubmitting
                           ? () async {
+                              setState(() => _isSubmitting = true);
                               final messenger = ScaffoldMessenger.of(context);
                               final navigator = Navigator.of(context);
                               final successMsg =
                                   l10n.tr('profile.help_center_success');
 
-                              final Uri emailLaunchUri = Uri(
-                                scheme: 'mailto',
-                                path: 'contact@seayou-app.com',
-                                query: _encodeQueryParameters(<String, String>{
-                                  'subject': 'SeaYou Support Request',
-                                  'body':
-                                      'User Email: ${_emailController.text}\n\nIssue:\n${_issueController.text}',
-                                }),
-                              );
+                              try {
+                                final userId = Supabase.instance.client.auth.currentUser?.id;
+                                if (userId == null) throw Exception('User not logged in');
 
-                              if (await canLaunchUrl(emailLaunchUri)) {
-                                await launchUrl(emailLaunchUri);
+                                await DatabaseService().submitSupportRequest(
+                                  userId: userId,
+                                  email: _emailController.text.trim(),
+                                  subject: 'SeaYou Support Request',
+                                  message: _issueController.text.trim(),
+                                );
+
                                 if (mounted) {
                                   messenger.showSnackBar(
                                     SnackBar(content: Text(successMsg)),
                                   );
                                   navigator.pop();
                                 }
-                              } else {
+                              } catch (e) {
                                 if (mounted) {
                                   messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'Could not launch email application'),
+                                    SnackBar(
+                                      content: Text('Error: ${e.toString()}'),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isSubmitting = false);
                                 }
                               }
                             }

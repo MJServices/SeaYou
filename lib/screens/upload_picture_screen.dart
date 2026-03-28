@@ -14,6 +14,7 @@ import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../services/face_detection_service.dart';
 import '../services/notification_service.dart';
+import '../services/onboarding_service.dart';
 import 'home_screen.dart';
 
 class UploadPictureScreen extends StatefulWidget {
@@ -208,6 +209,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         final int birthYear = currentYear - age;
         widget.userProfile.birthYear = birthYear;
 
+        final gender = widget.userProfile.gender?.toLowerCase() ?? '';
+        final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
+
         await DatabaseService().createProfile(
           userId: userId,
           email: widget.userProfile.email ?? '',
@@ -228,6 +232,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
           secretAudioUrl: widget.userProfile.secretAudioUrl,
           gender: widget.userProfile.gender,
           department: widget.userProfile.department,
+          tier: isPremiumWoman ? 'premium' : 'free',
+          isPremium: isPremiumWoman,
         );
 
         if (widget.userProfile.secretDesire != null &&
@@ -243,11 +249,17 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
 
       if (!mounted) return;
       debugPrint('✅ Navigating to HomeScreen');
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-        (route) => false,
-      );
+      
+      // Clear onboarding progress as it's completed
+      await OnboardingService().clearAll();
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       debugPrint('❌ Error in _proceedToNextScreen: $e');
       if (mounted) {

@@ -41,7 +41,9 @@
     "trouble_receiving_code": "Probleme beim Empfang des Codes?",
     "verification_code_sent": "Ein Bestätigungscode wurde an {email} gesendet.",
     "verification_message": "Um Ihre E-Mail-Adresse zu bestätigen, wird Ihnen umgehend ein Bestätigungscode zugesendet.",
-    "verifying": "Überprüfung läuft..."
+    "verifying": "Überprüfung läuft...",
+    "i_agree_to": "Ich stimme den",
+    "and": "und"
   },
   "bottles": {
     "empty": {
@@ -666,6 +668,10 @@
     "mood_romantique": "Romantisch",
     "mood_taquin": "Taquin",
     "no_matches_found": "Es wurden keine kompatiblen Nutzer gefunden. Ihre Flasche wird versendet, sobald jemand Ihren Präferenzen entspricht.",
+    "pending_title": "Deine Flasche ist noch ausständig…",
+    "pending_message": "Es gibt noch keine passenden Nutzer für deine Flasche, aber sobald es welche gibt, wird die Flasche zugestellt.",
+    "reply_sent_success": "Antwort gesendet! Sieh in deinen Verbindungen nach.",
+    "sea_soul_name": "Meeresseele",
     "start_typing": "Beginnen Sie zu tippen",
     "targeting_criteria": "Zielkriterien",
     "targeting_summary_all": "Alle",

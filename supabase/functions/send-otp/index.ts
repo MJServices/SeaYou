@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { serve } from "std/http/server";
-import { createClient } from "supabase";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -19,7 +19,8 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { email, type = "signup" } = await req.json();
+    const { email: rawEmail, type = "signup" } = await req.json();
+    const email = rawEmail?.toLowerCase().trim();
 
     if (!email) {
       throw new Error("Email is required");

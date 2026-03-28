@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../models/bottle.dart';
 import '../models/conversation.dart';
-import 'bottle_detail_screen.dart';
+import 'received_bottles_screen.dart';
 import 'all_bottles_screen.dart';
 import 'send_bottle_screen.dart';
 import 'chat/chat_list_screen.dart';
@@ -16,7 +16,6 @@ import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
-import '../widgets/received_bottles_viewer.dart';
 import '../widgets/feeling_progress.dart';
 import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
@@ -32,6 +31,7 @@ import 'upload_picture_screen.dart';
 import 'package:seayou_app/screens/outbox_compose_screen.dart' as outbox;
 import '../widgets/coachmark_bubble.dart';
 import '../widgets/profile_avatar.dart';
+import '../services/onboarding_service.dart';
 
 import '../widgets/tutorial_modal.dart';
 import '../services/notification_service.dart';
@@ -148,8 +148,20 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
 
+
+
           _isLoading = false;
         });
+        
+        // HARD GUARD: Enforce Profile Completion
+        // We pass currentStep: completed so that OnboardingService doesn't bounce us back here if we ARE complete.
+        if (mounted) {
+          await OnboardingService().resumeOnboarding(
+            context, 
+            _userProfile, 
+            currentStep: OnboardingStep.completed,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error loading home data: $e');
@@ -365,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const NewBottlesListScreen(),
+                          builder: (context) => const ChatListScreen(),
                         ),
                       );
                     },
@@ -488,12 +500,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ).then((_) => _loadData());
                               } else {
-                                // No bottles received -> Show the Palm Tree Page (HomeDefaultScreen)
+                                // No bottles received -> Show the swipeable received bottles screen
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        const ReceivedBottlesViewer(),
+                                        const ReceivedBottlesScreen(),
                                   ),
                                 ).then((_) => _loadData());
                               }
@@ -1021,19 +1033,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => BottleDetailScreen(
-                mood: bottle.mood ?? 'Curious',
-                messageType: 'Text',
-                message: _getTranslatedMessage(context, bottle.message),
-                isReceived: false,
-                bottleId: bottle.id,
-                senderId: bottle.senderId,
-              ),
-            ),
-          );
+          // SENT: Show simple preview since we removed BottleDetailScreen
+          _showSentBottlePreview(bottle);
         }
       },
       child: _buildBottleCard(
@@ -1049,6 +1050,40 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'read'
             : (bottle.isMatched ? 'matched' : bottle.status),
         isMatched: bottle.isMatched,
+      ),
+    );
+  }
+
+  void _showSentBottlePreview(SentBottle bottle) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sent Bottle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _getTranslatedMessage(context, bottle.message),
+              style: const TextStyle(fontFamily: 'Montserrat'),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Status: ${bottle.status}',
+              style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -1745,6 +1780,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String imagePath,
     required String label,
     required VoidCallback onTap,
+    String? badge,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -1800,6 +1836,52 @@ class _HomeScreenState extends State<HomeScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
+              // Optional Badge (Bottle Counter)
+              if (badge != null)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0AC5C5),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/images/letter.png',
+                          width: 12,
+                          height: 12,
+                          color: Colors.white,
+                          errorBuilder: (c, o, s) => const Icon(
+                            Icons.local_post_office,
+                            color: Colors.white,
+                            size: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          badge,
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

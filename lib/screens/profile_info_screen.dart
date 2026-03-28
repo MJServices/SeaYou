@@ -13,6 +13,7 @@ import '../i18n/app_localizations.dart';
 import 'gender_identity_screen.dart';
 import '../models/user_profile.dart';
 import '../utils/french_departments.dart';
+import '../services/onboarding_service.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   final String email;
@@ -533,6 +534,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                           secretQuote: _secretQuoteController.text,
                           secretAudioUrl: _secretAudioPath,
                         );
+                        await OnboardingService().saveStep(OnboardingStep.genderIdentity);
                         if (mounted) {
                           Navigator.push(
                             context,
@@ -601,10 +603,24 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
         _recordingSeconds = 0;
       });
 
-      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        setState(() {
-          _recordingSeconds++;
-        });
+      _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+        if (mounted) {
+          final double elapsed = (timer.tick * 100) / 1000.0;
+          
+          // Always update UI when hitting a full second to ensure 15 is shown
+          if (timer.tick % 10 == 0) {
+            setState(() {
+              _recordingSeconds = elapsed.round();
+            });
+          }
+
+          if (elapsed >= _maxDuration) {
+            timer.cancel();
+            if (_isRecording) {
+              await _stopRecording();
+            }
+          }
+        }
       });
     } catch (e) {
       debugPrint('Error starting recording: $e');

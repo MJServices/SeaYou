@@ -18,7 +18,6 @@ import '../widgets/targeting_options_modal.dart'; // Import targeting modal
 import '../widgets/animated_waveform.dart';
 import '../screens/chat/chat_conversation_screen.dart';
 import '../i18n/app_localizations.dart';
-import 'premium_screen.dart';
 
 /// Send Bottle Screen - Perfect implementation matching Figma screens 11-26
 /// Supports Text, Picture, and Voice Chat bottle creation
@@ -59,6 +58,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
   RangeValues _ageRange = const RangeValues(18, 99);
   List<String> _targetGenders = [];
   List<String> _targetDepartments = [];
+  int _remainingScrolls = 0;
+  bool _isPremiumOrWoman = false;
+  bool _statusLoaded = false;
+  
+  // Voice Recording Constants
+  static const int _minDuration = 5;
+  static const int _maxDuration = 15;
 
   final List<Map<String, dynamic>> _moods = [
     {
@@ -84,6 +90,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     super.initState();
     _messageController.addListener(_updatePreviewState);
     _captionController.addListener(_updatePreviewState);
+    _loadScrollCount();
+    _checkPremiumStatus();
     _uploadController = UploadController();
     _uploadController.addListener(() {
       final vals = _uploadController.statuses.values;
@@ -101,6 +109,29 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
     _recordingTimer?.cancel();
     _voiceRecorder.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadScrollCount() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final count = await _databaseService.getAvailableScrollsCount(userId);
+      if (mounted) {
+        setState(() => _remainingScrolls = count);
+      }
+    }
+  }
+
+  Future<void> _checkPremiumStatus() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final isPW = await EntitlementsService().isPremiumOrWoman(userId);
+      if (mounted) {
+        setState(() {
+          _isPremiumOrWoman = isPW;
+          _statusLoaded = true;
+        });
+      }
+    }
   }
 
   void _updatePreviewState() {
@@ -156,11 +187,24 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         _voicePath = path;
         debugPrint('🎙️ Recording started successfully');
 
-        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          setState(() {
-            _recordingSeconds++;
-          });
-          debugPrint('🎙️ Recording: ${_recordingSeconds}s');
+        _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+          if (mounted) {
+            final double elapsed = (timer.tick * 100) / 1000.0;
+
+            // Always update UI when hitting a full second to ensure 15 is shown
+            if (timer.tick % 10 == 0) {
+              setState(() {
+                _recordingSeconds = elapsed.round();
+              });
+            }
+
+            if (elapsed >= _maxDuration) {
+              timer.cancel();
+              if (_isRecording) {
+                await _stopVoiceRecording();
+              }
+            }
+          }
         });
       } catch (e, stackTrace) {
         debugPrint('❌ Error starting recording: $e');
@@ -185,8 +229,8 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
     try {
       final path = await _voiceRecorder.stop();
-      // Wait for file to be fully written
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Snappy wait for file to be fully written
+      await Future.delayed(const Duration(milliseconds: 100));
       debugPrint('🎙️ Recording stopped. Path: $path');
 
       if (path != null && path.isNotEmpty) {
@@ -465,6 +509,43 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                 height: 1.5,
               ),
               border: InputBorder.none,
+              suffixIcon: (!_statusLoaded || _isPremiumOrWoman) ? null : GestureDetector(
+                onTap: () async {
+                  final purchased = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PurchaseScrollsScreen(),
+                    ),
+                  );
+                  if (purchased == true) {
+                    _loadScrollCount();
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8.0, bottom: 2.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '($_remainingScrolls)',
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF151515),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Image.asset(
+                        'assets/images/letter.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
             ),
             style: const TextStyle(
               fontFamily: 'Montserrat',
@@ -613,7 +694,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           ],
 
           Text(
-            _isRecording ? 'Recording...' : 'Start Recording',
+            _isRecording ? AppLocalizations.of(context).tr('recording.label', params: {'time': _recordingSeconds.toString()}) : 'Start Recording',
             style: const TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
@@ -621,6 +702,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
               color: Color(0xFF363636),
             ),
           ),
+          if (!_isRecording && _recordingSeconds > 0 && _recordingSeconds < _minDuration) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Voice message must be at least 5 seconds',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
         ],
       ),
     );
@@ -798,9 +886,16 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         throw Exception('User not authenticated');
       }
 
+      final isPremiumOrWoman =
+          await EntitlementsService().isPremiumOrWoman(currentUser.id);
+
       // Check limits
-      final canSend =
-          await _databaseService.hasAvailableScrolls(currentUser.id);
+      bool canSend = false;
+      if (isPremiumOrWoman) {
+        canSend = true; // Unlimited bottles for Premium/Women!
+      } else {
+        canSend = await _databaseService.hasAvailableScrolls(currentUser.id);
+      }
 
       if (!canSend) {
         setState(() => _isSending = false);
@@ -859,14 +954,20 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         uploadedAudioUrl = uploadStatus.url;
       }
 
-      // 1. Deduct scroll (Verify and consume)
-      final deducted = await _databaseService.deductScroll(currentUser.id);
-      if (!deducted) {
-        setState(() => _isSending = false);
-        if (!mounted) return;
-        // Show out of scrolls again if it somehow changed
-        _showOutOfScrollsDialog(context);
-        return;
+      // 1. Deduct scroll (Verify and consume) - ONLY if not an unlimited premium/woman
+      if (!_isPremiumOrWoman) {
+        final deducted = await _databaseService.deductScroll(currentUser.id);
+        if (!deducted) {
+          setState(() => _isSending = false);
+          if (!mounted) return;
+          // Show out of scrolls again if it somehow changed
+          _showOutOfScrollsDialog(context);
+          return;
+        }
+        // Update local UI count
+        setState(() {
+          if (_remainingScrolls > 0) _remainingScrolls--;
+        });
       }
 
       // 2. Create sent bottle in database
@@ -1177,7 +1278,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                AppLocalizations.of(context).tr('chat.milestone_continue'),
+                AppLocalizations.of(context).tr('common.continue'),
                 style: const TextStyle(
                   color: Color(0xFF0AC5C5),
                   fontWeight: FontWeight.bold,

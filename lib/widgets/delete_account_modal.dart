@@ -12,6 +12,7 @@ class DeleteAccountModal extends StatefulWidget {
 }
 
 class _DeleteAccountModalState extends State<DeleteAccountModal> {
+  String? _errorMessage;
   bool _isLoading = false;
 
   @override
@@ -77,12 +78,10 @@ class _DeleteAccountModalState extends State<DeleteAccountModal> {
                       } catch (e) {
                         debugPrint('Error deleting account: $e');
                         if (mounted) {
-                          setState(() => _isLoading = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(AppLocalizations.of(context)
-                                    .tr('errors.generic'))),
-                          );
+                          setState(() {
+                            _isLoading = false;
+                            _errorMessage = e.toString().replaceAll('Exception: ', '');
+                          });
                         }
                       }
                     },
@@ -126,6 +125,27 @@ class _DeleteAccountModalState extends State<DeleteAccountModal> {
                   ),
                 ],
               ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 12,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

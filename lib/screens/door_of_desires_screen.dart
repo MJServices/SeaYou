@@ -74,6 +74,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       return;
     }
 
+    // Get IDs of users we've already replied to or matched with
+    final repliedPartnerIds = await _db.getRepliedPartnerIds(currentUserId);
+
     // Load fantasies
     final newFantasies = await _db.listFantasies(page: _page);
 
@@ -82,13 +85,13 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       final fantasyUserId = f['user_id'] as String?;
       debugPrint('🔍 DoorOfDesires: Checking user $fantasyUserId');
 
-      if (fantasyUserId == null) return false;
+      if (fantasyUserId == null || fantasyUserId == currentUserId) return false;
 
-      // TEMPORARILY DISABLED for verification
-      // if (repliedPartnerIds.contains(fantasyUserId)) {
-      //   debugPrint('🔍 DoorOfDesires: Skipping $fantasyUserId (already replied)');
-      //   return false;
-      // }
+      // Ensure they don't show up if we already have an active conversation
+      if (repliedPartnerIds.contains(fantasyUserId)) {
+        debugPrint('🔍 DoorOfDesires: Skipping $fantasyUserId (already matched/replied)');
+        return false;
+      }
 
       return true;
     }).toList();
@@ -175,6 +178,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       _showOutOfScrollsDialog();
       return;
     }
+    
+    final int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
 
     // 3. Show message input dialog (like Secret Souls)
     final messageController = TextEditingController();
@@ -205,6 +210,22 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF2D2D2D),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '($availableScrollsCount)',
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF151515),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Image.asset(
+                    'assets/images/letter.png',
+                    width: 24,
+                    height: 24,
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -885,17 +906,20 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
                                       String displayInfo = '';
                                       if (age != null) {
-                                        displayInfo = '$age';
+                                        displayInfo =
+                                            '$age ${AppLocalizations.of(context).tr('common.years_old')}';
                                       }
 
                                       if (department != null &&
                                           department.isNotEmpty) {
                                         final deptNum =
                                             department.split(' - ').first;
+                                        final deptStr =
+                                            '${AppLocalizations.of(context).tr('common.dept_prefix')} $deptNum';
                                         if (displayInfo.isNotEmpty) {
-                                          displayInfo = '$displayInfo, $deptNum';
+                                          displayInfo = '$displayInfo - $deptStr';
                                         } else {
-                                          displayInfo = deptNum;
+                                          displayInfo = deptStr;
                                         }
                                       }
 

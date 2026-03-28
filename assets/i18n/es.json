@@ -41,7 +41,9 @@
     "trouble_receiving_code": "¿Problemas para recibir el código?",
     "verification_code_sent": "Se ha enviado un código de verificación a {email}",
     "verification_message": "Se enviará de inmediato un código de verificación para validar su dirección de correo electrónico.",
-    "verifying": "Verificando..."
+    "verifying": "Verificando...",
+    "i_agree_to": "Acepto los",
+    "and": "y"
   },
   "bottles": {
     "empty": {
@@ -156,6 +158,8 @@
     "unblock_confirm": "¿Estás seguro de que deseas desbloquear {userName}?"
   },
   "common": {
+    "years_old": "años",
+    "dept_prefix": "Dep.",
     "all": "Todo",
     "audio": "Audio",
     "back": "Atrás",
@@ -668,6 +672,8 @@
     "mood_romantique": "Romántico",
     "mood_taquin": "Taquín",
     "no_matches_found": "No se encontraron usuarios compatibles. Tu botella se enviará cuando alguien coincida con tus preferencias.",
+    "pending_title": "Tu botella está pendiente…",
+    "pending_message": "Todavía no hay usuarios compatibles para tu botella y una vez que los haya, la botella será entregada.",
     "start_typing": "Empieza a escribir",
     "targeting_criteria": "Criterios de segmentación",
     "targeting_summary_all": "Todo",

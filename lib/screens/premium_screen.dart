@@ -31,6 +31,7 @@ class _PremiumScreenState extends State<PremiumScreen>
       false; // tracks whether Stripe was opened to show refresh button
   StreamSubscription<PurchaseDetails>? _purchaseSubscription;
   StreamSubscription<Map<String, dynamic>>? _profileSubscription;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -54,6 +55,7 @@ class _PremiumScreenState extends State<PremiumScreen>
     WidgetsBinding.instance.removeObserver(this);
     _purchaseSubscription?.cancel();
     _profileSubscription?.cancel();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
@@ -113,6 +115,7 @@ class _PremiumScreenState extends State<PremiumScreen>
 
           if (isNowPremium && !_isPremium) {
             debugPrint('💎 Premium status detected via realtime!');
+            _pollingTimer?.cancel();
             await closeInAppWebView();
             if (mounted) {
               setState(() {
@@ -138,6 +141,26 @@ class _PremiumScreenState extends State<PremiumScreen>
     }
   }
 
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    // Poll every 3 seconds for robust fallback if Realtime fails
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      await _loadPremiumStatus();
+      if (_isPremium) {
+        timer.cancel();
+        debugPrint('💎 Premium status detected via polling fallback!');
+        await closeInAppWebView();
+        if (mounted) {
+          if (widget.onPremiumActivated != null) {
+            widget.onPremiumActivated!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
+        }
+      }
+    });
+  }
+
   Future<void> _launchUrl(String urlString) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
@@ -152,8 +175,13 @@ class _PremiumScreenState extends State<PremiumScreen>
     }
 
     final Uri url = Uri.parse(enrichedUrl);
+    
+    // Start polling as a safeguard just before opening Stripe
+    _startPolling();
+
     // User requested to keep it running in-app.
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
+      _pollingTimer?.cancel();
       throw Exception('Could not launch $enrichedUrl');
     }
   }

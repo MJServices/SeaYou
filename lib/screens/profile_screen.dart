@@ -13,7 +13,6 @@ import 'profile/terms_of_service_screen.dart';
 import 'profile/privacy_policy_screen.dart';
 import 'premium_screen.dart';
 import 'sexual_orientation_screen.dart';
-import 'edit_expectations_screen.dart';
 import 'interests_screen.dart';
 import '../widgets/sign_out_modal.dart';
 import '../widgets/delete_account_modal.dart';
@@ -26,6 +25,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/tutorial_modal.dart';
+import 'purchase_scrolls_screen.dart';
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -47,8 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<String> _sexualOrientations = [];
   List<String> _interests = [];
   bool _isPremium = false;
-  String? _expectation;
-  String? _interestedIn;
+  int _availableBottles = 0;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
 
   @override
@@ -57,41 +56,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _subscribeProfile();
   }
 
-  Future<void> _loadProfile() async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) return;
-
-      final profile = await _databaseService.getProfile(userId);
-      if (profile != null && mounted) {
-        setState(() {
-          _avatarUrl = profile['avatar_url'];
-          _userName = profile['full_name'] ?? 'User';
-          _gender = profile['gender'];
-          _isPremium = profile['is_premium'] as bool? ?? false;
-
-          if (profile['sexual_orientation'] != null) {
-            _sexualOrientations =
-                List<String>.from(profile['sexual_orientation']);
-          }
-
-          if (profile['interests'] != null) {
-            _interests = List<String>.from(profile['interests']);
-          }
-
-          _expectation = profile['expectation'];
-          _interestedIn = profile['interested_in'];
-
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading profile: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
 
   void _subscribeProfile() {
     final userId = _supabase.auth.currentUser?.id;
@@ -115,8 +79,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _interests = List<String>.from(profile['interests']);
           }
 
-          _expectation = profile['expectation'];
-          _interestedIn = profile['interested_in'];
+          _availableBottles = (profile['scrolls_count'] ?? 0) +
+              (profile['daily_free_scrolls'] ?? 0);
 
           _isLoading = false;
         });
@@ -329,6 +293,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 24),
 
+                    // My Scrolls Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: GestureDetector(
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PurchaseScrollsScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/letter.png',
+                                    width: 24,
+                                    height: 24,
+                                    errorBuilder: (c, o, s) => const Icon(
+                                        Icons.local_post_office,
+                                        color: Color(0xFFD4B483),
+                                        size: 24),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    AppLocalizations.of(context).locale.languageCode == 'fr' 
+                                        ? 'Parchemins disponibles'
+                                        : 'Available scrolls',
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF151515),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    _availableBottles.toString(),
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFD4B483),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.chevron_right, color: Color(0xFF737373)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
                     // General Section
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -362,28 +403,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // What I am looking for
-                          _buildSectionItem(
-                            title: AppLocalizations.of(context)
-                                .tr('onboarding.expectations.title'),
-                            onTap: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => EditExpectationsScreen(
-                                    userProfile: {
-                                      'expectation': _expectation,
-                                      'interested_in': _interestedIn,
-                                    },
-                                  ),
-                                ),
-                              );
-
-                              if (result == true) {
-                                _loadProfile();
-                              }
-                            },
-                          ),
                           const SizedBox(height: 16),
 
                           // Edit bio

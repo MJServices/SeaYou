@@ -104,11 +104,20 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen>
         _duration = 0;
         _path = path;
       });
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
         if (mounted) {
-          setState(() => _duration++);
-          if (_duration >= _maxDuration) {
-            await _stop();
+          final elapsedSeconds = (timer.tick * 100) / 1000.0;
+          
+          // Always update UI when hitting a full second to ensure 15 is shown
+          if (timer.tick % 10 == 0) {
+            setState(() => _duration = elapsedSeconds.round());
+          }
+
+          if (elapsedSeconds >= _maxDuration) {
+            timer.cancel();
+            if (_recording) {
+              await _stop();
+            }
           }
         }
       });
@@ -125,8 +134,8 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen>
     _timer?.cancel();
     _timer = null;
 
-    // Wait a moment for file to be fully written
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Snappy stop for better UX
+    await Future.delayed(const Duration(milliseconds: 100));
 
     if (mounted) {
       setState(() {

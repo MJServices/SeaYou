@@ -8,6 +8,7 @@ import '../widgets/warm_gradient_background.dart';
 import 'create_account_screen.dart';
 import '../services/localization_service.dart';
 import '../i18n/app_localizations.dart';
+import '../services/onboarding_service.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -90,6 +91,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                       };
                       final l = map[selectedLanguage!] ?? const Locale('en');
                       await LocalizationService.instance.setLocale(l);
+                      await OnboardingService().saveStep(OnboardingStep.createAccount);
                       if (!ctx.mounted) return;
                       Navigator.push(
                         ctx,

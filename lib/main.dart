@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'screens/create_password_screen.dart';
 // import 'widgets/tap_to_mute_wrapper.dart'; // Removed as only used locally in splash
-import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
+// import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
 
 final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
 
@@ -44,10 +44,8 @@ void main() async {
       );
     }
   });
-  // Check for active session
-  final session = Supabase.instance.client.auth.currentSession;
-  final Widget initialScreen =
-      session != null ? const HomeScreen() : const SplashScreen();
+  // Always start with SplashScreen to centralize routing logic
+  const Widget initialScreen = SplashScreen();
 
   runApp(SeaYouApp(home: initialScreen));
 }

@@ -9,6 +9,7 @@ import '../services/database_service.dart';
 import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
 import 'interests_screen.dart';
+import '../services/onboarding_service.dart';
 
 class ExpectationsScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -115,20 +116,29 @@ class _ExpectationsScreenState extends State<ExpectationsScreen> {
                   text: AppLocalizations.of(context).tr('common.next'),
                   isActive:
                       selectedExpectations.isNotEmpty && selectedGender != null,
-                  onPressed: () {
-                    // Store as comma-separated string for DB compatibility
-                    widget.userProfile.expectation =
-                        selectedExpectations.join(', ');
-                    widget.userProfile.interestedIn = selectedGender;
+                  onPressed: () async {
+                    // Use existing variables for expectations and gender
+                    final String? _selectedExpectation = selectedExpectations.isNotEmpty ? selectedExpectations.join(', ') : null;
+                    final String? _selectedInterestedIn = selectedGender;
 
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => InterestsScreen(
-                          userProfile: widget.userProfile,
-                        ),
-                      ),
-                    );
+                    if (_selectedExpectation != null &&
+                        _selectedInterestedIn != null) {
+                      widget.userProfile.expectation = _selectedExpectation;
+                      widget.userProfile.interestedIn = _selectedInterestedIn;
+
+                      await OnboardingService().saveStep(OnboardingStep.interests);
+
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => InterestsScreen(
+                              userProfile: widget.userProfile,
+                            ),
+                          ),
+                        );
+                      }
+                    }
                   },
                 ),
               ),

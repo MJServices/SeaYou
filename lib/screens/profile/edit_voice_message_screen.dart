@@ -121,11 +121,20 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
         _path = path;
         _errorMessage = null;
       });
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
         if (mounted) {
-          setState(() => _duration++);
-          if (_duration >= _maxDuration) {
-            await _stop();
+          final double elapsed = (timer.tick * 100) / 1000.0;
+          
+          // Always update UI when hitting a full second to ensure 15 is shown
+          if (timer.tick % 10 == 0) {
+            setState(() => _duration = elapsed.round());
+          }
+
+          if (elapsed >= _maxDuration) {
+            timer.cancel();
+            if (_recording) {
+              await _stop();
+            }
           }
         }
       });
@@ -141,7 +150,7 @@ class _EditVoiceMessageScreenState extends State<EditVoiceMessageScreen> {
     _timer?.cancel();
     _timer = null;
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     if (mounted) {
       setState(() {

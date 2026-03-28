@@ -16,7 +16,7 @@
     "enter_password_placeholder": "Saisissez le mot de passe",
     "enter_verification_code": "Saisissez le code de vérification",
     "forgot_password": "Mot de passe oublié",
-    "help_description": "Si vous ne recevez pas le code de vérification, vous pouvez essayer d'envoyer un lien de récupération de mot de passe (qui utilise un système de messagerie différent) ou essayer une autre adresse électronique.",
+    "help_description": "Si vous ne recevez pas le code, essayez de le renvoyer.",
     "log_in": "Se connecter",
     "login_with_code": "Se connecter avec code",
     "login_with_password": "Se connecter avec mot de passe",
@@ -29,8 +29,8 @@
     "resend": "Renvoyer",
     "resend_code_in": "Renvoyer le code dans {time}",
     "reset_link_sent": "Lien de réinitialisation envoyé",
+    "resend_backup_code": "Renvoyer le code",
     "send_code": "Envoyer le code de vérification",
-    "send_recovery_link": "Envoyer le lien de récupération",
     "sign_in_description": "Entrez votre email pour recevoir un code de vérification",
     "sign_in_password_description": "Entrez votre email et mot de passe",
     "sign_in_title": "Se connecter",
@@ -41,7 +41,9 @@
     "trouble_receiving_code": "Vous avez des difficultés à recevoir le code ?",
     "verification_code_sent": "Un code de vérification a été envoyé à {email}",
     "verification_message": "Un code de vérification sera envoyé immédiatement pour valider votre adresse email",
-    "verifying": "Vérification en cours..."
+    "verifying": "Vérification en cours...",
+    "i_agree_to": "J'accepte les",
+    "and": "et"
   },
   "bottles": {
     "empty": {
@@ -81,7 +83,7 @@
     "conversation_unavailable": "Cette conversation n'est plus disponible.",
     "default_partner_name": "Quelqu'un",
     "empty_no_archived": "Aucune conversation archivée pour le moment",
-    "empty_no_connections": "Vous n'avez pas encore établi de contact ; envoyez davantage de bouteilles pour augmenter vos chances d'obtenir une réponse.",
+    "empty_no_connections": "👉 Aucun contact pour l'instant... envoyez des bouteilles et multipliez vos chances de faire une belle rencontre.",
     "empty_no_locked": "Vous n'avez aucune conversation verrouillée ici.",
     "empty_no_unlocked": "Poursuivez les conversations pour établir un lien.",
     "feeling_level_subtitle": "Envoyez des messages pour débloquer des étapes importantes.",
@@ -191,6 +193,8 @@
     "has_been_blocked": "{name} a été bloqué(e)"
   },
   "common": {
+    "years_old": "ans",
+    "dept_prefix": "Dép.",
     "all": "Tout",
     "audio": "Audio",
     "back": "Retour",
@@ -679,11 +683,14 @@
     "support_section": "Soutien",
     "title": "Profil",
     "understand_seayou": "Comprendre le fonctionnement de SeaYou",
-    "upgrade_description": "Débloquez le premium réservé juste pour VOUS.",
-    "upgrade_to_pro": "Passer à Pro",
+    "upgrade_description": "Débloquez toutes les fonctionnalités !",
+    "upgrade_to_pro": "Passez à PREMIUM",
     "voice_intro": "Introduction vocale",
     "voice_message_label": "Message vocal actuel",
-    "voice_updated": "Message vocal mis à jour avec succès !"
+    "voice_updated": "Message vocal mis à jour avec succès !",
+    "my_bottles": "Mes bouteilles",
+    "bottles_remaining": "Bouteilles restantes",
+    "bottles_purchased": "Bouteilles achetées"
   },
   "purchase_scrolls": {
     "best_value": "le plus AVANTAGEUX",
@@ -731,7 +738,7 @@
       "message": "Assurez-vous de mettre une photo de votre visage (vérifiée par IA).\nCelle-ci sera révélée lorsque vous atteindrez 100% de Sentiment avec quelqu'un.",
       "multiple_faces_message": "Veuillez télécharger une photo où figure une seule personne. Votre photo de profil principale doit vous identifier clairement.",
       "multiple_faces_title": "Plusieurs visages détectés",
-      "no_face_message": "Veuillez télécharger une photo claire de votre visage. Cela aide les autres à vous reconnaître et garantit une meilleure expérience pour tous.",
+      "no_face_message": "Veuillez télécharger une photo claire de votre vrai visage.",
       "no_face_title": "Aucun visage détecté",
       "not_forward_message": "Veuillez télécharger une photo où vous regardez droit dans l'objectif. Les photos de profil ou où vous regardez ailleurs ne sont pas acceptées.",
       "not_forward_title": "Visage ne regardant pas vers l'avenir",
@@ -761,9 +768,9 @@
     "mood_taquin": "Taquin",
     "no_matches_found": "Aucun utilisateur compatible trouvé. Votre bouteille vous sera envoyée dès qu'une personne correspondant à vos préférences vous sera trouvée.",
     "pending_title": "Votre bouteille est en attente…",
-    "pending_message": "Nous n’avons pas encore trouvé la personne qui correspond à vos critères. Elle sera envoyée automatiquement dès qu’une belle rencontre se présentera.",
-    "start_typing": "Commencez à taper",
-    "targeting_criteria": "Critères de ciblage",
+    "pending_message": "Il n'y a pas encore d'utilisateurs compatibles pour votre bouteille et dès qu'il y en aura, la bouteille sera livrée.",
+    "start_typing": "Commencez à écrire",
+    "targeting_criteria": "Critères de recherche",
     "targeting_summary_all": "Tous",
     "targeting_summary_depts": "{count} départements",
     "targeting_summary_france": "France",
@@ -796,7 +803,8 @@
   },
   "splash": {
     "sign_up_free": "Inscrivez-vous gratuitement !",
-    "subtitle": "Et si vous laissiez le hasard faire le reste ?"
+    "subtitle": "Et si vous laissiez le hasard faire le reste ?",
+    "feeling": "Feeling"
   },
   "surprise": {
     "banner_required": "Répondez à au moins une question pour continuer.",
@@ -826,7 +834,7 @@
     "gender_nonbinary": "Non-binaire",
     "gender_woman": "Femme",
     "select_departments": "Sélectionner les départements",
-    "title": "Critères de ciblage"
+    "title": "Critères de recherche"
   },
   "tooltip": {
     "audio": {
@@ -878,7 +886,7 @@
       "line1": "Ici, vos premières rencontres seront 100% anonymes.",
       "line2": "Vous vous découvrirez progressivement, à travers des conversations.",
       "line3": "Chaque message sera envoyé comme une bouteille jetée à la mer, de manière anonyme et sécurisée, uniquement aux personnes correspondant à vos critères.",
-      "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant le d'augmenter Feeling à travers vos échanges, et plus votre Feeling monte, plus vous débloquez des révélations exclusives…",
+      "line4": "Lorsque vous recevez une réponse, une conversation démarre entre vous, vous permettant d'augmenter le Feeling à travers vos échanges, et plus votre Feeling monte, plus vous débloquez des révélations exclusives…",
       "line5": "À vous de jouer !",
       "subtitle": "Le premier lieu de rencontre 3.0, où les âmes se choisissent avant le physique.",
       "title": "Bienvenue sur SeaYou !"

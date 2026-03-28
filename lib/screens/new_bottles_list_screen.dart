@@ -23,8 +23,7 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
 
   List<ReceivedBottle> _bottles = [];
   bool _isLoading = true;
-  String? _gender;
-  bool _isPremium = false;
+  bool _isAccessGranted = false;
   StreamSubscription? _bottleSubscription;
 
   @override
@@ -60,12 +59,9 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
     try {
       final profile = await _db.getProfile(_currentUserId);
       if (profile != null) {
-        // Handle variations of Male/Man
-        final genderStr = profile['gender']?.toString().toLowerCase() ?? '';
-        _gender = (genderStr == 'man' || genderStr == 'male') ? 'Man' : 'Woman';
-
         // Use EntitlementsService for more robust check (Premium OR Woman)
-        _isPremium =
+        // This is our single source of truth for free access
+        _isAccessGranted =
             await EntitlementsService().isPremiumOrWoman(_currentUserId);
       }
 
@@ -116,7 +112,7 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
   }
 
   bool _isLocked() {
-    return _gender == 'Man' && !_isPremium;
+    return !_isAccessGranted;
   }
 
   @override

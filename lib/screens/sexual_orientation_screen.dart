@@ -10,6 +10,7 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'expectations_screen.dart';
+import '../services/onboarding_service.dart';
 
 class SexualOrientationScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -166,14 +167,17 @@ class _SexualOrientationScreenState extends State<SexualOrientationScreen> {
                         }
                       }
                     } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ExpectationsScreen(
-                            userProfile: widget.userProfile,
+                      await OnboardingService().saveStep(OnboardingStep.expectations);
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ExpectationsScreen(
+                              userProfile: widget.userProfile,
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      }
                     }
                   },
                 ),

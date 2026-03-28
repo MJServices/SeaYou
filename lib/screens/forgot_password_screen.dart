@@ -76,7 +76,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             final response =
                                 await Supabase.instance.client.functions.invoke(
                               'send-otp',
-                              body: {'email': _emailController.text.trim()},
+                              body: {
+                                'email': _emailController.text.trim(),
+                                'type': 'login'
+                              },
                             );
 
                             if (response.status != 200) {

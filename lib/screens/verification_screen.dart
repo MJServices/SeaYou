@@ -5,12 +5,11 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/warm_gradient_background.dart';
-import 'create_password_screen.dart';
-import 'home_screen.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../i18n/app_localizations.dart';
+import '../services/onboarding_service.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
@@ -45,21 +44,42 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   void initState() {
     super.initState();
-    _checkRedirect();
     print(
         'AUTH_DEBUG: VerificationScreen initialized. Email: ${widget.email}, isSignIn: ${widget.isSignIn}, isRecovery: ${widget.isRecovery}');
     _startCountdown();
   }
 
-  Future<void> _checkRedirect() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      final profile = await DatabaseService().getProfile(user.id);
-      if (profile != null && profile['full_name'] != null && mounted) {
-        Navigator.pushAndRemoveUntil(
+
+  Future<void> handleOtpVerificationSuccess(User? verifiedUser) async {
+    try {
+      debugPrint('AUTH_DEBUG: Starting post-verification sequence with User: ${verifiedUser?.id}');
+
+      final user = verifiedUser ?? Supabase.instance.client.auth.currentUser;
+      
+      Map<String, dynamic>? profile;
+      if (user != null) {
+        try {
+          profile = await DatabaseService().getProfile(user.id);
+        } catch (e) {
+          debugPrint('AUTH_DEBUG: Profile fetch failed (non-critical): $e');
+        }
+      }
+
+      if (mounted) {
+        debugPrint('AUTH_DEBUG: Verification success. Resuming onboarding...');
+        await OnboardingService().resumeOnboarding(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
+          profile,
+          currentStep: OnboardingStep.verification,
+          forcedStep: OnboardingStep.createPassword,
+          user: user, // Pass the explicit user object
+        );
+      }
+    } catch (e) {
+      debugPrint('AUTH_DEBUG: Post-verification sequence failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Verification successful, but loading failed: $e')),
         );
       }
     }
@@ -98,38 +118,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
         );
       }
     } catch (e) {
-      print(
-          'AUTH_DEBUG: Standard resend failed ($e). Attempting auto-fallback to Recovery Link.');
-
-      try {
-        // AUTO-FALLBACK: Try sending a Recovery Link instead
-        await AuthService().resetPasswordForEmail(widget.email);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Standard delivery failed. Sent a Recovery Link instead! Check email.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          _startCountdown(); // Start countdown as if it succeeded
+      if (mounted) {
+        String errorMessage = 'Failed to resend code: $e';
+        if (e.toString().contains('500')) {
+          errorMessage =
+              AppLocalizations.of(context).tr('errors.delivery_failed');
         }
-      } catch (fallbackError) {
-        if (mounted) {
-          String errorMessage = 'Failed to resend code: $e';
-          if (e.toString().contains('500')) {
-            errorMessage =
-                AppLocalizations.of(context).tr('errors.delivery_failed');
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     }
   }
@@ -149,12 +150,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: () => Navigator.pop(context),
-                            padding: EdgeInsets.zero,
-                            alignment: Alignment.centerLeft,
-                          ),
                           const SizedBox(height: 16),
                           Text(
                             AppLocalizations.of(context)
@@ -242,61 +237,38 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         print('AUTH_DEBUG: Code collected: $code');
 
                         try {
-                          print('AUTH_DEBUG: Calling verifyCustomOtp...');
-                          // Verify the OTP code - this MUST succeed for user to proceed
-                          await AuthService()
-                              .verifyCustomOtp(widget.email, code);
-                          print(
-                              'AUTH_DEBUG: verifyCustomOtp returned success.');
-                          // SUCCESS NAVIGATION
-                          if (context.mounted) {
-                            if (widget.isEmailChange) {
-                              Navigator.pop(context, true);
-                              return;
-                            }
-
-                            if (widget.isSignIn) {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const HomeScreen()),
-                                (route) => false,
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => CreatePasswordScreen(
-                                    email: widget.email,
-                                    selectedLanguage: widget.selectedLanguage,
-                                    isRecovery: widget.isRecovery,
-                                    tempPassword: widget
-                                        .tempPassword, // PASS TEMP PASSWORD
-                                  ),
+                          debugPrint('AUTH_DEBUG: Calling verifyCustomOtp...');
+                          final authRes = await AuthService().verifyCustomOtp(widget.email, code);
+                          debugPrint('AUTH_DEBUG: verifyCustomOtp returned success. User: ${authRes?.user?.id}');
+                          if (mounted) {
+                            await handleOtpVerificationSuccess(authRes?.user);
+                          }
+                          } catch (e) {
+                            debugPrint('AUTH_DEBUG: verifyCustomOtp FAILED: $e');
+                            if (mounted) {
+                              String errorMessage = AppLocalizations.of(context)
+                                  .tr('errors.invalid_code');
+                              final errorString = e.toString().toLowerCase();
+                              if (errorString.contains('expired')) {
+                                errorMessage = AppLocalizations.of(context)
+                                    .tr('errors.code_expired');
+                              } else if (errorString.contains('no registration') || 
+                                         errorString.contains('user not found')) {
+                                errorMessage = "No registration found for this code. Please sign up again.";
+                              } else if (!errorString.contains('status 400') && 
+                                         !errorString.contains('status 401')) {
+                                // Show raw error for unexpected failures (500s, etc)
+                                errorMessage = e.toString().replaceAll('Exception: ', '');
+                              }
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(errorMessage),
+                                  backgroundColor: Colors.red,
+                                  duration: const Duration(seconds: 5),
                                 ),
                               );
                             }
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            String errorMessage = AppLocalizations.of(context)
-                                .tr('errors.invalid_code');
-                            if (e.toString().contains('expired')) {
-                              errorMessage = AppLocalizations.of(context)
-                                  .tr('errors.code_expired');
-                            } else if (e.toString().contains('invalid')) {
-                              errorMessage = AppLocalizations.of(context)
-                                  .tr('errors.invalid_code_check');
-                            }
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(errorMessage),
-                                backgroundColor: Colors.red,
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          }
                         } finally {
                           if (mounted) {
                             setState(() => _isLoading = false);
@@ -333,17 +305,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
             child: Text(AppLocalizations.of(context).tr('auth.change_email')),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary),
             onPressed: () async {
               Navigator.pop(context);
               setState(() => _isLoading = true);
               try {
-                await AuthService().resetPasswordForEmail(widget.email);
+                // Use the successful Custom OTP implementation for fallback too
+                await AuthService().sendCustomOtp(widget.email);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content: Text(AppLocalizations.of(context)
-                            .tr('auth.reset_link_sent'))),
+                            .tr('notification.message_sent'))),
                   );
                 }
               } catch (e) {
@@ -357,7 +331,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               }
             },
             child: Text(
-                AppLocalizations.of(context).tr('auth.send_recovery_link'),
+                AppLocalizations.of(context).tr('auth.resend_backup_code'),
                 style: const TextStyle(color: Colors.white)),
           ),
         ],

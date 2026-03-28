@@ -1,16 +1,16 @@
--- Migration to add delete_account RPC
--- This allows users to delete their own account from auth.users (cascades to public tables)
+-- Update delete_account RPC to include proper security path
+-- This ensures the function can delete from auth.users securely
 
-CREATE OR REPLACE FUNCTION delete_account()
+CREATE OR REPLACE FUNCTION public.delete_account()
 RETURNS void AS $$
 BEGIN
+  -- Verify the user is authenticated
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
   -- Delete the user from auth.users
-  -- This requires SECURITY DEFINER as public users normally cannot delete from auth.users
-  -- The ON DELETE CASCADE on foreign keys will clean up profiles, settings, etc.
+  -- SECURITY DEFINER and SET search_path allow this to work even for the user themselves
   DELETE FROM auth.users WHERE id = auth.uid();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;

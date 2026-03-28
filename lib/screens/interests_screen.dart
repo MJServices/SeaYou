@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
 import 'upload_picture_screen.dart';
+import '../services/onboarding_service.dart';
 
 class InterestsScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -241,14 +242,22 @@ class _InterestsScreenState extends State<InterestsScreen> {
                           }
                         }
                       } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UploadPictureScreen(
-                              userProfile: widget.userProfile,
-                            ),
-                          ),
-                        );
+                        if (_selectedInterests.isNotEmpty) {
+                          widget.userProfile.interests = _selectedInterests;
+
+                          await OnboardingService().saveStep(OnboardingStep.uploadPicture);
+
+                          if (context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UploadPictureScreen(
+                                  userProfile: widget.userProfile,
+                                ),
+                              ),
+                            );
+                          }
+                        }
                       }
                     },
                   ),

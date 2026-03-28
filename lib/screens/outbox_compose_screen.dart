@@ -8,7 +8,7 @@ import '../widgets/custom_text_field.dart';
 import 'home_screen.dart';
 import '../services/database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../widgets/received_bottles_viewer.dart';
+import 'received_bottles_screen.dart';
 import 'dart:async';
 
 class OutboxComposeScreen extends StatefulWidget {
@@ -79,7 +79,7 @@ class _OutboxComposeScreenState extends State<OutboxComposeScreen> {
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const ReceivedBottlesViewer()));
+                            builder: (_) => const ReceivedBottlesScreen()));
                   },
                 )
               : null,

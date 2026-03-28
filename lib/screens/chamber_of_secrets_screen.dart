@@ -191,6 +191,29 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                               ),
                             );
                             if (confirm != true) return;
+
+                            // Special area: consume scroll (limit to 3 for Premium/Women via daily_free_scrolls)
+                            final deducted = await _db.deductScroll(user.id);
+                            if (!deducted) {
+                              if (context.mounted) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Limit Reached'),
+                                    content: const Text(
+                                        'You have reached your daily limit for special replies. Premium members get 3 free per day.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+
                             final convId =
                                 await _db.startAnonymousFantasyConversation(
                               fantasyId: fantasyId,

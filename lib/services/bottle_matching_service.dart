@@ -183,8 +183,6 @@ class BottleMatchingService {
         // 1. Gender Targeting (Strict always, as per user request)
         List<String> effectiveTargetGender = List.from(targetGender);
         if (effectiveTargetGender.isEmpty) {
-          final senderGender =
-              (senderProfile['gender'] as String?)?.toLowerCase() ?? '';
           final lookingFor =
               (senderProfile['interested_in'] as String? ?? 'everyone')
                   .toLowerCase();
@@ -193,14 +191,10 @@ class BottleMatchingService {
             effectiveTargetGender = ['Man'];
           } else if (lookingFor == 'women') {
             effectiveTargetGender = ['Woman'];
+          } else if (lookingFor == 'non-binary' || lookingFor == 'nonbinary') {
+            effectiveTargetGender = ['Non-binary'];
           } else if (lookingFor == 'everyone') {
-            if (senderGender == 'male' || senderGender == 'man') {
-              effectiveTargetGender = ['Woman'];
-            } else if (senderGender == 'female' ||
-                senderGender == 'woman' ||
-                senderGender == 'femme') {
-              effectiveTargetGender = ['Man'];
-            }
+            effectiveTargetGender = ['Man', 'Woman', 'Non-binary'];
           }
         }
 
@@ -228,28 +222,55 @@ class BottleMatchingService {
           }
         }
 
-        // 2. Age Targeting (Relaxed in relaxed/global levels)
-        if (leniency.index < MatchLeniency.relaxed.index) {
-          if (minAge != null || maxAge != null) {
-            final birthYear = user['birth_year'] as int?;
-            if (birthYear == null) return false;
+        // 1.5. Reciprocal Matching (Does the recipient want to meet the sender?)
+        // Ensure the sender's gender is acceptable to the recipient
+        final recipientLookingFor =
+            (user['interested_in'] as String? ?? 'everyone').toLowerCase();
+        final senderGender =
+            (senderProfile['gender'] as String?)?.toLowerCase() ?? 'other';
 
-            final currentYear = DateTime.now().year;
-            final age = currentYear - birthYear;
-
-            if (minAge != null && age < minAge) return false;
-            if (maxAge != null && age > maxAge) return false;
+        bool reciprocalMatch = false;
+        if (recipientLookingFor == 'everyone') {
+          reciprocalMatch = true;
+        } else if (recipientLookingFor == 'men' &&
+            (senderGender == 'male' || senderGender == 'man')) {
+          reciprocalMatch = true;
+        } else if (recipientLookingFor == 'women' &&
+            (senderGender == 'female' ||
+                senderGender == 'woman' ||
+                senderGender == 'femme')) {
+          reciprocalMatch = true;
+        } else if (recipientLookingFor == 'non-binary' ||
+            recipientLookingFor == 'nonbinary') {
+          if (senderGender == 'nonbinary' || senderGender == 'non-binary') {
+            reciprocalMatch = true;
           }
         }
 
-        // 3. Department Targeting (Relaxed in balanced/relaxed/global levels)
-        if (leniency.index < MatchLeniency.balanced.index) {
-          if (targetDepartments.isNotEmpty) {
-            final userDepartment = user['department'] as String?;
-            if (userDepartment == null ||
-                !targetDepartments.contains(userDepartment)) {
-              return false;
-            }
+        if (!reciprocalMatch) {
+          debugPrint(
+              '⚠️ Reciprocal match failed: Recipient $recipientLookingFor, Sender was $senderGender');
+          return false;
+        }
+
+        // 2. Age Targeting (Enforced at all leniency levels including global to prevent mismatching)
+        if (minAge != null || maxAge != null) {
+          final birthYear = user['birth_year'] as int?;
+          if (birthYear == null) return false;
+
+          final currentYear = DateTime.now().year;
+          final age = currentYear - birthYear;
+
+          if (minAge != null && age < minAge) return false;
+          if (maxAge != null && age > maxAge) return false;
+        }
+
+        // 3. Department Targeting (STRICT always if specified, per user feedback)
+        if (targetDepartments.isNotEmpty) {
+          final userDepartment = user['department'] as String?;
+          if (userDepartment == null ||
+              !targetDepartments.contains(userDepartment)) {
+            return false;
           }
         }
 
@@ -263,7 +284,11 @@ class BottleMatchingService {
       final filteredWithoutBlocks =
           await _filterBlockedUsers(senderId, filtered);
 
-      return filteredWithoutBlocks.cast<Map<String, dynamic>>();
+      // Check for existing conversations
+      final filteredWithoutExisting =
+          await _filterExistingConversations(senderId, filteredWithoutBlocks);
+
+      return filteredWithoutExisting.cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('Error getting eligible recipients: $e');
       return [];
@@ -296,6 +321,23 @@ class BottleMatchingService {
           .toList();
     } catch (e) {
       debugPrint('Error filtering blocked users: $e');
+      return users;
+    }
+  }
+
+  /// Filter out users who already have an active conversation or bottle history with the sender
+  Future<List<dynamic>> _filterExistingConversations(
+    String senderId,
+    List<dynamic> users,
+  ) async {
+    try {
+      final existingPartnerIds = await _db.getRepliedPartnerIds(senderId);
+
+      return users
+          .where((user) => !existingPartnerIds.contains(user['id']))
+          .toList();
+    } catch (e) {
+      debugPrint('Error filtering existing partners: $e');
       return users;
     }
   }

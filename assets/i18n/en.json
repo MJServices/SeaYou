@@ -51,15 +51,16 @@
     "verifying": "Verifying...",
     "confirm_verify": "Confirm & Verify",
     "need_help": "Need Help?",
-    "help_description": "If you are not receiving the verification code, you can try sending a Password Recovery link instead (which uses a different email system), or try a different email address.",
+    "help_description": "If you are not receiving the code, try resending it.",
     "change_email": "Change Email",
-    "send_recovery_link": "Send Recovery Link",
-    "password_requirement_subtitle": "Your password must be at least 8 characters long and contain one symbol and number",
+    "resend_backup_code": "Resend Code",
     "enter_password_placeholder": "Enter password",
     "min_characters": "Minimum of 8 characters",
     "at_least_symbol": "At least a symbol",
     "at_least_number": "At least a number",
-    "create_password_button": "Create Password"
+    "create_password_button": "Create Password",
+    "i_agree_to": "I agree to the",
+    "and": "and"
   },
   "error": {
     "invalid_email": "Please enter a valid email",
@@ -78,7 +79,8 @@
   },
   "splash": {
     "subtitle": "What if you let chance do the rest ?",
-    "sign_up_free": "Sign up for free!"
+    "sign_up_free": "Sign up for free!",
+    "feeling": "Feeling"
   },
   "bottles": {
     "empty": {
@@ -120,6 +122,8 @@
     "has_been_blocked": "{name} has been blocked"
   },
   "common": {
+    "years_old": "years old",
+    "dept_prefix": "Dept.",
     "back": "Back",
     "ok": "OK",
     "cancel": "Cancel",
@@ -154,7 +158,7 @@
   "send_bottle": {
     "choose_mood": "Choose your mood",
     "start_typing": "Start typing",
-    "targeting_criteria": "Targeting Criteria",
+    "targeting_criteria": "Search Criteria",
     "daily_limit_title": "Daily Limit Reached",
     "daily_limit_message": "You have reached your limit of 3 bottles per day.\n\nUpgrade to Premium for unlimited bottles and more!",
     "mood_curieux": "Curieux",
@@ -163,7 +167,7 @@
     "mood_joyeux": "Joyeux",
     "no_matches_found": "No compatible users found. Your bottle will be sent when someone matches your preferences.",
     "pending_title": "Your bottle is pending…",
-    "pending_message": "We haven't yet found the person who matches your criteria. It will be sent automatically as soon as a suitable match is found.",
+    "pending_message": "There is no compatible users for your bottle yet and once there is, the bottle will be delivered.",
     "targeting_summary_all": "All",
     "targeting_summary_france": "France",
     "targeting_summary_depts": "{count} depts",
@@ -174,7 +178,7 @@
     "sea_soul_name": "Sea Soul"
   },
   "targeting": {
-    "title": "Targeting Criteria",
+    "title": "Search Criteria",
     "age_range": "Age Range: {min} - {max}",
     "gender_label": "Gender (Select multiple)",
     "gender_man": "Man",
@@ -208,8 +212,8 @@
     "edit_voice_message": "Edit my voice message",
     "change_password": "Change password",
     "sexual_orientation_section": "Sexual Orientation",
-    "upgrade_to_pro": "Upgrade to Pro",
-    "upgrade_description": "Unlock premium reserved just for YOU.",
+    "upgrade_description": "Unlock all features!",
+    "upgrade_to_pro": "Upgrade to PREMIUM",
     "bio_label": "Bio",
     "bio_hint": "Describe yourself",
     "voice_intro": "Voice Intro",
@@ -258,7 +262,10 @@
     "interests_section": "Interests",
     "out_of_scrolls_title": "Out of Scrolls",
     "out_of_scrolls_message": "A scroll is required to reply. Premium members receive 3 free scrolls daily!",
-    "get_scrolls": "Get Scrolls"
+    "get_scrolls": "Get Scrolls",
+    "my_bottles": "My Bottles",
+    "bottles_remaining": "Bottles Remaining",
+    "bottles_purchased": "Bottles Purchased"
   },
   "dialogs": {
     "cancel": "Cancel",
@@ -466,7 +473,7 @@
       "cancel": "Cancel",
       "set_main": "Confirm Set main",
       "no_face_title": "No face detected",
-      "no_face_message": "Please upload a clear photo of your face. This helps others recognize you and ensures a better experience for everyone.",
+      "no_face_message": "Please upload a clear photo of your real face.",
       "too_distant_title": "Face too distant",
       "too_distant_message": "The face in this photo is too small. Please upload a closer shot or a selfie where your face is clearly visible.",
       "not_forward_title": "Face not looking forward",
@@ -706,7 +713,7 @@
     "filter_all": "All",
     "filter_unlocked": "Unlocked",
     "filter_anon": "Anon",
-    "empty_no_connections": "You have not yet established a connection, send more bottles to increase your chances of getting a response",
+    "empty_no_connections": "👉 No contacts yet... send bottles and increase your chances of making a great connection.",
     "empty_no_locked": "You do not have any locked conversations here",
     "empty_no_unlocked": "Keep the conversations going to unlock a connection",
     "empty_no_archived": "No archived conversations yet",

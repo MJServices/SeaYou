@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'onboarding_service.dart';
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -22,11 +23,15 @@ class AuthService {
       await _log(
           '🔐 Sending OTP (signUp with temp password, redirect=seayou://login-callback) to: $email');
 
+      // 🔐 DELAYED SIGNUP: We no longer call _supabase.auth.signUp here.
+      // Instead, we only send the Custom OTP.
+      // The user record will be created in the verify-otp Edge Function ONLY after successful verification.
+      
       // Use standard signUp instead of Magic Link to trigger "Confirm Signup" template
-      await _supabase.auth.signUp(
-        email: email,
-        password: finalPassword,
-      );
+      // await _supabase.auth.signUp(
+      //   email: email,
+      //   password: finalPassword,
+      // );
 
       // CUSTOM OTP FLOW: Send OTP immediately after signup
       await sendCustomOtp(email);
@@ -80,14 +85,10 @@ class AuthService {
       }
 
       await _log(
-          '🔐 Email exists, sending OTP (signInWithOtp, create=false, redirect=null) for: $email');
-      // Email exists, send OTP
-      await _supabase.auth.signInWithOtp(
-        email: email,
-        shouldCreateUser: false, // Don't create user - they must exist
-        emailRedirectTo: null,
-      );
-      await _log('✅ OTP sent successfully to: $email');
+          '🔐 Email exists, sending CUSTOM OTP via Edge Function for: $email');
+      // Always use Custom OTP for consistency with VerificationScreen
+      await sendCustomOtp(email);
+      await _log('✅ Custom OTP sent successfully to: $email');
     } catch (e) {
       await _log('❌ Error in signInWithEmailOtp: $e');
       rethrow;
@@ -100,6 +101,21 @@ class AuthService {
       email: email,
       password: password,
     );
+  }
+
+  // Sign in with Magic Link (Standard Supabase fallback)
+  Future<void> signInWithMagicLink(String email) async {
+    try {
+      await _log('🚀 signInWithMagicLink called for: $email');
+      await _supabase.auth.signInWithOtp(
+        email: email,
+        emailRedirectTo: 'seayou://login-callback',
+      );
+      await _log('✅ Magic Link initiated for: $email');
+    } catch (e) {
+      await _log('❌ Error in signInWithMagicLink: $e');
+      rethrow;
+    }
   }
 
   // Verify OTP
@@ -130,7 +146,7 @@ class AuthService {
       await _log('🚀 Sending Custom OTP to: $email');
       final response = await _supabase.functions.invoke(
         'send-otp',
-        body: {'email': email},
+        body: {'email': email.toLowerCase().trim()},
       );
 
       if (response.status != 200) {
@@ -145,37 +161,48 @@ class AuthService {
 
   // Verify Custom OTP via Edge Function
   // Handles both verification and establishing a session if the Edge Function returns a session token
-  Future<void> verifyCustomOtp(String email, String code) async {
+  Future<AuthResponse?> verifyCustomOtp(String email, String code) async {
     try {
       await _log('🔐 Verifying Custom OTP for: $email');
       final response = await _supabase.functions.invoke(
         'verify-otp',
-        body: {'email': email, 'code': code},
+        body: {'email': email.toLowerCase().trim(), 'code': code},
       );
 
+      await _log('📡 Edge Function Response Status: ${response.status}');
+      await _log('📡 Edge Function Response Data: ${response.data}');
+
       if (response.status != 200) {
-        throw Exception('Invalid or expired code');
+        final errorMsg = response.data is Map ? response.data['message'] : response.data.toString();
+        await _log('❌ Edge Function Error: $errorMsg (Status ${response.status})');
+        throw Exception(errorMsg ?? 'Invalid or expired code (Status ${response.status})');
       }
 
       await _log('✅ Custom OTP Verified Successfully');
 
-      // Check if function returned a session_token (magic link token) to log us in
       final data = response.data;
-      if (data != null && data['session_token'] != null) {
-        final sessionToken = data['session_token'];
-        await _log('🎟️ Session Token received. Authenticating client...');
+      final tempPassword = data?['temp_password'] as String?;
 
-        // Verify the Magic Link token to establish session
-        await _supabase.auth.verifyOTP(
-          email: email,
-          token: sessionToken,
-          type: OtpType.magiclink,
+      if (data != null && tempPassword != null) {
+        final verificationTypeStr = data['verification_type'] as String? ?? 'signup';
+        await _log('🎟️ Verification successful. Type: $verificationTypeStr');
+
+        // Save temp password for recovery if present
+        await _log('🔐 Saving temp password for session recovery fallback');
+        await OnboardingService().saveTempPassword(tempPassword);
+
+        // Establish standard session via temporary password
+        // This is 100% more reliable than magic links across screen transitions
+        final authRes = await signInWithPassword(
+          email.toLowerCase().trim(),
+          tempPassword,
         );
 
-        await _log('✅ Client Authenticated via Magic Link Token!');
+        await _log('✅ Client Authenticated! User ID: ${authRes.user?.id}');
+        return authRes;
       } else {
-        await _log(
-            '⚠️ Verified but no session token returned. User might not be logged in.');
+        await _log('⚠️ Verified but NO temp_password in response data.');
+        return null;
       }
     } catch (e) {
       await _log('❌ Error verifying Custom OTP: $e');
@@ -204,6 +231,7 @@ class AuthService {
       print('🔐 Sending password reset email to: $email');
       await _supabase.auth.resetPasswordForEmail(
         email,
+        redirectTo: 'seayou://login-callback',
       );
       print('✅ Password reset email sent successfully');
     } catch (e) {

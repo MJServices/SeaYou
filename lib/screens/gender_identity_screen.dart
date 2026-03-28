@@ -6,6 +6,7 @@ import '../utils/app_text_styles.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/warm_gradient_background.dart';
 import 'sexual_orientation_screen.dart';
+import '../services/onboarding_service.dart';
 
 class GenderIdentityScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -89,7 +90,7 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                 child: CustomButton(
                   text: AppLocalizations.of(context).tr('common.next'),
                   isActive: _selectedGender != null,
-                  onPressed: () {
+                  onPressed: () async {
                     // Map display values to database values
                     String? dbGender;
                     if (_selectedGender == 'Man') {
@@ -103,15 +104,19 @@ class _GenderIdentityScreenState extends State<GenderIdentityScreen> {
                     // Save to user profile
                     widget.userProfile.gender = dbGender;
 
+                    await OnboardingService().saveStep(OnboardingStep.sexualOrientation);
+
                     // Navigate to sexual orientation screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SexualOrientationScreen(
-                          userProfile: widget.userProfile,
+                    if (context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SexualOrientationScreen(
+                            userProfile: widget.userProfile,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   },
                 ),
               ),

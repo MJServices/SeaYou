@@ -27,6 +27,7 @@ import '../../widgets/milestone_unlock_modal.dart';
 import '../premium_screen.dart';
 import '../naughty_questions_screen.dart';
 import '../../services/notification_service.dart';
+import '../../services/entitlements_service.dart';
 
 /// Chat Conversation Screen - Individual chat with full functionality
 class ChatConversationScreen extends StatefulWidget {
@@ -92,6 +93,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Conversation? _conversation;
   bool _isBlocked = false;
   bool _isPremium = false; // Track if user has premium subscription
+  bool _isAccessGranted = false; // Track if user has free access (Woman) or Premium
   Map<String, dynamic>? _partnerProfile;
   StreamSubscription<Map<String, dynamic>?>? _partnerProfileSub;
   ChatMessage? _replyingTo;
@@ -238,7 +240,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     try {
       final userId = AuthService().currentUser?.id;
       if (userId != null) {
-        // Fetch profile using tier (text) — NOT is_premium (boolean unreliable)
+        // Use EntitlementsService for centralized access logic
+        final access = await EntitlementsService().isPremiumOrWoman(userId);
+        
+        // Fetch profile for tier (text) and gender (for local display if needed)
         final profile = await Supabase.instance.client
             .from('profiles')
             .select('tier, gender')
@@ -250,8 +255,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             final tier = profile['tier'] as String? ?? 'free';
             _isPremium = tier == 'premium' || tier == 'elite';
             _userGender = profile['gender'] as String?;
+            _isAccessGranted = access;
             debugPrint(
-                '👤 Loaded User: Gender=$_userGender, Tier=$tier, Premium=$_isPremium');
+                '👤 Loaded User: Gender=$_userGender, Tier=$tier, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
           });
         }
       }
@@ -304,23 +310,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     // 1. If below 75%, never locked
     if (_feelingPercent < 75) return false;
 
-    // 2. Gender-specific logic
-    final gender = _userGender?.toLowerCase();
-    final isFemale =
-        gender == 'female' || gender == 'woman' || gender == 'femme';
-
-    if (isFemale) {
-      // Females are ONLY gated by the intimacy question (completely free otherwise)
+    // 2. Centralized access logic (Premium or Woman)
+    if (_isAccessGranted) {
+      // Exempt users (Women/Premium) are ONLY gated by the intimacy question
       return !_hasAnsweredNaughty;
     }
 
-    // 3. Males (and other genders)
-    if (_isPremium) {
-      // Premium males are still gated by the intimacy question
-      return !_hasAnsweredNaughty;
-    }
-
-    // Non-premium males are locked at 75% by the paywall unconditionally
+    // Unprivileged users are locked at 75% by the paywall unconditionally
     return true;
   }
 
@@ -547,17 +543,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Widget _buildLockedMilestoneView() {
     final l10n = AppLocalizations.of(context);
-    final gender = _userGender?.toLowerCase();
-    final isFemale =
-        gender == 'female' || gender == 'woman' || gender == 'femme';
-
-    String title = l10n.tr('chat.milestone_75_reached_title');
+    final title = l10n.tr('chat.milestone_75_reached_title');
     String desc;
     String buttonText;
     VoidCallback onPressed;
 
-    if (_isPremium || isFemale) {
-      // Premium or female: locked because they haven't answered the naughty question
+    if (_isAccessGranted) {
+      // locked because they haven't answered the naughty question
       desc = l10n.tr('chat.milestone_75_desc_naughty');
       buttonText = l10n.tr('chat.milestone_75_button_naughty');
       onPressed = () {
@@ -576,7 +568,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         );
       };
     } else {
-      // Non-premium male: blocked by premium paywall — no access to naughty questions
+      // locked by premium paywall — no access to naughty questions
       desc = l10n.tr('chat.milestone_75_desc_premium');
       buttonText = l10n.tr('chat.milestone_75_button_unlock');
       onPressed = _showPremiumPaywall;
@@ -2550,6 +2542,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     ).then((_) async {
       // Refresh status after returning from premium screen
       await _checkPremiumStatus();
+      
+      // After reactivation, scroll to bottom to ensure user is at the newest messages
+      // This solves the issue of returning to the beginning of the conversation.
+      _scrollToBottom();
 
       // If user is still locked (didn't upgrade and is at 75%+ milestone),
       // redirect them to the home screen to avoid the "naughty question" trap.
@@ -3448,42 +3444,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     });
   }
 
-  Future<void> _showImagePicker() async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Color(0xFF0AC5C5)),
-              title: const Text('Take Photo',
-                  style: TextStyle(fontFamily: 'Montserrat')),
-              onTap: () {
-                Navigator.pop(context);
-                _takePhoto();
-              },
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.photo_library, color: Color(0xFF0AC5C5)),
-              title: const Text('Choose from Gallery',
-                  style: TextStyle(fontFamily: 'Montserrat')),
-              onTap: () {
-                Navigator.pop(context);
-                _chooseFromGallery();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showFullScreenImage(String imageUrl) {
     showDialog(

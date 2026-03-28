@@ -7,7 +7,9 @@ import '../widgets/warm_gradient_background.dart';
 import '../services/auth_service.dart';
 import 'verification_screen.dart';
 import 'forgot_password_screen.dart';
-import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/database_service.dart';
+import '../services/onboarding_service.dart';
 import '../i18n/app_localizations.dart';
 
 class SignInEmailPasswordScreen extends StatefulWidget {
@@ -92,11 +94,14 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
           ),
         );
       } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
+        // After password sign in, check if profile is complete
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          final profile = await DatabaseService().getProfile(user.id);
+          if (!mounted) return;
+
+          await OnboardingService().resumeOnboarding(context, profile);
+        }
       }
     } catch (e) {
       if (!mounted) return;

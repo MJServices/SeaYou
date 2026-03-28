@@ -39,6 +39,8 @@ class DatabaseService {
     String? secretAudioUrl,
     String? gender,
     String? department,
+    String? tier,
+    bool? isPremium,
   }) async {
     try {
       debugPrint('Creating profile for user: $userId');
@@ -68,6 +70,8 @@ class DatabaseService {
         'secret_audio_url': secretAudioUrl,
         'gender': gender,
         'department': department,
+        'tier': tier,
+        'is_premium': isPremium,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
 
@@ -81,66 +85,95 @@ class DatabaseService {
     }
   }
 
+  // Submit help center request to database instead of email
+  Future<void> submitSupportRequest({
+    required String userId,
+    required String email,
+    required String subject,
+    required String message,
+  }) async {
+    try {
+      await _supabase.from('support_requests').insert({
+        'user_id': userId,
+        'email': email,
+        'subject': subject,
+        'message': message,
+        'status': 'open',
+      });
+      debugPrint('✅ Support request submitted successfully');
+    } catch (e) {
+      debugPrint('❌ Error submitting support request: $e');
+      rethrow;
+    }
+  }
+
   // --- Freemium/Premium Logic ---
 
   /// Check if user has available scrolls (Premium daily free or purchased)
   Future<bool> hasAvailableScrolls(String userId) async {
     try {
+      await _refreshDailyScrolls(userId);
+      
       final res = await _supabase
           .from('profiles')
-          .select(
-              'daily_free_scrolls, scrolls_count, last_scroll_refreshed_date')
+          .select('daily_free_scrolls, scrolls_count')
           .eq('id', userId)
           .single();
 
-      int dailyFree = res['daily_free_scrolls'] ?? 0;
+      final int dailyFree = res['daily_free_scrolls'] ?? 0;
       final int regularScrolls = res['scrolls_count'] ?? 0;
-      final String? dateStr = res['last_scroll_refreshed_date'];
 
-      final now = DateTime.now().toLocal();
-      bool isNewDay = true;
-      if (dateStr != null) {
-        final lastDate = DateTime.parse(dateStr).toLocal();
-        if (lastDate.year == now.year &&
-            lastDate.month == now.month &&
-            lastDate.day == now.day) {
-          isNewDay = false;
-        }
-      }
-
-      if (isNewDay) {
-        // Both free and premium users get 3 daily scrolls
-        dailyFree = 3;
-
-        // Update DB
-        await _supabase.from('profiles').update({
-          'daily_free_scrolls': dailyFree,
-          'last_scroll_refreshed_date': now.toUtc().toIso8601String(),
-        }).eq('id', userId);
-
-        // IMPORTANT: Since we refreshed, the 'regularScrolls' variable we fetched at the
-        // start of this function might be outdated or we might want to be absolutely
-        // sure we have the latest state. However, the logic (dailyFree + regularScrolls)
-        // is what we want.
-      }
-
-      // Final check: sum of both. regularScrolls was fetched at line 97.
       return (dailyFree + regularScrolls) > 0;
     } catch (e) {
       debugPrint('Error checking scrolls: $e');
-      // If there's an error, fallback to checking the profile one last time without refresh logic
-      try {
-        final res = await _supabase
-            .from('profiles')
-            .select('daily_free_scrolls, scrolls_count')
-            .eq('id', userId)
-            .single();
-        return ((res['daily_free_scrolls'] ?? 0) +
-                (res['scrolls_count'] ?? 0)) >
-            0;
-      } catch (_) {
-        return false;
+      return false;
+    }
+  }
+
+  /// Refreshes the daily free scrolls to 3 if it is a new day or if not yet set
+  Future<void> _refreshDailyScrolls(String userId) async {
+    try {
+      final res = await _supabase
+          .from('profiles')
+          .select('last_scroll_refreshed_date')
+          .eq('id', userId)
+          .single();
+
+      final String? dateStr = res['last_scroll_refreshed_date'];
+      final now = DateTime.now();
+      final String nowDay = "${now.toUtc().year}-${now.toUtc().month.toString().padLeft(2, '0')}-${now.toUtc().day.toString().padLeft(2, '0')}";
+      
+      final String? lastRefreshedDay = dateStr != null 
+          ? DateTime.parse(dateStr).toUtc().toIso8601String().substring(0, 10) 
+          : null;
+
+      if (lastRefreshedDay == null || lastRefreshedDay != nowDay) {
+        debugPrint('📅 Refreshing daily scrolls for $userId ($nowDay)...');
+        await _supabase.from('profiles').update({
+          'daily_free_scrolls': 3,
+          'last_scroll_refreshed_date': now.toUtc().toIso8601String(),
+        }).eq('id', userId);
+        debugPrint('✅ Daily scrolls reset to 3');
       }
+    } catch (e) {
+      debugPrint('Error refreshing daily scrolls: $e');
+    }
+  }
+
+  /// Get total available scrolls (daily free + purchased)
+  Future<int> getAvailableScrollsCount(String userId) async {
+    try {
+      await _refreshDailyScrolls(userId);
+      
+      final res = await _supabase
+          .from('profiles')
+          .select('daily_free_scrolls, scrolls_count')
+          .eq('id', userId)
+          .single();
+      return (res['daily_free_scrolls'] ?? 0) + (res['scrolls_count'] ?? 0);
+    } catch (e) {
+      debugPrint('Error getting scrolls count: $e');
+      return 0;
     }
   }
 
@@ -162,7 +195,7 @@ class DatabaseService {
     return hasAvailableScrolls(userId);
   }
 
-  /// Increment bottle sent count AND deduct a scroll
+  /// Increment bottle sent count
   Future<void> incrementDailyBottles(String userId) async {
     try {
       final res = await _supabase
@@ -202,10 +235,22 @@ class DatabaseService {
     try {
       final res = await _supabase
           .from('profiles')
-          .select('messages_sent_week, last_message_sent_week_start')
+          .select('messages_sent_week, last_message_sent_week_start, gender, tier')
           .eq('id', userId)
           .single();
 
+      // 1. Check for Premium or Woman logic (Unlimited messages)
+      final gender = (res['gender'] as String?)?.toLowerCase() ?? '';
+      final tier = res['tier'] as String? ?? 'free';
+      final isPremiumOrWoman = gender == 'woman' || 
+                             gender == 'female' || 
+                             gender == 'femme' ||
+                             tier == 'premium' || 
+                             tier == 'elite';
+                             
+      if (isPremiumOrWoman) return true;
+
+      // 2. Otherwise check weekly limit
       final int count = res['messages_sent_week'] ?? 0;
       final String? dateStr = res['last_message_sent_week_start'];
       final now = DateTime.now();
@@ -224,7 +269,6 @@ class DatabaseService {
       return count < 3;
     } catch (e) {
       debugPrint('Error checking weekly limit: $e');
-      // If error (e.g. column missing), allow it to avoid blocking user completely until db updated
       return true;
     }
   }
@@ -233,24 +277,23 @@ class DatabaseService {
   /// This gives the user more "available slots" for messages
   Future<void> addParchments(String userId, int amount) async {
     try {
+      debugPrint('🎁 Adding $amount parchments to user $userId');
       final res = await _supabase
           .from('profiles')
-          .select('messages_sent_week')
+          .select('scrolls_count')
           .eq('id', userId)
           .single();
-      final int currentCount = res['messages_sent_week'] ?? 0;
+      final int currentCount = res['scrolls_count'] ?? 0;
 
-      // Decrease the count (it can go negative, which acts as credit)
-      final newCount = currentCount - amount;
+      // Increase the scrolls_count (parchment balance)
+      final newCount = currentCount + amount;
 
       await _supabase.from('profiles').update({
-        'messages_sent_week': newCount,
+        'scrolls_count': newCount,
       }).eq('id', userId);
-
-      debugPrint(
-          '📜 Added $amount parchments. New messages_sent_week: $newCount');
+      debugPrint('✅ Parchment balance updated to $newCount');
     } catch (e) {
-      debugPrint('Error adding parchments: $e');
+      debugPrint('❌ Error adding parchments: $e');
       rethrow;
     }
   }
@@ -437,18 +480,26 @@ class DatabaseService {
     }
   }
 
-  // Get profile with robust photo check
-  Future<Map<String, dynamic>?> getProfile(String userId) async {
+  // Get profile with robust photo check and local cache
+  Future<Map<String, dynamic>?> getProfile(String userId, {bool useCache = true}) async {
+    if (useCache && _profileCache.containsKey(userId)) {
+      return _profileCache[userId];
+    }
+
     final response = await _supabase
         .from('profiles')
         .select()
         .eq('id', userId)
         .maybeSingle();
 
+    if (response == null) return null;
+    
+    // Update cache
+    _profileCache[userId] = response;
+
     // Fallback: if avatar_url is missing, check profile_photos table
-    if (response != null &&
-        (response['avatar_url'] == null ||
-            (response['avatar_url'] as String).isEmpty)) {
+    if (response['avatar_url'] == null ||
+        (response['avatar_url'] as String).isEmpty) {
       try {
         final photos = await _supabase
             .from('profile_photos')
@@ -1421,18 +1472,8 @@ class DatabaseService {
           .or('user_a_id.eq.$userId,user_b_id.eq.$userId')
           .order('updated_at', ascending: false);
 
-      debugPrint(
-          '📊 Raw response from database: ${response.length} conversations');
-      if (response.isNotEmpty) {
-        for (var conv in response) {
-          debugPrint(
-              '  - Conversation ${conv['id']}: user_a=${conv['user_a_id']}, user_b=${conv['user_b_id']}');
-        }
-      }
-
       final blockedIds = await getBlockedUserIds(userId);
-      debugPrint('🚫 Blocked IDs for filter: $blockedIds');
-
+      
       final conversations = (response as List)
           .map((json) => Conversation.fromJson(json))
           .where((conv) {
@@ -1440,47 +1481,79 @@ class DatabaseService {
         return !blockedIds.contains(otherId);
       }).toList();
 
-      // Fetch unread counts for these conversations
-      // We do this by getting all unread messages for these convs where sender != me
-      if (conversations.isNotEmpty) {
-        final convIds = conversations.map((c) => c.id).toList();
-        try {
-          // Fetch unread messages
-          final unreadMsgs = await _supabase
-              .from('messages')
-              .select('conversation_id')
-              .inFilter('conversation_id', convIds)
-              .eq('is_read', false)
-              .neq('sender_id', userId);
+      if (conversations.isEmpty) return [];
 
-          // Count per conversation
-          final Map<String, int> unreadCounts = {};
-          for (var msg in unreadMsgs) {
-            final cId = msg['conversation_id'] as String;
-            unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
-          }
+      // Batch Fetch: Profiles and Unread Counts
+      final convIds = conversations.map((c) => c.id).toList();
+      final otherUserIds = conversations
+          .map((c) => c.getOtherUserId(userId))
+          .toSet()
+          .toList();
 
-          // Update conversation objects
-          for (var i = 0; i < conversations.length; i++) {
-            final c = conversations[i];
-            if (unreadCounts.containsKey(c.id)) {
-              conversations[i] = c.copyWith(
-                unreadCount: unreadCounts[c.id]!,
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint('Error fetching unread counts: $e');
+      // Execute queries in parallel
+      final results = await Future.wait([
+        // 1. Fetch unread counts
+        _supabase
+            .from('messages')
+            .select('conversation_id')
+            .inFilter('conversation_id', convIds)
+            .eq('is_read', false)
+            .neq('sender_id', userId),
+            
+        // 2. Fetch profiles
+        _supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url, gender, tier')
+            .inFilter('id', otherUserIds),
+      ]);
+
+      final unreadMsgs = results[0] as List;
+      final profilesRaw = results[1] as List;
+
+      // Map counts
+      final Map<String, int> unreadCounts = {};
+      for (var msg in unreadMsgs) {
+        final cId = msg['conversation_id'] as String;
+        unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
+      }
+
+      // Map profiles
+      final Map<String, Map<String, dynamic>> profileMap = {
+        for (var p in profilesRaw) p['id'] as String: p as Map<String, dynamic>
+      };
+
+      // Update conversation objects with counts and profile data (if we added it to model)
+      // Actually, since we need to stick to the model, we can return the conversations
+      // but the UI will still need the profile.
+      // OPTIMIZATION: We can "inject" the profile into a cache or return a wrapper.
+      // For now, let's keep it simple: the UI will still call getProfile, 
+      // BUT we will implement a simple Memoization/Cache in DatabaseService for profiles.
+      
+      for (var i = 0; i < conversations.length; i++) {
+        final c = conversations[i];
+        final otherId = c.getOtherUserId(userId);
+        
+        // Cache the profile we just fetched to avoid subsequent N+1 calls
+        if (profileMap.containsKey(otherId)) {
+          _profileCache[otherId] = profileMap[otherId]!;
+        }
+
+        if (unreadCounts.containsKey(c.id)) {
+          conversations[i] = c.copyWith(
+            unreadCount: unreadCounts[c.id]!,
+          );
         }
       }
 
-      debugPrint('✅ Returning ${conversations.length} conversations');
       return conversations;
     } catch (e) {
       debugPrint('❌ Error getting conversations: $e');
       return [];
     }
   }
+
+  // Simple profile cache to prevent N+1 queries in lists
+  final Map<String, Map<String, dynamic>> _profileCache = {};
 
   Future<Conversation?> getConversation(String conversationId) async {
     try {
@@ -1816,31 +1889,56 @@ class DatabaseService {
   /// Get IDs of users the current user has already replied to or has a conversation with
   Future<List<String>> getRepliedPartnerIds(String userId) async {
     try {
+      final Set<String> partnerIds = {};
+
       // 1. Get partners from conversations
       final convs = await _supabase
           .from('conversations')
           .select('user_a_id, user_b_id')
           .or('user_a_id.eq.$userId,user_b_id.eq.$userId');
 
-      final Set<String> partnerIds = {};
       for (final c in (convs as List)) {
         if (c['user_a_id'] != userId) partnerIds.add(c['user_a_id'] as String);
         if (c['user_b_id'] != userId) partnerIds.add(c['user_b_id'] as String);
       }
 
-      // 2. Get recipients from sent bottles (replies/direct messages)
-      final sentBottles = await _supabase
+      // 2. Get recipients from bottles I sent
+      final sentByMe = await _supabase
           .from('sent_bottles')
           .select('receiver_id, matched_recipient_id')
           .eq('sender_id', userId)
           .or('receiver_id.not.is.null,matched_recipient_id.not.is.null');
 
-      for (final b in (sentBottles as List)) {
+      for (final b in (sentByMe as List)) {
         if (b['receiver_id'] != null) {
           partnerIds.add(b['receiver_id'] as String);
         }
         if (b['matched_recipient_id'] != null) {
           partnerIds.add(b['matched_recipient_id'] as String);
+        }
+      }
+
+      // 3. Get senders from bottles I received
+      final receivedByMe = await _supabase
+          .from('received_bottles')
+          .select('sender_id')
+          .eq('receiver_id', userId);
+
+      for (final b in (receivedByMe as List)) {
+        if (b['sender_id'] != null) {
+          partnerIds.add(b['sender_id'] as String);
+        }
+      }
+
+      // 4. Get senders from bottles that were matched to me but not yet in received_bottles
+      final matchedToMe = await _supabase
+          .from('sent_bottles')
+          .select('sender_id')
+          .eq('matched_recipient_id', userId);
+
+      for (final b in (matchedToMe as List)) {
+        if (b['sender_id'] != null) {
+          partnerIds.add(b['sender_id'] as String);
         }
       }
 
@@ -2015,9 +2113,11 @@ class DatabaseService {
       final int start = page * pageSize;
       final int end = start + pageSize - 1;
 
-      // 1. Get blocked users (Bidirectional by default)
-      final blockedIds = await getBlockedUserIds(currentUserId ?? '');
-      debugPrint('🔍 SecretSouls: Blocked IDs: ${blockedIds.length}');
+      // 1. Get blocked users and existing contacts (Bidirectional by default)
+      final blockedIdsSet = await getBlockedUserIds(currentUserId ?? '');
+      final contactIdsSet = await getRepliedPartnerIds(currentUserId ?? '');
+      final excludedIds = {...blockedIdsSet, ...contactIdsSet};
+      debugPrint('🔍 SecretSouls: Excluded IDs: ${excludedIds.length}');
 
       // 1.1 Get current user's preferences for reciprocal matching
       final viewerProfile = await getProfile(currentUserId ?? '');
@@ -2062,7 +2162,7 @@ class DatabaseService {
 
           for (final q in (profileItems as List)) {
             if (q['id'] == currentUserId) continue;
-            if (blockedIds.contains(q['id'])) continue;
+            if (excludedIds.contains(q['id'])) continue;
 
             // Reciprocal Matching Check
             if (!isCompatible(q['gender'], q['interested_in'])) continue;
@@ -2158,7 +2258,7 @@ class DatabaseService {
           };
 
           for (final s in sscItems) {
-            if (blockedIds.contains(s['user_id'])) continue;
+            if (excludedIds.contains(s['user_id'])) continue;
 
             final profile = profileMap[s['user_id']];
 
@@ -2208,7 +2308,7 @@ class DatabaseService {
 
           final audios = (itemsToFetch as List).where((a) {
             if (a['id'] == currentUserId) return false;
-            if (blockedIds.contains(a['id'])) return false;
+            if (excludedIds.contains(a['id'])) return false;
             
             // Reciprocal Matching Check
             if (!isCompatible(a['gender'], a['interested_in'])) return false;
@@ -2244,8 +2344,8 @@ class DatabaseService {
               .eq('show_in_secret_souls', true)
               .neq('user_id', currentUserId ?? '');
 
-          if (blockedIds.isNotEmpty) {
-            query = query.filter('user_id', 'not.in', blockedIds);
+          if (excludedIds.isNotEmpty) {
+            query = query.not('user_id', 'in', excludedIds.toList());
           }
 
           final photos = await query
@@ -2566,6 +2666,8 @@ class DatabaseService {
     try {
       final currentUserId = _supabase.auth.currentUser?.id;
       final blockedIds = await getBlockedUserIds(currentUserId ?? '');
+      final partnerIds = await getRepliedPartnerIds(currentUserId ?? '');
+      final excludedIds = {...blockedIds, ...partnerIds}.toList();
       final List<Map<String, dynamic>> allItems = [];
       final Set<String> addedUserIds = {}; // Track users to avoid duplicates
 
@@ -2598,8 +2700,8 @@ class DatabaseService {
           fQuery = fQuery.neq('user_id', currentUserId ?? '');
         }
 
-        if (blockedIds.isNotEmpty) {
-          fQuery = fQuery.not('user_id', 'in', blockedIds);
+        if (excludedIds.isNotEmpty) {
+          fQuery = fQuery.not('user_id', 'in', excludedIds);
         }
 
         final fantasyItems = await fQuery
@@ -2646,8 +2748,8 @@ class DatabaseService {
           sscQuery = sscQuery.neq('user_id', currentUserId ?? '');
         }
 
-        if (blockedIds.isNotEmpty) {
-          sscQuery = sscQuery.filter('user_id', 'not.in', blockedIds);
+        if (excludedIds.isNotEmpty) {
+          sscQuery = sscQuery.not('user_id', 'in', excludedIds.toList());
         }
 
         final sscItems = await sscQuery
@@ -3083,11 +3185,27 @@ class DatabaseService {
   /// Uses a PostgreSQL RPC function `delete_account`
   Future<void> deleteAccount() async {
     try {
-      debugPrint('⚠️ Requesting account deletion...');
+      debugPrint('⚠️ Requesting account deletion via delete_account RPC...');
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated - cannot delete account');
+      }
+      
+      // Attempt the deletion via RPC
       await _supabase.rpc('delete_account');
-      debugPrint('✅ Account deletion request successful');
+      
+      debugPrint('✅ Account deletion request successful for user $userId');
+      
+      // Sign out immediately after deletion
+      await _supabase.auth.signOut();
+    } on PostgrestException catch (e) {
+      debugPrint('❌ Postgres Error during deleteAccount(): ${e.message}');
+      debugPrint('Details: ${e.details}');
+      debugPrint('Hint: ${e.hint}');
+      // Return a very specific error message so the UI can show it
+      throw Exception('Database Error: ${e.message}${e.details != null ? " ($e.details)" : ""}');
     } catch (e) {
-      debugPrint('❌ Error deleting account: $e');
+      debugPrint('❌ Unexpected error during deleteAccount(): $e');
       rethrow;
     }
   }

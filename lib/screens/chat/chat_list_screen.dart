@@ -8,6 +8,7 @@ import '../../widgets/feeling_progress.dart';
 import '../../services/database_service.dart';
 import '../../models/conversation.dart';
 import '../../i18n/app_localizations.dart';
+import '../../services/entitlements_service.dart';
 
 /// Chat List Screen - Shows all conversations with full functionality
 class ChatListScreen extends StatefulWidget {
@@ -28,6 +29,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String? _avatarUrl;
   String? _userGender;
   bool _isPremium = false;
+  bool _isAccessGranted = false;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
   int _archivedCount = 0;
 
@@ -45,12 +47,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
     try {
       final profile = await _db.getProfile(_currentUserId);
       if (profile != null && mounted) {
+        final access = await EntitlementsService().isPremiumOrWoman(_currentUserId);
         setState(() {
           _avatarUrl = profile['avatar_url'];
           _userGender = profile['gender'] as String?;
           final tier = profile['tier'] as String? ?? 'free';
           _isPremium = tier == 'premium' || tier == 'elite';
-          debugPrint('👤 ChatList: Loaded User Profile: Gender=$_userGender, Tier=$tier, Premium=$_isPremium');
+          _isAccessGranted = access;
+          debugPrint('👤 ChatList: Loaded User Profile: Gender=$_userGender, Tier=$tier, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
         });
       }
     } catch (e) {
@@ -385,10 +389,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   bool _isUserPremiumLocked(int feelingPercent) {
     if (feelingPercent < 75) return false;
-    final gender = _userGender?.toLowerCase();
-    final isFemale = gender == 'female' || gender == 'woman' || gender == 'femme';
-    if (isFemale) return false; // Females not locked by paywall
-    return !_isPremium; // Males locked if not premium
+    return !_isAccessGranted;
   }
 
   Widget _buildEmptyState() {

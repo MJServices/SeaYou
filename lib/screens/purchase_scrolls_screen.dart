@@ -16,6 +16,7 @@ class PurchaseScrollsScreen extends StatefulWidget {
 class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
   int _initialTotalScrolls = 0;
   StreamSubscription<Map<String, dynamic>>? _profileSubscription;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -26,6 +27,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
   @override
   void dispose() {
     _profileSubscription?.cancel();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
@@ -33,7 +35,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
       final profile = await DatabaseService().getProfile(userId);
-      if (profile != null) {
+      if (profile != null && mounted) {
         setState(() {
           _initialTotalScrolls = (profile['scrolls_count'] as int? ?? 0) +
               (profile['daily_free_scrolls'] as int? ?? 0);
@@ -54,6 +56,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
 
           if (currentTotal > _initialTotalScrolls) {
             debugPrint('📜 Scrolls purchase detected via realtime!');
+            _pollingTimer?.cancel();
             await closeInAppWebView();
             if (mounted) {
               Navigator.of(context).pop(true);
@@ -62,6 +65,31 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
         }
       });
     }
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    // Poll every 3 seconds for robust fallback if Realtime fails
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        timer.cancel();
+        return;
+      }
+      final profile = await DatabaseService().getProfile(userId);
+      if (profile != null) {
+        final currentTotal = (profile['scrolls_count'] as int? ?? 0) +
+            (profile['daily_free_scrolls'] as int? ?? 0);
+        if (currentTotal > _initialTotalScrolls) {
+          timer.cancel();
+          debugPrint('📜 Scrolls purchase detected via polling fallback!');
+          await closeInAppWebView();
+          if (mounted) {
+            Navigator.of(context).pop(true);
+          }
+        }
+      }
+    });
   }
 
   // TODO: Replace with your actual Stripe payment links for each scroll pack
@@ -83,9 +111,11 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
     }
 
     _setupProfileSubscription(); // Start listening before launch
+    _startPolling(); // Fallback to polling
 
     final Uri url = Uri.parse(enrichedUrl);
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
+      _pollingTimer?.cancel();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -185,7 +215,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
                         badgeText: tr.tr('purchase_scrolls.best_value'),
                         badgeSideText: tr.tr('purchase_scrolls.save_percent',
                             params: {'percent': '60'}),
-                        borderColor: const Color(0xFFE0E0E0),
+                        borderColor: const Color(0xFF1976D2),
                         buttonColor: const Color(0xFFBBDEFB),
                         buttonTextColor: Colors.black87,
                       ),
@@ -213,10 +243,11 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
           ),
           const Spacer(),
           Image.asset(
-            'assets/images/scroll_icon.png',
+            'assets/images/letter.png',
             width: 40,
+            color: Colors.white,
             errorBuilder: (c, o, s) =>
-                const Icon(Icons.local_activity, color: Colors.amber, size: 40),
+                const Icon(Icons.local_post_office, color: Colors.white, size: 40),
           ),
         ],
       ),

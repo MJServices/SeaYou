@@ -26,6 +26,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   int _currentIndex = 0;
   int _page = 0;
   bool _loading = false;
+  int _fetchSessionId = 0; // Added to prevent race conditions during rapid tab switching
   bool _isPremium = false;
   bool _showGate = true;
 
@@ -59,19 +60,21 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadContent({int recursionCount = 0}) async {
-    if (_loading) return;
+  Future<void> _loadContent({int recursionCount = 0, int? fetchId}) async {
+    final currentFetchId = fetchId ?? _fetchSessionId;
+
+    if (_loading && recursionCount == 0) return;
     if (recursionCount > 5) {
       // Limit recursion to avoid infinite loops
-      setState(() => _loading = false);
+      if (mounted && _fetchSessionId == currentFetchId) setState(() => _loading = false);
       return;
     }
 
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
 
     final user = AuthService().currentUser;
     if (user == null) {
-      setState(() => _loading = false);
+      if (mounted && _fetchSessionId == currentFetchId) setState(() => _loading = false);
       return;
     }
 
@@ -87,9 +90,14 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     );
     debugPrint('🎬 SecretSoulsScreen: Fetched from DB: ${newContent.length}');
 
+    if (_fetchSessionId != currentFetchId) {
+      debugPrint('🎬 SecretSoulsScreen: Fetch aborted due to tab switch');
+      return;
+    }
+
     if (newContent.isEmpty) {
       debugPrint('🎬 SecretSoulsScreen: DB returned empty, stopping.');
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
@@ -104,10 +112,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         return false;
       }
 
-      // TEMPORARY: Allow users already messaged to show up so we can verify the DB content
       if (alreadyMessaged) {
         debugPrint(
-            '🎬 SecretSoulsScreen: User $itemUserId already messaged, but SHOWING for verification');
+            '🎬 SecretSoulsScreen: Skipping $itemUserId (already matched/replied)');
+        return false;
       }
 
       return itemUserId != null && !isSelf;
@@ -121,28 +129,34 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           '🎬 SecretSoulsScreen: All items filtered, trying recursion level ${recursionCount + 1}');
       // All items in this page were filtered out, try next page
       _page++;
-      _loading = false; // Reset to allow next call
-      return _loadContent(recursionCount: recursionCount + 1);
+      // We pass the fetchId to the next recursion so we can still abort it if needed
+      return _loadContent(recursionCount: recursionCount + 1, fetchId: currentFetchId);
     }
 
-    setState(() {
-      _content.addAll(filteredContent);
-      _page++;
-      _loading = false;
-    });
+    if (mounted && _fetchSessionId == currentFetchId) {
+      setState(() {
+        _content.addAll(filteredContent);
+        _page++;
+        _loading = false;
+      });
+    }
   }
 
   void _changeFilter(String filter) {
     if (_selectedFilter == filter) return;
 
-    setState(() {
-      _selectedFilter = filter;
-      _content.clear();
-      _page = 0;
-      _currentIndex = 0;
-    });
+    if (mounted) {
+      setState(() {
+        _selectedFilter = filter;
+        _content.clear();
+        _page = 0;
+        _currentIndex = 0;
+        _fetchSessionId++; // Invalidate previous fetches
+        _loading = false; // Override lock so the new fetch starts immediately
+      });
+    }
 
-    _loadContent();
+    _loadContent(fetchId: _fetchSessionId);
   }
 
   Future<void> _sendMessage() async {
@@ -177,6 +191,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       _showOutOfScrollsDialog();
       return;
     }
+    
+    final int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
 
     // 3. Show message input dialog
     final messageController = TextEditingController();
@@ -207,6 +223,22 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF3E2723),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '($availableScrollsCount)',
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF151515),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Image.asset(
+                    'assets/images/letter.png',
+                    width: 24,
+                    height: 24,
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -462,7 +494,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Un parchemin est nécessaire pour répondre. Les membres Premium reçoivent 3 parchemins gratuits par jour !',
+                  'Vous avez atteint votre limite quotidienne de 3 réponses gratuites pour les sections spéciales. Les membres Premium bénéficient de cette limite de 3 parchemins gratuits par jour pour ces zones.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Montserrat',
@@ -938,15 +970,18 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = '';
     if (age != null) {
-      displayInfo = '$age';
+      displayInfo =
+          '$age ${AppLocalizations.of(context).tr('common.years_old')}';
     }
 
     if (department != null && department.isNotEmpty) {
       final deptNum = department.split(' - ').first;
+      final deptStr =
+          '${AppLocalizations.of(context).tr('common.dept_prefix')} $deptNum';
       if (displayInfo.isNotEmpty) {
-        displayInfo = '$displayInfo, $deptNum';
+        displayInfo = '$displayInfo - $deptStr';
       } else {
-        displayInfo = deptNum;
+        displayInfo = deptStr;
       }
     }
 
@@ -1043,15 +1078,18 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = '';
     if (age != null) {
-      displayInfo = '$age';
+      displayInfo =
+          '$age ${AppLocalizations.of(context).tr('common.years_old')}';
     }
 
     if (department != null && department.isNotEmpty) {
       final deptNum = department.split(' - ').first;
+      final deptStr =
+          '${AppLocalizations.of(context).tr('common.dept_prefix')} $deptNum';
       if (displayInfo.isNotEmpty) {
-        displayInfo = '$displayInfo, $deptNum';
+        displayInfo = '$displayInfo - $deptStr';
       } else {
-        displayInfo = deptNum;
+        displayInfo = deptStr;
       }
     }
 
@@ -1066,15 +1104,18 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = '';
     if (age != null) {
-      displayInfo = '$age';
+      displayInfo =
+          '$age ${AppLocalizations.of(context).tr('common.years_old')}';
     }
 
     if (department != null && department.isNotEmpty) {
       final deptNum = department.split(' - ').first;
+      final deptStr =
+          '${AppLocalizations.of(context).tr('common.dept_prefix')} $deptNum';
       if (displayInfo.isNotEmpty) {
-        displayInfo = '$displayInfo, $deptNum';
+        displayInfo = '$displayInfo - $deptStr';
       } else {
-        displayInfo = deptNum;
+        displayInfo = deptStr;
       }
     }
 
@@ -1153,15 +1194,18 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
     String displayInfo = '';
     if (age != null) {
-      displayInfo = '$age';
+      displayInfo =
+          '$age ${AppLocalizations.of(context).tr('common.years_old')}';
     }
 
     if (department != null && department.isNotEmpty) {
       final deptNum = department.split(' - ').first;
+      final deptStr =
+          '${AppLocalizations.of(context).tr('common.dept_prefix')} $deptNum';
       if (displayInfo.isNotEmpty) {
-        displayInfo = '$displayInfo, $deptNum';
+        displayInfo = '$displayInfo - $deptStr';
       } else {
-        displayInfo = deptNum;
+        displayInfo = deptStr;
       }
     }
 

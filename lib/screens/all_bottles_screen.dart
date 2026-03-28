@@ -6,7 +6,7 @@ import '../services/database_service.dart';
 import '../models/bottle.dart';
 import '../widgets/voice_chat_modal.dart';
 import '../widgets/photo_stamp_modal.dart';
-import 'bottle_detail_screen.dart';
+import 'received_bottles_screen.dart';
 import '../i18n/app_localizations.dart';
 
 /// All Bottles Screen - Shows all sent or received bottles
@@ -244,21 +244,21 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
             ),
           );
         } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => BottleDetailScreen(
-                mood: bottle.mood ?? 'Curious',
-                messageType: title,
-                message: _getTranslatedMessage(context, bottle.message),
-                isReceived: !widget.isSent,
-                bottleId: bottle.id,
-                senderId: (bottle is SentBottle)
-                    ? (bottle).senderId
-                    : (bottle as ReceivedBottle).senderId,
+          if (!widget.isSent) {
+            // RECEIVED: Open the swipeable ReceivedBottlesScreen starting with this bottle
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ReceivedBottlesScreen(
+                  initialBottle: bottle as ReceivedBottle,
+                ),
               ),
-            ),
-          );
+            );
+          } else {
+            // SENT: For now, we can just show a read-only modal or snackbar
+            // Since the user wants to remove BottleDetailScreen, we avoid using it.
+            _showSentBottlePreview(context, bottle as SentBottle);
+          }
         }
       },
       child: Container(
@@ -365,6 +365,40 @@ class _AllBottlesScreenState extends State<AllBottlesScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  void _showSentBottlePreview(BuildContext context, SentBottle bottle) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sent Bottle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _getTranslatedMessage(context, bottle.message),
+              style: const TextStyle(fontFamily: 'Montserrat'),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Status: ${bottle.status}',
+              style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
