@@ -183,17 +183,17 @@ class BottleMatchingService {
         // 1. Gender Targeting (Strict always, as per user request)
         List<String> effectiveTargetGender = List.from(targetGender);
         if (effectiveTargetGender.isEmpty) {
-          final lookingFor =
+          final lookingForString =
               (senderProfile['interested_in'] as String? ?? 'everyone')
                   .toLowerCase();
 
-          if (lookingFor == 'men') {
+          if (lookingForString == 'men') {
             effectiveTargetGender = ['Man'];
-          } else if (lookingFor == 'women') {
+          } else if (lookingForString == 'women') {
             effectiveTargetGender = ['Woman'];
-          } else if (lookingFor == 'non-binary' || lookingFor == 'nonbinary') {
+          } else if (lookingForString == 'non-binary' || lookingForString == 'nonbinary') {
             effectiveTargetGender = ['Non-binary'];
-          } else if (lookingFor == 'everyone') {
+          } else if (lookingForString == 'everyone') {
             effectiveTargetGender = ['Man', 'Woman', 'Non-binary'];
           }
         }
@@ -203,7 +203,9 @@ class BottleMatchingService {
               (user['gender'] as String?)?.toLowerCase() ?? 'other';
           bool genderMatch = false;
           if (effectiveTargetGender.contains('Man') &&
-              (userGender == 'male' || userGender == 'man')) {
+              (userGender == 'male' ||
+                  userGender == 'man' ||
+                  userGender == 'homme')) {
             genderMatch = true;
           }
           if (effectiveTargetGender.contains('Woman') &&
@@ -232,16 +234,18 @@ class BottleMatchingService {
         bool reciprocalMatch = false;
         if (recipientLookingFor == 'everyone') {
           reciprocalMatch = true;
-        } else if (recipientLookingFor == 'men' &&
-            (senderGender == 'male' || senderGender == 'man')) {
+        } else if (recipientLookingFor.contains('men') &&
+            (senderGender == 'male' ||
+                senderGender == 'man' ||
+                senderGender == 'homme')) {
           reciprocalMatch = true;
-        } else if (recipientLookingFor == 'women' &&
+        } else if (recipientLookingFor.contains('women') &&
             (senderGender == 'female' ||
                 senderGender == 'woman' ||
                 senderGender == 'femme')) {
           reciprocalMatch = true;
-        } else if (recipientLookingFor == 'non-binary' ||
-            recipientLookingFor == 'nonbinary') {
+        } else if (recipientLookingFor.contains('non-binary') ||
+            recipientLookingFor.contains('nonbinary')) {
           if (senderGender == 'nonbinary' || senderGender == 'non-binary') {
             reciprocalMatch = true;
           }
@@ -267,9 +271,9 @@ class BottleMatchingService {
 
         // 3. Department Targeting (STRICT always if specified, per user feedback)
         if (targetDepartments.isNotEmpty) {
-          final userDepartment = user['department'] as String?;
+          final userDepartment = user['department']?.toString();
           if (userDepartment == null ||
-              !targetDepartments.contains(userDepartment)) {
+              !targetDepartments.any((d) => d.toString() == userDepartment)) {
             return false;
           }
         }
@@ -485,6 +489,302 @@ class BottleMatchingService {
       debugPrint('Bottle $bottleId delivered to $recipientId');
     } catch (e) {
       debugPrint('Error delivering bottle: $e');
+    }
+  }
+
+  /// Automatically match pending bottles for a user who just became active
+  /// This implements the "re-matching" logic for bottles that didn't find a match immediately
+  Future<void> autoMatchPendingBottlesForUser(String recipientId) async {
+    void log(String msg) {
+      debugPrint('🔄 Background: $msg');
+    }
+
+    try {
+      log('Checking for pending bottles for user $recipientId');
+      
+      // 1. Get recipient profile
+      final recipientProfile = await _db.getProfile(recipientId);
+      if (recipientProfile == null) {
+        debugPrint('⏹️ Re-match: Profile not found for $recipientId');
+        return;
+      }
+
+      if (recipientProfile['receive_bottles'] == false) {
+        debugPrint('⏹️ Re-match: User has "receive_bottles" disabled');
+        return;
+      }
+
+      // 2. Check daily limits
+      final int receivedToday = recipientProfile['bottles_received_today'] ?? 0;
+      final int limit = 5; 
+      if (receivedToday >= limit) {
+        debugPrint('⏹️ Re-match: User reached daily limit ($receivedToday/$limit)');
+        return;
+      }
+
+      // 3. Query pending bottles (from others)
+      // We look for both 'pending' and 'floating' status bottles. 
+      // 'floating' is the default in the database for unmatched bottles.
+      final pendingBottles = await _supabase
+          .from('sent_bottles')
+          .select('*')
+          .inFilter('status', ['pending', 'floating'])
+          .neq('sender_id', recipientId)
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      if (pendingBottles.isEmpty) {
+        debugPrint('📭 Re-match: No pending/floating bottles found in sea');
+        return;
+      }
+
+      debugPrint('🔍 Re-match: Analyzing ${pendingBottles.length} candidates...');
+
+      int deliveredCount = 0;
+      for (final bottle in pendingBottles) {
+        if (deliveredCount >= (limit - receivedToday)) break;
+
+        final String bottleId = bottle['id'];
+        
+        // 4. Check if this bottle was ALREADY delivered or matched to THIS user
+        // even if it failed before, we check the queue for safety
+        final existingMatch = await _supabase
+            .from('bottle_delivery_queue')
+            .select('id')
+            .eq('sent_bottle_id', bottleId)
+            .eq('recipient_id', recipientId)
+            .maybeSingle();
+
+        if (existingMatch != null) {
+          log('SKIPPED: Already matched/delivered to this user via queue');
+          continue;
+        }
+
+        // 5. Detailed compatibility check with logging
+        final bool isCompatible = await _isRecipientCompatibleWithBottle(
+          recipientProfile: recipientProfile,
+          bottle: bottle,
+          verbose: true, // Enable detailed debug logs
+        );
+
+        if (isCompatible) {
+          debugPrint('🎯 Re-match SUCCESS! Delivering bottle $bottleId');
+          
+          await _deliverBottleInstantly(
+            bottleId: bottleId,
+            senderId: bottle['sender_id'],
+            recipientId: recipientId,
+            bottleData: bottle,
+          );
+          
+          deliveredCount++;
+        }
+      }
+
+      debugPrint('🏁 Re-match finished. Delivered: $deliveredCount');
+    } catch (e) {
+      debugPrint('❌ Error in auto-match: $e');
+    }
+  }
+
+  /// Check if a recipient is compatible with a specific bottle's targeting
+  Future<bool> _isRecipientCompatibleWithBottle({
+    required Map<String, dynamic> recipientProfile,
+    required Map<String, dynamic> bottle,
+    bool verbose = false,
+  }) async {
+    final String bottleId = bottle['id'];
+    final String senderId = bottle['sender_id'];
+
+    void log(String msg) {
+      if (verbose) debugPrint('   [Bottle $bottleId] $msg');
+    }
+
+    try {
+      // 1. Fetch sender profile
+      final senderProfile = await _db.getProfile(senderId);
+      if (senderProfile == null) {
+        log('REJECTED: Sender profile not found');
+        return false;
+      }
+
+      // 2. Check blocks
+      final blocks = await _supabase
+          .from('user_blocks')
+          .select('id')
+          .or('blocker_id.eq.$senderId,blocked_id.eq.$senderId')
+          .or('blocker_id.eq.${recipientProfile['id']},blocked_id.eq.${recipientProfile['id']}');
+      
+      if (blocks.isNotEmpty) {
+        log('REJECTED: Block relationship exists');
+        return false;
+      }
+
+      // 3. Check existing conversations or replies
+      final existingPartners = await _db.getRepliedPartnerIds(senderId);
+      if (existingPartners.contains(recipientProfile['id'])) {
+        log('REJECTED: Already in contact');
+        return false;
+      }
+
+      // 4. Normalization Helpers
+      String normalizeGender(dynamic g) {
+        final String s = (g?.toString() ?? '').toLowerCase();
+        if (s == 'male' || s == 'man' || s == 'homme') return 'man';
+        if (s == 'female' || s == 'woman' || s == 'femme') return 'woman';
+        if (s == 'nonbinary' || s == 'non-binary' || s == 'nb') return 'non-binary';
+        return s;
+      }
+
+      // 5. Gender Targeting (Sender -> Recipient)
+      final List<String> targetGenders = (bottle['target_gender'] as List?)?.cast<String>() ?? [];
+      final recipientGender = normalizeGender(recipientProfile['gender']);
+      
+      if (targetGenders.isNotEmpty) {
+        bool genderMatch = false;
+        for (final target in targetGenders) {
+          if (normalizeGender(target) == recipientGender) {
+            genderMatch = true;
+            break;
+          }
+        }
+        if (!genderMatch) {
+          log('REJECTED: Recipient gender ($recipientGender) not in targeting $targetGenders');
+          return false;
+        }
+      } else {
+        // Fallback to sender's general preference
+        final senderLookingFor = (senderProfile['interested_in']?.toString() ?? 'everyone').toLowerCase();
+        bool lookingForMatch = false;
+        if (senderLookingFor == 'everyone') {
+          lookingForMatch = true;
+        } else if (senderLookingFor.contains('men') && recipientGender == 'man') {
+          lookingForMatch = true;
+        } else if (senderLookingFor.contains('women') && recipientGender == 'woman') {
+          lookingForMatch = true;
+        } else if ((senderLookingFor.contains('non-binary') || senderLookingFor.contains('nonbinary')) && recipientGender == 'non-binary') {
+          lookingForMatch = true;
+        }
+        
+        if (!lookingForMatch) {
+          log('REJECTED: Sender looking for "$senderLookingFor", Recipient is "$recipientGender"');
+          return false;
+        }
+      }
+
+      // 6. Reciprocal Matching (Recipient -> Sender)
+      final recipientLookingFor = (recipientProfile['interested_in']?.toString() ?? 'everyone').toLowerCase();
+      final senderGender = normalizeGender(senderProfile['gender']);
+      
+      bool reciprocalMatch = false;
+      if (recipientLookingFor == 'everyone') {
+        reciprocalMatch = true;
+      } else if (recipientLookingFor.contains('men') && senderGender == 'man') {
+        reciprocalMatch = true;
+      } else if (recipientLookingFor.contains('women') && senderGender == 'woman') {
+        reciprocalMatch = true;
+      } else if ((recipientLookingFor.contains('non-binary') || recipientLookingFor.contains('nonbinary')) && senderGender == 'non-binary') {
+        reciprocalMatch = true;
+      }
+      
+      if (!reciprocalMatch) {
+        log('REJECTED: Recipient looking for "$recipientLookingFor", Sender is "$senderGender"');
+        return false;
+      }
+
+      // 7. Age targeting
+      final int? minAge = bottle['target_min_age'];
+      final int? maxAge = bottle['target_max_age'];
+      if (minAge != null || maxAge != null) {
+        final birthYear = recipientProfile['birth_year'] as int?;
+        if (birthYear == null) {
+          log('REJECTED: Recipient has no birth_year');
+          return false;
+        }
+        final age = DateTime.now().year - birthYear;
+        if (minAge != null && age < minAge) {
+          log('REJECTED: Recipient age ($age) < target min ($minAge)');
+          return false;
+        }
+        if (maxAge != null && age > maxAge) {
+          log('REJECTED: Recipient age ($age) > target max ($maxAge)');
+          return false;
+        }
+      }
+
+      // 8. Department targeting
+      final List<String> targetDepts = (bottle['target_departments'] as List?)?.cast<String>() ?? [];
+      if (targetDepts.isNotEmpty) {
+        // Robust string comparison for IDs
+        final userDept = recipientProfile['department']?.toString();
+        if (userDept == null) {
+          log('REJECTED: Recipient has no department');
+          return false;
+        }
+        
+        final bool deptMatch = targetDepts.any((d) => d.toString() == userDept);
+        if (!deptMatch) {
+          log('REJECTED: Recipient dept ($userDept) not in targeting $targetDepts');
+          return false;
+        }
+      }
+
+      return true;
+    } catch (e) {
+      log('ERROR: $e');
+      return false;
+    }
+  }
+
+  /// Deliver a bottle instantly and record it in the proper queue
+  Future<void> _deliverBottleInstantly({
+    required String bottleId,
+    required String senderId,
+    required String recipientId,
+    required Map<String, dynamic> bottleData,
+  }) async {
+    try {
+      final now = DateTime.now().toIso8601String();
+
+      // 1. Create received bottle record
+      await _db.createReceivedBottle(
+        bottleId: bottleId,
+        receiverId: recipientId,
+        senderId: senderId,
+        contentType: bottleData['content_type'] ?? 'text',
+        message: bottleData['message'],
+        mood: bottleData['mood'] ?? 'Dreamy',
+        audioUrl: bottleData['audio_url'],
+        photoUrl: bottleData['photo_url'],
+      );
+
+      // 2. Update sent bottle status
+      await _supabase.from('sent_bottles').update({
+        'matched_recipient_id': recipientId,
+        'status': 'delivered',
+        'delivered_at': now,
+      }).eq('id', bottleId);
+
+      // 3. Record in bottle_delivery_queue (mark as already delivered)
+      // This respects the "proper" table as per user feedback
+      await _supabase.from('bottle_delivery_queue').insert({
+        'sent_bottle_id': bottleId,
+        'sender_id': senderId,
+        'recipient_id': recipientId,
+        'scheduled_delivery_at': now,
+        'delivered': true,
+        'delivered_at': now,
+        'created_at': now,
+      });
+
+      // 4. Increment counters via RPC
+      await _supabase.rpc('increment_bottles_received', params: {
+        'user_id': recipientId,
+      });
+
+      debugPrint('🚀 Instant background delivery complete for bottle $bottleId (Queue updated)');
+    } catch (e) {
+      debugPrint('Error in instant delivery: $e');
     }
   }
 }

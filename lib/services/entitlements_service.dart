@@ -98,7 +98,6 @@ class EntitlementsService {
         'tier': tier,
         'expires_at': expiresAt,
         'updated_at': now.toIso8601String(),
-        'metadata': {'purchase_token': purchaseToken},
       });
 
       debugPrint('✅ Entitlement granted: $tier for user $userId');

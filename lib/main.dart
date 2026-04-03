@@ -10,9 +10,11 @@ import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'screens/create_password_screen.dart';
 // import 'widgets/tap_to_mute_wrapper.dart'; // Removed as only used locally in splash
-// import 'screens/home_screen.dart'; // Uncomment to skip onboarding for development
+import 'screens/home_screen.dart';
+import 'services/presence_service.dart';
 
 final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +46,39 @@ void main() async {
       );
     }
   });
-  // Always start with SplashScreen to centralize routing logic
-  const Widget initialScreen = SplashScreen();
+  Widget initialScreen = const SplashScreen();
+  final session = Supabase.instance.client.auth.currentSession;
+  
+  if (session != null) {
+    PresenceService.instance.init();
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select()
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+      if (profile != null) {
+        bool isFieldEmpty(dynamic value) {
+          if (value == null) return true;
+          if (value is String) return value.trim().isEmpty;
+          if (value is List) return value.isEmpty;
+          return false;
+        }
+
+        final isComplete = !isFieldEmpty(profile['full_name']) &&
+            !isFieldEmpty(profile['gender']) &&
+            !isFieldEmpty(profile['sexual_orientation']) &&
+            !isFieldEmpty(profile['expectation']) &&
+            !isFieldEmpty(profile['interests']) &&
+            !isFieldEmpty(profile['avatar_url']);
+
+        if (isComplete) {
+          initialScreen = const HomeScreen();
+        }
+      }
+    } catch (_) {}
+  }
 
   runApp(SeaYouApp(home: initialScreen));
 }
@@ -66,6 +99,7 @@ class SeaYouApp extends StatelessWidget {
         title: 'SeaYou',
         navigatorKey: navKey,
         debugShowCheckedModeBanner: false,
+        navigatorObservers: [routeObserver],
         theme: ThemeData(
           primaryColor: const Color(0xFF0AC5C5),
           scaffoldBackgroundColor: Colors.white,

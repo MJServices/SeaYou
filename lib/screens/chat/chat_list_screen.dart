@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/warm_gradient_background.dart';
@@ -28,6 +29,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final String? _currentUserId = Supabase.instance.client.auth.currentUser?.id;
   String? _avatarUrl;
   String? _userGender;
+  Map<String, Map<String, dynamic>> _partnerProfiles = {};
+  bool _isLoading = true;
   bool _isPremium = false;
   bool _isAccessGranted = false;
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
@@ -67,49 +70,54 @@ class _ChatListScreenState extends State<ChatListScreen> {
       debugPrint('❌ Cannot load conversations: user not logged in');
       return;
     }
+
+    if (mounted && _conversations.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+
     debugPrint('🔄 Loading conversations for user: $_currentUserId');
 
-    // Get all conversations
-    final convs = await _db.getUserConversations(_currentUserId);
-    debugPrint('✅ Loaded ${convs.length} conversations');
+    try {
+      // 1. Get all conversations and block lists sequentially (avoids Future.wait type-erasure issues)
+      final List<Conversation> convs = await _db.getUserConversations(_currentUserId);
+      final List<String> blockedByMe = await _db.getBlockedUserIds(_currentUserId);
+      final List<String> blockingMe = await _db.getBlockers(_currentUserId);
+      final Set<String> allBlocked = {...blockedByMe, ...blockingMe};
 
-    // Get blocked user IDs (Users I blocked)
-    final blockedByMe = await _db.getBlockedUserIds(_currentUserId);
-    // Get blockers (Users who blocked me)
-    final blockingMe = await _db.getBlockers(_currentUserId);
+      debugPrint('✅ Loaded ${convs.length} conversations. Blocked: ${allBlocked.length}');
 
-    final allBlocked = {...blockedByMe, ...blockingMe};
+      // 2. Filter out conversations with blocked users
+      final List<Conversation> filteredConvs = convs.where((conv) {
+        final partnerId = conv.getOtherUserId(_currentUserId);
+        return !allBlocked.contains(partnerId);
+      }).toList();
 
-    debugPrint(
-        '🚫 Blocked contexts: ByMe=${blockedByMe.length}, BlockingMe=${blockingMe.length}');
+      // 3. Batch fetch profiles for all filtered conversations
+      final partnerIds = filteredConvs
+          .map((c) => c.getOtherUserId(_currentUserId))
+          .toSet()
+          .toList();
 
-    // Filter out conversations with blocked users (bidirectional)
-    final List<Conversation> filteredConvs = [];
-    for (var conv in convs) {
-      final partnerId =
-          conv.userAId == _currentUserId ? conv.userBId : conv.userAId;
-
-      if (!allBlocked.contains(partnerId)) {
-        filteredConvs.add(conv);
-      } else {
-        debugPrint(
-            '  - Filtering out conversation with blocked user: $partnerId');
+      if (partnerIds.isNotEmpty) {
+        debugPrint('🔍 Batch fetching ${partnerIds.length} partner profiles...');
+        final profiles = await _db.getProfiles(partnerIds);
+        if (mounted) {
+          setState(() {
+            _partnerProfiles = profiles;
+          });
+        }
       }
-    }
 
-    debugPrint(
-        '✅ Showing ${filteredConvs.length} conversations (${convs.length - filteredConvs.length} blocked)');
-
-    for (var conv in filteredConvs) {
-      debugPrint(
-          '  - Conversation ${conv.id}: user_a=${conv.userAId}, user_b=${conv.userBId}, updated=${conv.lastMessageTime}');
-    }
-
-    if (mounted) {
-      setState(() {
-        _conversations = filteredConvs;
-      });
-      _loadArchivedCount(); // Refresh archived count when conversations change
+      if (mounted) {
+        setState(() {
+          _conversations = filteredConvs;
+          _isLoading = false;
+        });
+        _loadArchivedCount();
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading conversations: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -173,10 +181,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ),
 
             // Bottom Navigation
-            BottomNavBar(
-              activeScreen: 'chat',
-              userProfile:
-                  _avatarUrl != null ? {'avatar_url': _avatarUrl} : null,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: BottomNavBar(
+                activeScreen: 'chat',
+                userProfile:
+                    _avatarUrl != null ? {'avatar_url': _avatarUrl} : null,
+              ),
             ),
           ],
         ),
@@ -307,55 +320,60 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
-  Widget _buildFilterTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          _buildTab('All', AppLocalizations.of(context).tr('chat.filter_all')),
-          const SizedBox(width: 10),
-          _buildTab('Unlocked',
-              AppLocalizations.of(context).tr('chat.filter_unlocked')),
-          const SizedBox(width: 10),
-          _buildTab(
-              'Anon', AppLocalizations.of(context).tr('chat.filter_anon')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String filter, String label) {
-    bool isSelected = _selectedFilter == filter;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = filter),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFECFAFA) : Colors.transparent,
-          border: Border.all(
-            color:
-                isSelected ? const Color(0xFF0AC5C5) : const Color(0xFFE3E3E3),
-            width: 0.8,
-          ),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF363636),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildConversationsList() {
     final conversations = _filteredConversations;
     debugPrint(
         '📋 _buildConversationsList called with ${conversations.length} conversations');
+
+    if (_isLoading && conversations.isEmpty) {
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: 5,
+        physics: const NeverScrollableScrollPhysics(),
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withAlpha(40),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withAlpha(40),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withAlpha(40),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
 
     if (conversations.isEmpty) {
       debugPrint('⚠️ Conversations list is empty, showing empty state');
@@ -434,238 +452,191 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (_currentUserId == null) return const SizedBox.shrink();
 
     final otherUserId = conversation.getOtherUserId(_currentUserId);
+    final profile = _partnerProfiles[otherUserId];
 
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _db.getProfile(otherUserId),
-      builder: (context, snapshot) {
-        // ... (Omitting debug prints for brevity if preferred, or keeping them)
-        if (snapshot.connectionState != ConnectionState.done) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 24), // Reduced margin
-            child: Row(
-              children: [
-                Container(
-                  width: 40, // Reduced size
-                  height: 40,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFE3E3E3),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                          width: 100,
-                          height: 16,
-                          color: const Color(0xFFE3E3E3)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final profile = snapshot.data;
-        if (profile == null) {
-          return const SizedBox.shrink(); // Or fallback UI
-        }
-
-        // Request: Display actual usernames/full names instead of "anonymous"
-        // And prioritize conversation.title if set (nickname)
-        final profileName = (profile['username'] != null &&
-                profile['username'].toString().isNotEmpty)
-            ? profile['username']
-            : (profile['full_name'] != null &&
-                    profile['full_name'].toString().isNotEmpty)
-                ? profile['full_name']
-                : AppLocalizations.of(context).tr('chat.anonymous');
-
-        final rawMask = conversation.getPartnerMask(_currentUserId);
-        String? translatedMask;
-        if (rawMask != null) {
-          final m = rawMask.toLowerCase();
-          if (m == 'secret' || m == 'soul' || m == 'secret soul') {
-            translatedMask =
-                AppLocalizations.of(context).tr('common.secret_soul');
-          } else if (m == 'desire' ||
-              m == 'fantasy' ||
-              m == 'door of desires') {
-            translatedMask =
-                AppLocalizations.of(context).tr('common.door_of_desires');
-          } else if (m == 'anonymous' || m == 'anonymous soul') {
-            translatedMask =
-                AppLocalizations.of(context).tr('common.anonymous_soul');
-          } else {
-            translatedMask = rawMask;
-          }
-        }
-
-        final name = conversation.feelingPercent >= 100
-            ? profileName
-            : (translatedMask ?? profileName);
-
-        final age = profile['age'];
-        final department = profile['department'];
-        final partnerInfo = (age != null && department != null)
-            ? AppLocalizations.of(context).tr('chat.partner_info', params: {
-                'age': age.toString(),
-                'department': department.toString()
-              })
-            : '';
-
-        final isLocked = _isUserPremiumLocked(conversation.feelingPercent);
-        final isUnlocked = conversation.feelingPercent >= 100;
-        final lastMessage = isLocked 
-            ? AppLocalizations.of(context).tr('chat.restricted_message')
-            : (conversation.lastMessage ?? AppLocalizations.of(context).tr('chat.start_chatting_hint'));
-        final displayFeelingPercent = isLocked ? 75 : conversation.feelingPercent;
-        final time = _formatTime(conversation.lastMessageTime);
-        final hasUnread = conversation.unreadCount > 0;
-
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatConversationScreen(
-                  contactName: name,
-                  mood: null, // Removed hardcoded 'Curious'
-                  isUnlocked: isUnlocked,
-                  conversationId: conversation.id,
-                ),
+    if (profile == null) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        child: Row(
+          children: [
+            Container(
+              width: 16,
+              height: 16,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFE3E3E3),
               ),
-            ).then((_) => _loadConversations());
-          },
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 24), // Reduced spacing
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center, // Center align
-              children: [
-                _buildAvatar(isUnlocked, hasUnread),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            name,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              fontWeight:
-                                  hasUnread ? FontWeight.w700 : FontWeight.w500,
-                              color: const Color(0xFF151515),
-                            ),
-                          ),
-                          if (partnerInfo.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                partnerInfo,
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF737373),
-                                ),
-                              ),
-                            ),
-                          Text(
-                            time,
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: Color(0xFF363636),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      FeelingProgress(
-                        percent: displayFeelingPercent,
-                        compact: true,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        lastMessage,
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 12,
-                          fontWeight:
-                              hasUnread ? FontWeight.w600 : FontWeight.w400,
-                          color: hasUnread
-                              ? const Color(0xFF151515)
-                              : const Color(0xFF363636),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(width: 100, height: 16, color: const Color(0xFFE3E3E3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final profileName = (profile['username'] != null &&
+            profile['username'].toString().isNotEmpty)
+        ? profile['username']
+        : (profile['full_name'] != null &&
+                profile['full_name'].toString().isNotEmpty)
+            ? profile['full_name']
+            : AppLocalizations.of(context).tr('chat.anonymous');
+
+    final rawMask = conversation.getPartnerMask(_currentUserId);
+    String? translatedMask;
+    if (rawMask != null) {
+      final m = rawMask.toLowerCase();
+      if (m == 'secret' || m == 'soul' || m == 'secret soul') {
+        translatedMask = AppLocalizations.of(context).tr('common.secret_soul');
+      } else if (m == 'desire' || m == 'fantasy' || m == 'door of desires') {
+        translatedMask = AppLocalizations.of(context).tr('common.door_of_desires');
+      } else if (m == 'anonymous' || m == 'anonymous soul') {
+        translatedMask = AppLocalizations.of(context).tr('common.anonymous_soul');
+      } else {
+        translatedMask = rawMask;
+      }
+    }
+
+    final name = conversation.feelingPercent >= 100
+        ? profileName
+        : (translatedMask ?? profileName);
+
+    final age = profile['age'];
+    final department = profile['department'];
+    final partnerInfo = (age != null && department != null)
+        ? AppLocalizations.of(context).tr('chat.partner_info',
+            params: {'age': age.toString(), 'department': department.toString()})
+        : '';
+
+    final isLocked = _isUserPremiumLocked(conversation.feelingPercent);
+    final isUnlocked = conversation.feelingPercent >= 100;
+    final lastMessage = isLocked
+        ? AppLocalizations.of(context).tr('chat.restricted_message')
+        : (conversation.lastMessage ??
+            AppLocalizations.of(context).tr('chat.start_chatting_hint'));
+    final displayFeelingPercent = isLocked ? 75 : conversation.feelingPercent;
+    final time = _formatTime(conversation.lastMessageTime);
+    final hasUnread = conversation.unreadCount > 0;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatConversationScreen(
+              contactName: name,
+              mood: null,
+              isUnlocked: isUnlocked,
+              conversationId: conversation.id,
+              partnerId: otherUserId, // Passing partnerId to assist initialization
             ),
           ),
-        );
+        ).then((_) => _loadConversations());
       },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _buildAvatar(isUnlocked, hasUnread),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                          color: const Color(0xFF151515),
+                        ),
+                      ),
+                      if (partnerInfo.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            partnerInfo,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF737373),
+                            ),
+                          ),
+                        ),
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF363636),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  FeelingProgress(
+                    percent: displayFeelingPercent,
+                    compact: true,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    lastMessage,
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 12,
+                      fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                      color: hasUnread ? const Color(0xFF151515) : const Color(0xFF363636),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   String _formatTime(DateTime? time) {
     if (time == null) return '';
+    final localTime = time.toLocal();
     final now = DateTime.now();
-    final diff = now.difference(time);
+    final diff = now.difference(localTime);
 
-    // Today: show time
-    if (diff.inDays == 0) {
-      final h = time.hour % 12 == 0 ? 12 : time.hour % 12;
-      final m = time.minute.toString().padLeft(2, '0');
-      final ampm = time.hour >= 12 ? 'pm' : 'am';
-      return '$h:$m $ampm';
+    // Today: show time in 24h format
+    if (now.year == localTime.year &&
+        now.month == localTime.month &&
+        now.day == localTime.day) {
+      return DateFormat.Hm().format(localTime);
     }
     // Yesterday
-    else if (diff.inDays == 1) {
+    else if (diff.inDays <= 1 && now.day != localTime.day) {
       return AppLocalizations.of(context).tr('chat.time_yesterday');
     }
     // Within the current week: show day name
     else if (diff.inDays < 7) {
-      const days = [
-        'Sunday',
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday'
-      ];
-      return days[time.weekday % 7];
+      return DateFormat('EEEE').format(localTime);
     }
     // Older: show month and day
     else {
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec'
-      ];
-      return '${months[time.month - 1]} ${time.day}';
+      return DateFormat('MMM d').format(localTime);
     }
   }
 

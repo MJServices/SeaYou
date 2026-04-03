@@ -19,6 +19,7 @@ class UserProfile {
   int? birthYear; // Year of birth calculated from age
   bool isPremium;
   int scrollsCount;
+  bool isBlocked;
 
   // Usage tracking
   int bottlesSentToday;
@@ -51,6 +52,7 @@ class UserProfile {
     this.lastBottleSentDate,
     this.messagesSentWeek = 0,
     this.lastMessageSentWeekStart,
+    this.isBlocked = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -80,6 +82,7 @@ class UserProfile {
       'messages_sent_week': messagesSentWeek,
       'last_message_sent_week_start':
           lastMessageSentWeekStart?.toIso8601String(),
+      'is_blocked': isBlocked,
     };
   }
 }

@@ -488,13 +488,23 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    Navigator.push(
+                    final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (context) => const PurchaseScrollsScreen()),
                     );
+
+                    if (result == true && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              AppLocalizations.of(context).tr('purchase_scrolls.success')),
+                          backgroundColor: const Color(0xFF4CAF50),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF8A2BE2),

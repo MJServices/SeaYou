@@ -415,13 +415,15 @@ class _DepartmentSelectionDialogState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  AppLocalizations.of(context)
-                      .tr('targeting.select_departments'),
-                  style: const TextStyle(
-                    fontFamily: 'PlayfairDisplay',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context)
+                        .tr('targeting.select_departments'),
+                    style: const TextStyle(
+                      fontFamily: 'PlayfairDisplay',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 TextButton(

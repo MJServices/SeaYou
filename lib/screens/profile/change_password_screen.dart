@@ -13,11 +13,9 @@ class ChangePasswordScreen extends StatefulWidget {
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
-  final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final AuthService _authService = AuthService();
 
-  bool _isOldPasswordVisible = false;
   bool _isNewPasswordVisible = false;
   bool _isButtonEnabled = false;
   bool _isSaving = false;
@@ -35,7 +33,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   void _validatePassword() {
     final password = _newPasswordController.text;
-    final oldPassword = _oldPasswordController.text;
     setState(() {
       _hasMinLength = password.length >= 8;
       _hasSymbol = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
@@ -44,7 +41,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           _hasSymbol &&
           _hasNumber &&
           password.isNotEmpty &&
-          oldPassword.isNotEmpty &&
           !_isSaving;
     });
   }
@@ -55,10 +51,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final currentPassword = _oldPasswordController.text;
       final newPassword = _newPasswordController.text;
 
-      await _authService.changePassword(currentPassword, newPassword);
+      await _authService.changePassword(newPassword);
 
       if (!mounted) return;
 
@@ -110,10 +105,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
         String errorMessage =
             AppLocalizations.of(context).tr('errors.change_password_failed');
-        if (e.toString().contains('Current password is incorrect')) {
-          errorMessage = AppLocalizations.of(context)
-              .tr('profile.current_password_incorrect');
-        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -127,7 +118,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   void dispose() {
-    _oldPasswordController.dispose();
     _newPasswordController.dispose();
     super.dispose();
   }
@@ -215,82 +205,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Current Password Input (Added)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        AppLocalizations.of(context)
-                            .tr('profile.current_password'),
-                        style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF2B2B2B),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(
-                            color: const Color(0xFF0AC5C5),
-                            width: 0.8,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _oldPasswordController,
-                                obscureText: !_isOldPasswordVisible,
-                                onChanged: (_) => _validatePassword(),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF2B2B2B),
-                                ),
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: AppLocalizations.of(context)
-                                      .tr('profile.current_password_hint'),
-                                  hintStyle: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF464646),
-                                  ),
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _isOldPasswordVisible =
-                                      !_isOldPasswordVisible;
-                                });
-                              },
-                              child: Icon(
-                                _isOldPasswordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: const Color(0xFF464646),
-                                size: 20,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 24),
 
                     // New Password Title
                     Padding(

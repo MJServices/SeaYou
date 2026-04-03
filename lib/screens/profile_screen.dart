@@ -26,6 +26,7 @@ import 'upload_picture_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/tutorial_modal.dart';
 import 'purchase_scrolls_screen.dart';
+import '../services/entitlements_service.dart';
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -60,6 +61,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _subscribeProfile() {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
+
+    // 🔄 Force a profile fetch to trigger the daily scroll refresh 
+    // so the count is corrected immediately on this screen.
+    _databaseService.getProfile(userId, useCache: false);
 
     _profileSub?.cancel();
     _profileSub = _databaseService.profileStream(userId).listen((profile) {
@@ -298,12 +303,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: GestureDetector(
                         onTap: () async {
-                          await Navigator.push(
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const PurchaseScrollsScreen(),
                             ),
                           );
+
+                          if (result == true && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(AppLocalizations.of(context)
+                                    .tr('purchase_scrolls.success')),
+                                backgroundColor: const Color(0xFF4CAF50),
+                              ),
+                            );
+                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -335,9 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
-                                    AppLocalizations.of(context).locale.languageCode == 'fr' 
-                                        ? 'Parchemins disponibles'
-                                        : 'Available scrolls',
+                                    AppLocalizations.of(context).tr('profile.available_scrolls'),
                                     style: const TextStyle(
                                       fontFamily: 'Montserrat',
                                       fontSize: 16,
@@ -650,6 +663,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               },
                             ),
                           ],
+                          if (!_isPremium)
+                            _buildActionButton(
+                              title: AppLocalizations.of(context)
+                                  .tr('home.debug_activate_premium'),
+                              color: const Color(0xFFFF5252),
+                              onTap: () async {
+                                final userId = _supabase.auth.currentUser?.id;
+                                if (userId != null) {
+                                  final entitlements = EntitlementsService();
+                                  await entitlements.grantEntitlement(userId, 'premium', 'debug_manual_activation');
+                                  
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content:
+                                              Text('DEBUG: Premium Activated')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
                           _buildActionButton(
                             title: AppLocalizations.of(context)
                                 .tr('profile.sign_out'),
@@ -689,13 +723,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             // Bottom Navigation
-            BottomNavBar(
-              activeScreen: 'profile',
-              userProfile: _avatarUrl != null
-                  ? {
-                      'avatar_url': _avatarUrl,
-                    }
-                  : null,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: BottomNavBar(
+                activeScreen: 'profile',
+                userProfile: _avatarUrl != null
+                    ? {
+                        'avatar_url': _avatarUrl,
+                      }
+                    : null,
+              ),
             ),
           ],
         ),

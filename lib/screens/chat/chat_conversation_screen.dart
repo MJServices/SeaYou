@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -28,13 +29,15 @@ import '../premium_screen.dart';
 import '../naughty_questions_screen.dart';
 import '../../services/notification_service.dart';
 import '../../services/entitlements_service.dart';
+import '../home_screen.dart';
 
-/// Chat Conversation Screen - Individual chat with full functionality
 class ChatConversationScreen extends StatefulWidget {
   final String contactName;
   final String? mood;
   final bool isUnlocked;
   final String? conversationId;
+  final String? partnerId;
+  final String? partnerName;
 
   const ChatConversationScreen({
     super.key,
@@ -42,6 +45,8 @@ class ChatConversationScreen extends StatefulWidget {
     this.mood,
     this.isUnlocked = false,
     this.conversationId,
+    this.partnerId,
+    this.partnerName,
   });
 
   @override
@@ -52,11 +57,26 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
-  final _record = AudioRecorder();
+  late final AudioRecorder _record;
   final DatabaseService _db = DatabaseService();
 
   bool _isTyping = false;
   bool _isSaving = false; // Track if message is being sent
+  bool _isRecording = false;
+  String? _recordingPath;
+  Timer? _recordingTimer;
+  int _recordingDuration = 0;
+  bool _isPlayingVoice = false;
+  String? _playingVoiceId;
+  late final AudioPlayer _audioPlayer;
+  String? _currentlyPlayingId;
+  int _feelingPercent = 0;
+  String? _threadTitle;
+  String? _partnerAvatarUrl;
+  String? _partnerUsername;
+  String? _partnerId;
+  late final FeelingController _feelingController;
+
   bool _isPhotoRevealed = false;
   final bool _hasAutoShownNaughty = false;
   bool _isInitialLoad = true; // Prevents 75% lock flicker
@@ -65,19 +85,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   String? _userGender;
   bool _hasAnsweredNaughty = false;
 
-  bool _isRecording = false;
-  String? _recordingPath;
-  Timer? _recordingTimer;
-  int _recordingDuration = 0;
-  bool _isPlayingVoice = false;
-  String? _playingVoiceId;
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  int _feelingPercent = 0;
-  String? _threadTitle;
-  String? _partnerAvatarUrl;
-  String? _partnerUsername;
-  String? _partnerId;
-  late final FeelingController _feelingController;
   // Milestone tracking
   final Set<int> _shownMilestones =
       {}; // Track which milestones have been shown
@@ -103,6 +110,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   void initState() {
     super.initState();
     _feelingController = FeelingController();
+
+    // 🛡️ Safe initialization of potentially crashing native plugins
+    try {
+      _record = AudioRecorder();
+      _audioPlayer = AudioPlayer();
+    } catch (e) {
+      debugPrint('❌ Error initializing audio plugins: $e');
+      // We don't crash the UI if audio fails, it will just not work.
+    }
+
     _feelingController.setInitial(
         percent: _feelingPercent, title: _threadTitle);
     _feelingController.addListener(() {
@@ -115,7 +132,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     });
     Future.microtask(_checkMilestones);
 
-    // Load all critical data in parallel to avoid flickers
     _initializeData();
   }
 
@@ -125,9 +141,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _loadPremiumStatus(),
         if (widget.conversationId != null) _loadConversation(),
         if (widget.conversationId != null) _loadInitialMessages(),
+        if (widget.partnerId != null || widget.conversationId != null)
+          _fetchPartnerProfile(),
       ];
 
-      await Future.wait(futures);
+      await Future.wait(futures).timeout(const Duration(seconds: 10),
+          onTimeout: () {
+        debugPrint('⚠️ Warning: Chat initialization timed out after 10s');
+        return [];
+      });
     } catch (e) {
       debugPrint('Error initializing chat data: $e');
     } finally {
@@ -169,7 +191,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               if (eventType == 'insert' || eventType == 'INSERT') {
                 if (existingIndex == -1) {
                   _messages.add(message);
-                  _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                  _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                   debugPrint('✅ Added new message');
                 }
               } else if (eventType == 'update' || eventType == 'UPDATE') {
@@ -179,7 +201,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 } else {
                   // If for some reason we missed the insert, add it now
                   _messages.add(message);
-                  _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                  _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                 }
               }
             }
@@ -294,11 +316,23 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       if (diff.inMinutes < 2) {
         return AppLocalizations.of(context).tr('chat.online_status');
       } else if (diff.inMinutes < 60) {
-        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inMinutes}m ago";
+        final count = diff.inMinutes;
+        final key = 'chat.time_ago_m${count > 1 ? "_plural" : ""}';
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${AppLocalizations.of(context).tr(key, params: {
+              'count': count.toString()
+            })}";
       } else if (diff.inHours < 24) {
-        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inHours}h ago";
+        final count = diff.inHours;
+        final key = 'chat.time_ago_h${count > 1 ? "_plural" : ""}';
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${AppLocalizations.of(context).tr(key, params: {
+              'count': count.toString()
+            })}";
       } else {
-        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${diff.inDays}d ago";
+        final count = diff.inDays;
+        final key = 'chat.time_ago_d${count > 1 ? "_plural" : ""}';
+        return "${AppLocalizations.of(context).tr('chat.last_seen')} ${AppLocalizations.of(context).tr(key, params: {
+              'count': count.toString()
+            })}";
       }
     } catch (e) {
       return '';
@@ -379,15 +413,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   Future<void> _fetchPartnerProfile() async {
-    if (_conversation == null) return;
+    // If we already have the partnerId, we can start fetching immediately without waiting for conversation object
+    final partnerIdToUse = widget.partnerId ?? (
+      _conversation != null ? (
+        _conversation!.userAId == AuthService().currentUser?.id 
+          ? _conversation!.userBId 
+          : _conversation!.userAId
+      ) : null
+    );
+
+    if (partnerIdToUse == null) return;
+
     try {
       final currentUserId = AuthService().currentUser?.id;
-      final partnerId = _conversation!.userAId == currentUserId
-          ? _conversation!.userBId
-          : _conversation!.userAId;
-
+      final partnerId = partnerIdToUse;
+      
       if (partnerId == currentUserId) {
         debugPrint('⚠️ Warning: partnerId matches currentUserId');
+        return;
+      }
+
+      // Set initial name from widget to prevent flicker while loading
+      if (mounted && (_partnerUsername == null || _partnerUsername!.isEmpty)) {
+        setState(() {
+          _partnerUsername = widget.partnerName ?? widget.contactName;
+        });
       }
 
       final profileData = await _db.getProfile(partnerId);
@@ -402,7 +452,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         setState(() {
           _partnerId = partnerId;
           _partnerAvatarUrl = profileData?['avatar_url'] as String?;
-          _partnerUsername = profileData?['full_name'] as String?;
+          _partnerUsername = profileData?['full_name'] as String? ?? widget.contactName;
           _isBlocked = blocked;
           debugPrint(
               '🔍 ChatConversation: set _partnerUsername to $_partnerUsername');
@@ -441,36 +491,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           '  [$i] ${msgs[i].createdAt} | UTC: ${msgs[i].createdAt.toUtc()} | Millis: ${msgs[i].createdAt.millisecondsSinceEpoch} | Text: ${msgs[i].text?.substring(0, (msgs[i].text?.length ?? 0) > 10 ? 10 : (msgs[i].text?.length ?? 0))}');
     }
 
-    // CRITICAL: Sort by millisecondsSinceEpoch for timezone-independent comparison
-    // This is the STANDARD way to compare timestamps across timezones
+    // CRITICAL: Sort DESCENDING (Newest First) for reverse:true ListView
     msgs.sort((a, b) {
-      return a.createdAt.millisecondsSinceEpoch
-          .compareTo(b.createdAt.millisecondsSinceEpoch);
+      return b.createdAt.millisecondsSinceEpoch
+          .compareTo(a.createdAt.millisecondsSinceEpoch);
     });
 
     debugPrint(
-        '✅ Messages sorted by millisecondsSinceEpoch (timezone-independent)');
-    debugPrint('📝 Last 3 messages AFTER sorting:');
-    if (msgs.length >= 3) {
-      final last3 = msgs.sublist(msgs.length - 3);
-      for (var msg in last3) {
-        debugPrint(
-            '  ${msg.createdAt} | Millis: ${msg.createdAt.millisecondsSinceEpoch} | ${msg.text?.substring(0, (msg.text?.length ?? 0) > 15 ? 15 : (msg.text?.length ?? 0))}');
-      }
-    }
+        '✅ Messages sorted DESCENDING by millisecondsSinceEpoch (timezone-independent)');
 
-    setState(() {
-      _messages = msgs;
-    });
-    _scrollToBottom();
+    if (mounted) {
+      setState(() {
+        _messages = msgs;
+      });
+      // In a reversed list, bottom is 0.0
+      _scrollToBottom();
+    }
   }
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (_scrollController.hasClients) {
+          // With reverse: true, "bottom" (latest messages) is position 0.0
           _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
+            0.0,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
           );
@@ -481,14 +526,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   String _formatTime(dynamic createdAt) {
     try {
-      final dt = DateTime.parse(createdAt as String);
-      // Convert UTC to local time
-      final localTime = dt.toLocal();
-      final h = localTime.hour.toString().padLeft(2, '0');
-      final m = localTime.minute.toString().padLeft(2, '0');
-      return '$h:$m';
+      DateTime dt;
+      if (createdAt is DateTime) {
+        dt = createdAt;
+      } else {
+        dt = DateTime.parse(createdAt as String);
+      }
+      // Use intl for localized 24h/12h formatting
+      return DateFormat.Hm().format(dt.toLocal());
     } catch (_) {
-      return _getCurrentTime();
+      return '';
     }
   }
 
@@ -697,7 +744,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           Row(
             children: [
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const HomeScreen()),
+                      (route) => false,
+                    );
+                  }
+                },
                 child: const Icon(Icons.arrow_back,
                     size: 24, color: Color(0xFF151515)),
               ),
@@ -816,13 +874,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   children: [
                     Expanded(
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             _partnerUsername ?? widget.contactName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            softWrap: false,
                             style: const TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: 20,
@@ -830,18 +888,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                               color: Color(0xFF151515),
                             ),
                           ),
-                          if (!widget.isUnlocked)
-                            Text(
-                              _lastSeenText,
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: _isPartnerOnline
-                                    ? const Color(0xFF0AC5C5)
-                                    : const Color(0xFF737373),
-                              ),
+                          Text(
+                            _lastSeenText,
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              color: _isPartnerOnline
+                                  ? const Color(0xFF0AC5C5)
+                                  : const Color(0xFF737373),
                             ),
+                          ),
                         ],
                       ),
                     ),
@@ -1040,8 +1097,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Widget _buildMessagesList() {
     return ListView.builder(
+      reverse: true, // Standard for chat: index 0 is at the bottom
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 96, 16, 8),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         return _buildMessageBubble(_messages[index]);
@@ -1068,12 +1126,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               if (!isMe) ...[
                 Expanded(
                   child: Text(
-                    _feelingPercent >= 100
-                        ? (_partnerUsername ?? widget.contactName)
-                        : (_conversation?.getPartnerMask(
-                                Supabase.instance.client.auth.currentUser?.id ??
-                                    '') ??
-                            widget.contactName),
+                    _partnerUsername ?? widget.contactName,
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 12,
@@ -1441,10 +1494,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: (extraContent.startsWith('http'))
+                  child: (_isPhotoRevealed && extraContent.startsWith('http'))
                       ? Image.network(extraContent, fit: BoxFit.cover)
                       : const Center(
-                          child: Icon(Icons.person,
+                          child: Icon(Icons.lock_outline,
                               size: 50, color: Colors.white)),
                 ),
               ),
@@ -1935,6 +1988,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       child: _isPremiumLocked
           ? _buildPremiumLockState()
           : Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_uploadProgress > 0 && _uploadProgress < 1.0)
@@ -2309,8 +2363,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           }
 
           // NEW: Auto-post milestone to chat thread
-          _postMilestoneMessage(milestone,
-              content: milestoneContent, audioUrl: partnerSecretAudioUrl);
+          // EXCEPTION: 100% photo reveal is manual. We only post it when they click the button!
+          if (milestone.percentage != 100) {
+            _postMilestoneMessage(milestone,
+                content: milestoneContent, audioUrl: partnerSecretAudioUrl);
+          }
 
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
@@ -2693,6 +2750,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           _isPhotoRevealed = true;
                         });
 
+                        // Manual trigger: Now that they clicked reveal, post the milestone to the chat thread!
+                        _postMilestoneMessage(FeelingMilestone.heart,
+                            content: _partnerAvatarUrl);
+
                         // Persist revealed state locally
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setBool(
@@ -2728,17 +2789,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Future<void> _sendMessage() async {
     if (_isPremiumLocked) return;
-    if (_messageController.text.trim().isEmpty || _isSaving) return;
-
     final text = _messageController.text.trim();
-    if (_editingMessage == null) {
-      _messageController.clear();
-    }
+    if (text.isEmpty || _isSaving) return;
 
-    setState(() {
-      _isTyping = false;
-      _isSaving = true; // Show loading indicator
-    });
+    // IMMEDIATE FEEDBACK: Clear input and stop typing animation instantly
+    _messageController.clear();
+    if (mounted) {
+      setState(() {
+        _isTyping = false;
+        // Not setting _isSaving = true for text to give immediate "gone" feel
+      });
+    }
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (widget.conversationId != null && userId != null) {
@@ -2746,32 +2807,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         if (_editingMessage != null) {
           // UPDATE existing message
           await _db.updateMessage(_editingMessage!.id, text);
-          _messageController.clear();
           setState(() {
             _editingMessage = null;
           });
         } else {
-          // Query last message directly from messages table
-          final lastMessages = await Supabase.instance.client
-              .from('messages')
-              .select('sender_id, text, created_at')
-              .eq('conversation_id', widget.conversationId!)
-              .order('created_at', ascending: false)
-              .limit(1);
+          // Optimized: Removed redundant "isExchange" query which added latency
 
-          debugPrint('🔍 Checking for exchange:');
-          debugPrint('  Last message query result: $lastMessages');
-
-          final lastSenderId = lastMessages.isNotEmpty
-              ? lastMessages[0]['sender_id'] as String?
-              : null;
-          final isExchange = lastSenderId != null && lastSenderId != userId;
-
-          debugPrint('  📨 Last sender ID: $lastSenderId');
-          debugPrint('  📨 Current user ID: $userId');
-          debugPrint('  📨 Is exchange (different sender): $isExchange');
-
-          // SEND new message
+          // SEND new message in background
           await _db.sendMessage(
             conversationId: widget.conversationId!,
             senderId: userId,
@@ -2785,13 +2827,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             replyToId: _replyingTo?.id,
           );
 
-          setState(() {
-            _replyingTo = null;
-          });
+          if (mounted) {
+            setState(() {
+              _replyingTo = null;
+            });
+          }
         }
 
-        // Database trigger handles feeling increment automatically
-        debugPrint('✅ Message sent/updated. Forcing state refresh...');
+        // Handle auto-refresh if needed, but the realtime stream listener 
+        // already handles most cases immediately.
         if (mounted) {
           Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) _loadConversation();
@@ -2799,9 +2843,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         }
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        if (mounted) {
+          // Restore text if it failed
+          _messageController.text = text;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
       } finally {
         if (mounted) {
           setState(() {
@@ -3030,7 +3078,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 isMe: true,
                 mood: _currentMood,
               ));
-              _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+              _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             });
             _scrollToBottom();
           } else {
@@ -3115,7 +3163,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 isMe: true,
                 mood: _currentMood,
               ));
-              _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+              _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             });
             _scrollToBottom();
           } else {
@@ -3414,9 +3462,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
 
     setState(() {
-      _messages.add(tempMsg);
-      // Sort to maintain chronological order
-      _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      _messages.insert(0, tempMsg); // Insert at front for reverse list
     });
     _scrollToBottom();
 
@@ -3484,13 +3530,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  String _getCurrentTime() {
-    final now = DateTime.now();
-    final hour = now.hour > 12 ? now.hour - 12 : now.hour;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.hour >= 12 ? 'pm' : 'am';
-    return '$hour:$minute $period';
-  }
 
   @override
   void dispose() {

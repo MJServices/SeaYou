@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/language_selection_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/splash_screen.dart';
+import 'database_service.dart';
 import '../screens/create_account_screen.dart';
 import '../screens/verification_screen.dart';
 import '../screens/create_password_screen.dart';
@@ -14,6 +16,7 @@ import '../screens/interests_screen.dart';
 import '../screens/upload_picture_screen.dart';
 import '../models/user_profile.dart';
 import 'localization_service.dart';
+import 'presence_service.dart';
 
 enum OnboardingStep {
   languageSelection,
@@ -94,7 +97,22 @@ class OnboardingService {
     OnboardingStep resumeStep;
     final localStep = await getStep();
 
-    // 1. If NO user session, use Local Storage (Standard Signup flow)
+    // 0. IMMEDIATE BLOCK CHECK
+    if (profile != null && profile['is_blocked'] == true) {
+      debugPrint('🚫 AUTH_DEBUG: User is BLOCKED. Terminating session.');
+      await Supabase.instance.client.auth.signOut();
+      DatabaseService.clearCache();
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const SplashScreen()),
+          (route) => false,
+        );
+      }
+      return;
+    }
+
+    // 1. If NO user session
     if (activeUser == null) {
       resumeStep = forcedStep ?? localStep;
       debugPrint('AUTH_DEBUG: No session. Resuming from Local Step: $resumeStep');
@@ -104,72 +122,58 @@ class OnboardingService {
       return;
     }
 
-    // 2. We have a session.
-    // However, if the user is ACTUALLY ON the verification screen right now, and isn't forcing a step forward,
-    // we MUST let them stay there to finish typing the OTP. (Prevents premature redirect).
+    // 2. Verification screen sticky behavior
     if (currentStep == OnboardingStep.verification && forcedStep == null) {
-      debugPrint('AUTH_DEBUG: User is on Verification Screen. Respecting active step to prevent premature skip.');
+      debugPrint('AUTH_DEBUG: User is on Verification Screen. Respecting active step.');
       resumeStep = OnboardingStep.verification; 
-      
       if (context.mounted) {
         await navigateToStep(context, resumeStep, currentStep: currentStep);
       }
       return;
     }
 
-    // 3. Determine actual progress based on strict profile scanning.
-    // If a user has a full_name, they have definitely completed Auth AND Password steps.
-    bool hasStartedProfile = profile != null && profile['full_name'] != null && (profile['full_name'] as String).trim().isNotEmpty;
+    // 3. Determine progress based on profile
+    if (profile == null) {
+      debugPrint('AUTH_DEBUG: Session exists but profile is null. Waiting for data...');
+      return;
+    }
 
-    if (!hasStartedProfile && localStep.index < OnboardingStep.profileInfo.index) {
-        // They haven't started profile, AND local memory says they haven't finished password.
-        if (forcedStep != null) {
-            resumeStep = forcedStep;
-        } else {
-            resumeStep = OnboardingStep.createPassword;
-        }
+    bool isFieldEmpty(dynamic value) {
+      if (value == null) return true;
+      if (value is String) return value.trim().isEmpty;
+      if (value is List) return value.isEmpty;
+      return false;
+    }
+
+    if (!isFieldEmpty(profile['avatar_url'])) {
+      // ALL STEPS COMPLETE.
+      debugPrint('AUTH_DEBUG: Avatar found. User is fully onboarded. Entering Home.');
+      await clearAll();
+      PresenceService.instance.init();
+      
+      if (currentStep != OnboardingStep.completed && context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+      return;
+    }
+
+    // Determine incomplete step
+    if (isFieldEmpty(profile['full_name'])) {
+      resumeStep = OnboardingStep.profileInfo;
+    } else if (isFieldEmpty(profile['gender'])) {
+      resumeStep = OnboardingStep.genderIdentity;
+    } else if (isFieldEmpty(profile['sexual_orientation'])) {
+      resumeStep = OnboardingStep.sexualOrientation;
+    } else if (isFieldEmpty(profile['expectation'])) {
+      resumeStep = OnboardingStep.expectations;
+    } else if (isFieldEmpty(profile['interests'])) {
+      resumeStep = OnboardingStep.interests;
     } else {
-        // They have finished authentication steps (or at least we should scan the profile).
-        if (profile == null) {
-          resumeStep = forcedStep ?? OnboardingStep.profileInfo;
-        } else {
-          // ALWAYS do the deep scan first, to see if they are completely done with onboarding!
-          // We intentionally ignore forcedStep here because profile state is the absolute truth.
-          bool isFieldEmpty(dynamic value) {
-            if (value == null) return true;
-            if (value is String) return value.trim().isEmpty;
-            if (value is List) return value.isEmpty;
-            return false;
-          }
-
-          if (isFieldEmpty(profile['full_name'])) {
-            resumeStep = OnboardingStep.profileInfo;
-          } else if (isFieldEmpty(profile['gender'])) {
-            resumeStep = OnboardingStep.genderIdentity;
-          } else if (isFieldEmpty(profile['sexual_orientation'])) {
-            resumeStep = OnboardingStep.sexualOrientation;
-          } else if (isFieldEmpty(profile['expectation'])) {
-            resumeStep = OnboardingStep.expectations;
-          } else if (isFieldEmpty(profile['interests'])) {
-            resumeStep = OnboardingStep.interests;
-          } else if (isFieldEmpty(profile['avatar_url'])) {
-            resumeStep = OnboardingStep.uploadPicture;
-          } else {
-            // ALL STEPS COMPLETE. Ignore forcedStep. If profile is perfect, go HOME.
-            debugPrint('AUTH_DEBUG: Routing complete. Entering Home.');
-            await clearAll();
-            
-            // If already on Home (passed as completed), do not navigate to prevent infinite loop
-            if (currentStep != OnboardingStep.completed && context.mounted) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                (route) => false,
-              );
-            }
-            return;
-          }
-        }
+      resumeStep = OnboardingStep.uploadPicture;
     }
 
     debugPrint('AUTH_DEBUG: Final determined resumeStep: $resumeStep');
@@ -243,7 +247,7 @@ class OnboardingService {
     }
 
     if (targetScreen != null && context.mounted) {
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => targetScreen!),
       );

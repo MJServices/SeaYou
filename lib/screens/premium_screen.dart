@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../i18n/app_localizations.dart';
 import 'purchase_scrolls_screen.dart';
+import 'home_screen.dart';
 import '../services/iap_service.dart';
 import '../services/database_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -126,8 +127,11 @@ class _PremiumScreenState extends State<PremiumScreen>
                 // Custom return navigation (e.g. back to chat)
                 widget.onPremiumActivated!();
               } else {
-                // Default: just pop back
-                Navigator.of(context).pop(true);
+                // Default: redirect directly to home
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false,
+                );
               }
             }
           } else if (data.containsKey('tier')) {
@@ -143,8 +147,8 @@ class _PremiumScreenState extends State<PremiumScreen>
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    // Poll every 3 seconds for robust fallback if Realtime fails
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    // Poll every 1.5 seconds for faster confirmation (previously 3 seconds)
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
       await _loadPremiumStatus();
       if (_isPremium) {
         timer.cancel();
@@ -154,7 +158,10 @@ class _PremiumScreenState extends State<PremiumScreen>
           if (widget.onPremiumActivated != null) {
             widget.onPremiumActivated!();
           } else {
-            Navigator.of(context).pop(true);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
+            );
           }
         }
       }

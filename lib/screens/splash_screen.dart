@@ -6,6 +6,7 @@ import 'home_screen.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
 import '../services/onboarding_service.dart';
+import '../main.dart' show routeObserver;
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,10 +15,11 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen> with RouteAware {
   late VideoPlayerController _controller;
   bool _isVideoInitialized = false;
   VoidCallback? _muteListener;
+  bool _isObscured = false;
 
   @override
   void initState() {
@@ -28,23 +30,70 @@ class _SplashScreenState extends State<SplashScreen> {
 
     _controller = VideoPlayerController.asset('assets/videos/onboarding.mp4')
       ..setLooping(true)
+      ..setVolume(0.0) // ROBUST: Start fully muted immediately
       ..initialize().then((_) {
         if (mounted) {
           setState(() {
             _isVideoInitialized = true;
           });
-          // Start unmuted by default (GlobalAudioController.muted starts as false)
-          _controller.setVolume(1.0);
-          _controller.play();
+          
+          final session = Supabase.instance.client.auth.currentSession;
+          if (session == null && !_isObscured) {
+            // Only unmute if we are NOT obscured AND have NO session
+            final isMuted = GlobalAudioController.instance.muted.value;
+            _controller.setVolume(isMuted ? 0.0 : 1.0);
+            _controller.play();
+          } else {
+             // NO sound if session/obscured
+             _controller.setVolume(0.0);
+             _controller.pause();
+          }
         }
       });
 
     // Listen for global mute changes and update video volume
     _muteListener = () {
+      if (!mounted || _isObscured) return;
       final isMuted = GlobalAudioController.instance.muted.value;
       _controller.setVolume(isMuted ? 0.0 : 1.0);
     };
     GlobalAudioController.instance.muted.addListener(_muteListener!);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final modalRoute = ModalRoute.of(context);
+    if (modalRoute is PageRoute) {
+      routeObserver.subscribe(this, modalRoute);
+    }
+  }
+
+  void _pauseAndMute() {
+    _isObscured = true;
+    if (_isVideoInitialized) {
+      _controller.setVolume(0.0); // MUTE FIRST
+      _controller.pause();
+    }
+  }
+
+  void _resumeAndUnmute() {
+    _isObscured = false;
+    if (_isVideoInitialized) {
+      final isMuted = GlobalAudioController.instance.muted.value;
+      _controller.setVolume(isMuted ? 0.0 : 1.0);
+      _controller.play();
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _pauseAndMute();
+  }
+
+  @override
+  void didPopNext() {
+    _resumeAndUnmute();
   }
 
   Future<void> _checkAuthAndNavigate() async {
@@ -52,6 +101,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (mounted) {
       if (session != null) {
+        _isObscured = true; // Pre-emptively stop sound logic
+        _pauseAndMute(); 
         // Authenticated user
         try {
           final profile = await Supabase.instance.client
@@ -71,25 +122,25 @@ class _SplashScreenState extends State<SplashScreen> {
           }
         }
       } else {
-        // Not authenticated, check if we were in the middle of signup
-        final step = await OnboardingService().getStep();
-        if (step != OnboardingStep.languageSelection && mounted) {
-          await OnboardingService().navigateToStep(context, step);
-        }
+        debugPrint('AUTH_DEBUG: No session. Staying on Splash Screen.');
       }
     }
   }
 
   void _handleBackgroundTap() {
-    print('🎵 Screen tapped - toggling mute');
+    if (_isObscured) return;
     GlobalAudioController.instance.toggleMute();
   }
 
   @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     if (_muteListener != null) {
       GlobalAudioController.instance.muted.removeListener(_muteListener!);
     }
+    // ROBUST: Kill audio before hard dispose
+    _controller.setVolume(0.0);
+    _controller.pause();
     _controller.dispose();
     super.dispose();
   }

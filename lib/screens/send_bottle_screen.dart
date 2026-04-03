@@ -1094,9 +1094,10 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => ChatConversationScreen(
-                contactName: AppLocalizations.of(context).tr('send_bottle.sea_soul_name'),
+                contactName: recipientId != null ? 'Someone' : AppLocalizations.of(context).tr('send_bottle.sea_soul_name'),
                 conversationId: conversationId!,
                 isUnlocked: false,
+                partnerId: recipientId,
               ),
             ),
           );
@@ -1314,13 +1315,23 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
                   backgroundColor: const Color(0xFFE4C687)),
               child: Text(AppLocalizations.of(context).tr('send_bottle.get_scrolls_button'),
                   style: const TextStyle(color: Colors.white)),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                Navigator.push(
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (context) => const PurchaseScrollsScreen()),
                 );
+
+                if (result == true && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(AppLocalizations.of(context)
+                          .tr('purchase_scrolls.success')),
+                      backgroundColor: const Color(0xFF4CAF50),
+                    ),
+                  );
+                }
               },
             ),
           ],

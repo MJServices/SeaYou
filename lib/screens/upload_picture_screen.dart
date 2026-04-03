@@ -158,7 +158,53 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
     try {
       final user = AuthService().currentUser;
       if (user == null) throw Exception('No user logged in');
+      final userId = user.id;
 
+      // 1. Create the base profile FIRST so Foreign Keys are satisfied!
+      debugPrint('✅ Saving full profile to database...');
+      final int currentYear = DateTime.now().year;
+      final int age = widget.userProfile.age ?? 0;
+      final int birthYear = currentYear - age;
+      widget.userProfile.birthYear = birthYear;
+
+      final gender = widget.userProfile.gender?.toLowerCase() ?? '';
+      final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
+
+      await DatabaseService().createProfile(
+        userId: userId,
+        email: widget.userProfile.email ?? '',
+        fullName: widget.userProfile.fullName ?? '',
+        age: age,
+        birthYear: birthYear,
+        city: widget.userProfile.city ?? '',
+        about: widget.userProfile.about ?? '',
+        sexualOrientation: widget.userProfile.sexualOrientation ?? [],
+        showOrientation: widget.userProfile.showOrientation,
+        expectation: widget.userProfile.expectation ?? '',
+        interestedIn: widget.userProfile.interestedIn ?? '',
+        interests: widget.userProfile.interests ?? [],
+        avatarUrl: null, // Will be updated correctly when the photo uploads below
+        language: widget.userProfile.language,
+        secretDesire: widget.userProfile.secretDesire,
+        secretQuote: widget.userProfile.secretQuote,
+        secretAudioUrl: widget.userProfile.secretAudioUrl,
+        gender: widget.userProfile.gender,
+        department: widget.userProfile.department,
+        tier: isPremiumWoman ? 'premium' : 'free',
+        isPremium: isPremiumWoman,
+      );
+
+      if (widget.userProfile.secretDesire != null &&
+          widget.userProfile.secretDesire!.trim().isNotEmpty) {
+        try {
+          await DatabaseService().createFantasy(
+              userId, widget.userProfile.secretDesire!.trim());
+        } catch (e) {
+          debugPrint('⚠️ Error creating fantasy during onboarding: $e');
+        }
+      }
+
+      // 2. Upload photos and assets which link via Foreign Key to the core profile
       if (_selectedImage != null) {
         final file = File(_selectedImage!.path);
         debugPrint('📸 Uploading main photo for user: ${user.id}');
@@ -195,54 +241,6 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
               widget.userProfile.secretAudioUrl = audioUrl;
               debugPrint('✅ Audio uploaded: $audioUrl');
             }
-          }
-        }
-      }
-
-      if (!mounted) return;
-
-      debugPrint('✅ Saving full profile to database...');
-      final userId = AuthService().currentUser?.id;
-      if (userId != null) {
-        final int currentYear = DateTime.now().year;
-        final int age = widget.userProfile.age ?? 0;
-        final int birthYear = currentYear - age;
-        widget.userProfile.birthYear = birthYear;
-
-        final gender = widget.userProfile.gender?.toLowerCase() ?? '';
-        final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
-
-        await DatabaseService().createProfile(
-          userId: userId,
-          email: widget.userProfile.email ?? '',
-          fullName: widget.userProfile.fullName ?? '',
-          age: age,
-          birthYear: birthYear,
-          city: widget.userProfile.city ?? '',
-          about: widget.userProfile.about ?? '',
-          sexualOrientation: widget.userProfile.sexualOrientation ?? [],
-          showOrientation: widget.userProfile.showOrientation,
-          expectation: widget.userProfile.expectation ?? '',
-          interestedIn: widget.userProfile.interestedIn ?? '',
-          interests: widget.userProfile.interests ?? [],
-          avatarUrl: widget.userProfile.avatarUrl,
-          language: widget.userProfile.language,
-          secretDesire: widget.userProfile.secretDesire,
-          secretQuote: widget.userProfile.secretQuote,
-          secretAudioUrl: widget.userProfile.secretAudioUrl,
-          gender: widget.userProfile.gender,
-          department: widget.userProfile.department,
-          tier: isPremiumWoman ? 'premium' : 'free',
-          isPremium: isPremiumWoman,
-        );
-
-        if (widget.userProfile.secretDesire != null &&
-            widget.userProfile.secretDesire!.trim().isNotEmpty) {
-          try {
-            await DatabaseService().createFantasy(
-                userId, widget.userProfile.secretDesire!.trim());
-          } catch (e) {
-            debugPrint('⚠️ Error creating fantasy during onboarding: $e');
           }
         }
       }

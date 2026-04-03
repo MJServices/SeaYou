@@ -117,6 +117,14 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
       if (errorString.contains('user not found') ||
           errorString.contains('no user found')) {
         errorMessage = AppLocalizations.of(context).tr('errors.no_account');
+      } else if (errorString.contains('invalid login credentials') ||
+                 errorString.contains('invalid_credentials') ||
+                 errorString.contains('400')) {
+        // Map the common authentication failure to a friendly message
+        final localizedMsg = AppLocalizations.of(context).tr('messages.sign_in_failed_message');
+        errorMessage = (localizedMsg != 'messages.sign_in_failed_message') 
+                       ? localizedMsg 
+                       : 'Invalid login credentials. Please check your email and password.';
       } else if (errorString.contains('rate limit')) {
         errorMessage =
             AppLocalizations.of(context).tr('errors.too_many_attempts');
@@ -191,6 +199,7 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
                       controller: _emailController,
                       isActive: !isLoading,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
@@ -199,6 +208,8 @@ class _SignInEmailPasswordScreenState extends State<SignInEmailPasswordScreen> {
                       controller: _passwordController,
                       isActive: !isLoading,
                       obscureText: _obscureText,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _handleSignIn(),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureText

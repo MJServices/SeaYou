@@ -36,13 +36,18 @@ BEGIN
   FOR b IN 
     SELECT id, sender_id, target_min_age, target_max_age, target_gender, target_departments 
     FROM public.sent_bottles 
-    WHERE status = 'pending'
+    WHERE status IN ('pending', 'floating')
       AND sender_id <> target_user_id
       -- Avoid already blocked users (bidirectional)
       AND NOT EXISTS (
         SELECT 1 FROM public.user_blocks ub 
         WHERE (ub.blocker_id = target_user_id AND ub.blocked_id = sender_id)
            OR (ub.blocker_id = sender_id AND ub.blocked_id = target_user_id)
+      )
+      -- Avoid double matching if something went wrong
+      AND NOT EXISTS (
+        SELECT 1 FROM public.bottle_delivery_queue bdq
+        WHERE bdq.sent_bottle_id = sent_bottles.id AND bdq.recipient_id = target_user_id
       )
     ORDER BY created_at ASC
     LIMIT 20 -- Safety limit per run

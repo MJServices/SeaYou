@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../widgets/status_bar.dart';
 import '../services/database_service.dart';
 import '../models/bottle.dart';
 import 'premium_screen.dart';
@@ -202,27 +201,61 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
 
     if (_bottles.isEmpty) {
       return Scaffold(
-        body: WarmGradientBackground(
+        backgroundColor: const Color(0xFFFAF0D6), // Warm sand — matches nobottles.jpeg background
+        body: SafeArea(
           child: Column(
             children: [
-              const CustomStatusBar(),
-              _buildHeader(context),
-              const Expanded(
+              // Simple back arrow — no fake status bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF5C4A2A)),
+                    ),
+                  ],
+                ),
+              ),
+              // Image fills most of the screen
+              Expanded(
                 child: Center(
-                  child: Text(
-                    'No new bottles found.',
-                    style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 16,
-                        color: Color(0xFF737373)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/nobottles.jpeg',
+                          width: 320,
+                          height: 320,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.mail_outline,
+                            size: 120,
+                            color: Color(0xFF8D6E63),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        AppLocalizations.of(context).tr('bottles.no_new_bottles'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF8D6E63),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              )
+              ),
             ],
           ),
         ),
       );
     }
+
 
     final bottle = _bottles[_currentIndex];
     final isMale = _gender == 'Man' || _gender == 'Male';
@@ -347,24 +380,13 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
     // Format sender info like Secret Souls: "FirstName, Age - City (DeptNum)"
     String senderInfo = bottle.senderNickname ?? 'Unknown';
     if (bottle.senderAge != null) {
-      senderInfo = '${bottle.senderNickname}, ${bottle.senderAge}';
+      // Extract just the dept number from e.g. "39 - Jura" → "39"
+      final deptNum = bottle.senderDepartment != null
+          ? bottle.senderDepartment!.split(' - ').first.trim()
+          : null;
 
-      String locationInfo = '';
-      if (bottle.senderCity != null && bottle.senderCity!.isNotEmpty) {
-        locationInfo = bottle.senderCity!;
-      }
-      if (bottle.senderDepartment != null &&
-          bottle.senderDepartment!.isNotEmpty) {
-        final deptNum = bottle.senderDepartment!.split(' - ').first;
-        if (locationInfo.isNotEmpty) {
-          locationInfo = '$locationInfo ($deptNum)';
-        } else {
-          locationInfo = bottle.senderDepartment!;
-        }
-      }
-      if (locationInfo.isNotEmpty) {
-        senderInfo = '$senderInfo - $locationInfo';
-      }
+      senderInfo = '${bottle.senderNickname}, ${bottle.senderAge} ans'
+          '${deptNum != null ? ' - Dép. $deptNum' : ''}';
     }
 
     return Container(

@@ -178,6 +178,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
           builder: (_) => ChatConversationScreen(
             conversationId: existingConvId,
             contactName: AppLocalizations.of(context).tr('common.secret_soul'),
+            partnerId: content['user_id'] as String,
           ),
         ),
       );
@@ -504,13 +505,23 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    Navigator.push(
+                    final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (context) => const PurchaseScrollsScreen()),
                     );
+
+                    if (result == true && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              tr.tr('purchase_scrolls.success')),
+                          backgroundColor: const Color(0xFF4CAF50),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE4C687),

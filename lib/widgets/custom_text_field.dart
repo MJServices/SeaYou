@@ -13,6 +13,8 @@ class CustomTextField extends StatelessWidget {
   final int? maxLength;
   final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
 
   const CustomTextField({
     super.key,
@@ -26,6 +28,8 @@ class CustomTextField extends StatelessWidget {
     this.maxLength,
     this.focusNode,
     this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
   });
 
   @override
@@ -46,6 +50,8 @@ class CustomTextField extends StatelessWidget {
         maxLines: maxLines,
         maxLength: maxLength,
         onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        textInputAction: textInputAction,
         style: AppTextStyles.bodyText.copyWith(
           color: isActive ? AppColors.darkGrey : AppColors.grey,
         ),

@@ -17,6 +17,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
   int _initialTotalScrolls = 0;
   StreamSubscription<Map<String, dynamic>>? _profileSubscription;
   Timer? _pollingTimer;
+  bool _isRedirecting = false;
 
   @override
   void initState() {
@@ -54,8 +55,9 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
           final currentTotal = (data['scrolls_count'] as int? ?? 0) +
               (data['daily_free_scrolls'] as int? ?? 0);
 
-          if (currentTotal > _initialTotalScrolls) {
+          if (currentTotal > _initialTotalScrolls && !_isRedirecting) {
             debugPrint('📜 Scrolls purchase detected via realtime!');
+            _isRedirecting = true;
             _pollingTimer?.cancel();
             await closeInAppWebView();
             if (mounted) {
@@ -69,20 +71,21 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    // Poll every 3 seconds for robust fallback if Realtime fails
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    // Poll every 1.5 seconds for faster confirmation (previously 3 seconds)
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) {
         timer.cancel();
         return;
       }
-      final profile = await DatabaseService().getProfile(userId);
+      final profile = await DatabaseService().getProfile(userId, useCache: false);
       if (profile != null) {
         final currentTotal = (profile['scrolls_count'] as int? ?? 0) +
             (profile['daily_free_scrolls'] as int? ?? 0);
-        if (currentTotal > _initialTotalScrolls) {
+        if (currentTotal > _initialTotalScrolls && !_isRedirecting) {
           timer.cancel();
           debugPrint('📜 Scrolls purchase detected via polling fallback!');
+          _isRedirecting = true;
           await closeInAppWebView();
           if (mounted) {
             Navigator.of(context).pop(true);

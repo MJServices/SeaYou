@@ -18,6 +18,71 @@ class DatabaseService {
   Stream<Map<String, dynamic>> get profileUpdateBroadcast =>
       _profileUpdateController.stream;
 
+  /// Reciprocal Compatibility Check (Shared Logic)
+  /// Checks if Viewer likes Creator AND Creator likes Viewer
+  bool _isReciprocalCompatible({
+    required String? viewerGender,
+    required String? viewerInterestedIn,
+    required String? creatorGender,
+    required String? creatorInterestedIn,
+  }) {
+    // 1. Normalize Gender Strings
+    String normalizeGender(String? g) {
+      if (g == null) return 'unknown';
+      final lower = g.toLowerCase().trim();
+      if (lower == 'male' ||
+          lower == 'man' ||
+          lower == 'homme' ||
+          lower.contains('men')) return 'male';
+      if (lower == 'female' ||
+          lower == 'woman' ||
+          lower == 'femme' ||
+          lower.contains('women')) return 'female';
+      if (lower == 'non-binary' || lower == 'nonbinary') return 'nonbinary';
+      return lower;
+    }
+
+    // 2. Normalize InterestedIn Strings
+    String normalizeInterest(String? i) {
+      if (i == null) return 'everyone';
+      final lower = i.toLowerCase().trim();
+      if (lower == 'men' || lower == 'male' || lower == 'man') return 'male';
+      if (lower == 'women' || lower == 'female' || lower == 'woman')
+        return 'female';
+      if (lower == 'non-binary' || lower == 'nonbinary') return 'nonbinary';
+      if (lower.contains('everyone')) return 'everyone';
+      return lower;
+    }
+
+    final vGender = normalizeGender(viewerGender);
+    final vInterest = normalizeInterest(viewerInterestedIn);
+    final cGender = normalizeGender(creatorGender);
+    final cInterest = normalizeInterest(creatorInterestedIn);
+
+    // Reciprocal Check:
+    // A: Does Viewer like Creator?
+    bool viewerLikesCreator = false;
+    if (vInterest == 'everyone') {
+      viewerLikesCreator = true;
+    } else if (vInterest == cGender) {
+      viewerLikesCreator = true;
+    } else if (cGender == 'unknown') {
+      viewerLikesCreator = true; // Include if gender unknown
+    }
+
+    // B: Does Creator like Viewer?
+    bool creatorLikesViewer = false;
+    if (cInterest == 'everyone') {
+      creatorLikesViewer = true;
+    } else if (cInterest == vGender) {
+      creatorLikesViewer = true;
+    } else if (vGender == 'unknown') {
+      creatorLikesViewer = true; // Include if gender unknown
+    }
+
+    return viewerLikesCreator && creatorLikesViewer;
+  }
+
   // Create a new profile
   Future<void> createProfile({
     required String userId,
@@ -72,12 +137,41 @@ class DatabaseService {
         'department': department,
         'tier': tier,
         'is_premium': isPremium,
+        'is_blocked': false,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
 
+      // 🔴 CRITICAL FIX FOR ONBOARDING BUG:
+      // Instantly push this created profile into the SWR cache so the next screen 
+      // can read it instantly without suffering PostgreSQL replication lag
+      _profileCache[userId] = {
+        'id': userId,
+        'email': email,
+        'full_name': fullName,
+        'age': age,
+        'birth_year': birthYear,
+        'city': city,
+        'about': about,
+        'sexual_orientation': sexualOrientation,
+        'show_orientation': showOrientation,
+        'expectation': expectation,
+        'interested_in': interestedIn,
+        'interests': interests,
+        'avatar_url': avatarUrl,
+        'language': language,
+        'secret_desire': secretDesire,
+        'secret_quote': secretQuote,
+        'secret_audio_url': secretAudioUrl,
+        'gender': gender,
+        'department': department,
+        'tier': tier,
+        'is_premium': isPremium,
+        'is_blocked': false,
+      };
+
       debugPrint('✅ Profile upsert response: $response');
 
-      debugPrint('Profile created successfully!');
+      debugPrint('Profile created successfully! Sent to cache.');
     } catch (e) {
       debugPrint('Error creating profile: $e');
       debugPrint('Error type: ${e.runtimeType}');
@@ -329,6 +423,20 @@ class DatabaseService {
   // Update profile
   Future<void> updateProfile(String userId, Map<String, dynamic> data) async {
     await _supabase.from('profiles').update(data).eq('id', userId);
+    
+    // 🔥 CACHE SYNC/INVALIDATION: 
+    // Synchronously update the SWR cache so the next call to getProfileSync 
+    // returns the latest data immediately
+    if (_profileCache.containsKey(userId)) {
+      _profileCache[userId]!.addAll(data);
+    } else {
+      // If not in cache, fetch it now to populate
+      await getProfile(userId);
+    }
+    
+    // Notify local listeners
+    _profileUpdateController.add({'id': userId, ...data});
+    debugPrint('✅ Profile cache updated for $userId');
   }
 
   /// Update user bio/about
@@ -486,6 +594,14 @@ class DatabaseService {
       return _profileCache[userId];
     }
 
+    // 🔄 DAILY SCROLL REFRESH BUG FIX: 
+    // If we're fetching the currently logged-in user's own profile, 
+    // trigger the daily scroll refresh immediately so that counts (3 free scrolls) 
+    // are accurate across all screens (Home, Profile, etc.) from the start.
+    if (userId == _supabase.auth.currentUser?.id) {
+      await _refreshDailyScrolls(userId);
+    }
+
     final response = await _supabase
         .from('profiles')
         .select()
@@ -532,6 +648,44 @@ class DatabaseService {
     }
 
     return response;
+  }
+
+  /// Get multiple profiles in a single query to avoid N+1 issues
+  Future<Map<String, Map<String, dynamic>>> getProfiles(List<String> userIds) async {
+    if (userIds.isEmpty) return {};
+
+    try {
+      // Check cache first
+      final Map<String, Map<String, dynamic>> results = {};
+      final List<String> toFetch = [];
+
+      for (final id in userIds) {
+        if (_profileCache.containsKey(id)) {
+          results[id] = _profileCache[id]!;
+        } else {
+          toFetch.add(id);
+        }
+      }
+
+      if (toFetch.isEmpty) return results;
+
+      debugPrint('🔍 Fetching ${toFetch.length} profiles in batch...');
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .inFilter('id', toFetch);
+
+      for (final profile in (response as List)) {
+        final id = profile['id'] as String;
+        _profileCache[id] = profile as Map<String, dynamic>;
+        results[id] = profile;
+      }
+
+      return results;
+    } catch (e) {
+      debugPrint('❌ Error in batch profile fetch: $e');
+      return {};
+    }
   }
 
   /// Get a real-time stream of the user's profile
@@ -606,15 +760,15 @@ class DatabaseService {
       debugPrint('🔍 Getting received bottles count for: $userId');
       final response = await _supabase
           .from('received_bottles')
-          .select('*')
+          .select('id')
           .eq('receiver_id', userId);
 
-      final count = (response as List).length;
-      debugPrint('✅ Found $count received bottles');
-      return count;
+      _cachedReceivedCount = (response as List).length;
+      debugPrint('✅ Found $_cachedReceivedCount received bottles');
+      return _cachedReceivedCount!;
     } catch (e) {
       debugPrint('❌ Error getting received bottles count: $e');
-      return 0;
+      return _cachedReceivedCount ?? 0;
     }
   }
 
@@ -637,12 +791,12 @@ class DatabaseService {
 
       final response = await query;
 
-      final count = (response as List).length;
-      debugPrint('✅ Found $count unreplied bottles');
-      return count;
+      _cachedUnrepliedCount = (response as List).length;
+      debugPrint('✅ Found $_cachedUnrepliedCount unreplied bottles');
+      return _cachedUnrepliedCount!;
     } catch (e) {
       debugPrint('❌ Error getting unreplied bottles count: $e');
-      return 0;
+      return _cachedUnrepliedCount ?? 0;
     }
   }
 
@@ -651,148 +805,174 @@ class DatabaseService {
     try {
       final response = await _supabase
           .from('sent_bottles')
-          .select('*')
+          .select('id')
           .eq('sender_id', userId);
 
-      return (response as List).length;
+      _cachedSentCount = (response as List).length;
+      return _cachedSentCount!;
     } catch (e) {
       debugPrint('Error getting sent bottles count: $e');
-      return 0;
+      return _cachedSentCount ?? 0;
     }
   }
 
   // Get recent received bottles (limit for home page)
   Future<List<ReceivedBottle>> getRecentReceivedBottles(String userId,
       {int limit = 3}) async {
-    try {
-      // 1. Get bidirectional blocked user IDs
-      final blockedIds = await getBlockedUsers(userId);
-      final blockerIds = await getBlockers(userId);
-      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+    final fetchFuture = () async {
+      try {
+        // 1. Get bidirectional blocked user IDs
+        final blockedIds = await getBlockedUsers(userId);
+        final blockerIds = await getBlockers(userId);
+        final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-      var query =
-          _supabase.from('received_bottles').select().eq('receiver_id', userId);
+        var query =
+            _supabase.from('received_bottles').select().eq('receiver_id', userId);
 
-      if (allBlocked.isNotEmpty) {
-        query = query.not('sender_id', 'in', allBlocked);
+        if (allBlocked.isNotEmpty) {
+          query = query.not('sender_id', 'in', allBlocked);
+        }
+
+        final response =
+            await query.order('created_at', ascending: false).limit(limit);
+
+        _cachedRecentReceivedBottles = (response as List)
+            .map((json) => ReceivedBottle.fromJson(json))
+            .toList();
+        return _cachedRecentReceivedBottles!;
+      } catch (e) {
+        debugPrint('Error getting recent received bottles: $e');
+        return <ReceivedBottle>[];
       }
+    }();
 
-      final response =
-          await query.order('created_at', ascending: false).limit(limit);
-
-      return (response as List)
-          .map((json) => ReceivedBottle.fromJson(json))
-          .toList();
-    } catch (e) {
-      debugPrint('Error getting recent received bottles: $e');
-      return [];
-    }
+    if (_cachedRecentReceivedBottles != null) return _cachedRecentReceivedBottles!;
+    return await fetchFuture;
   }
 
   // Get recent sent bottles (limit for home page)
   Future<List<SentBottle>> getRecentSentBottles(String userId,
       {int limit = 3}) async {
-    try {
-      // 1. Get bidirectional blocked user IDs
-      final blockedIds = await getBlockedUsers(userId);
-      final blockerIds = await getBlockers(userId);
-      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+    final fetchFuture = () async {
+      try {
+        // 1. Get bidirectional blocked user IDs
+        final blockedIds = await getBlockedUsers(userId);
+        final blockerIds = await getBlockers(userId);
+        final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-      var query =
-          _supabase.from('sent_bottles').select().eq('sender_id', userId);
+        var query =
+            _supabase.from('sent_bottles').select().eq('sender_id', userId);
 
-      if (allBlocked.isNotEmpty) {
-        // Exclude bottles where the matched recipient is blocked
-        query = query.not('matched_recipient_id', 'in', allBlocked);
+        if (allBlocked.isNotEmpty) {
+          // Exclude bottles where the matched recipient is blocked
+          query = query.not('matched_recipient_id', 'in', allBlocked);
+        }
+
+        final response =
+            await query.order('created_at', ascending: false).limit(limit);
+
+        _cachedRecentSentBottles = (response as List)
+            .map((json) => SentBottle.fromJson(json))
+            .toList();
+        return _cachedRecentSentBottles!;
+      } catch (e) {
+        debugPrint('Error getting recent sent bottles: $e');
+        return <SentBottle>[];
       }
+    }();
 
-      final response =
-          await query.order('created_at', ascending: false).limit(limit);
-
-      return (response as List)
-          .map((json) => SentBottle.fromJson(json))
-          .toList();
-    } catch (e) {
-      debugPrint('Error getting recent sent bottles: $e');
-      return [];
-    }
+    if (_cachedRecentSentBottles != null) return _cachedRecentSentBottles!;
+    return await fetchFuture;
   }
 
   // Get all received bottles with sender details
   Future<List<ReceivedBottle>> getAllReceivedBottles(String userId) async {
-    try {
-      // 1. Get bidirectional blocked user IDs
-      final blockedIds = await getBlockedUsers(userId);
-      final blockerIds = await getBlockers(userId);
-      final allBlocked = {...blockedIds, ...blockerIds}.toList();
-
-      var query =
-          _supabase.from('received_bottles').select().eq('receiver_id', userId);
-
-      if (allBlocked.isNotEmpty) {
-        query = query.not('sender_id', 'in', allBlocked);
-      }
-
-      final response = await query.order('created_at', ascending: false);
-
-      final bottles = (response as List)
-          .map((json) => ReceivedBottle.fromJson(json))
-          .toList();
-
-      if (bottles.isEmpty) return [];
-
-      // Fetch sender profiles in batch
-      final senderIds = bottles
-          .map((b) => b.senderId)
-          .where((id) => id != null)
-          .toSet()
-          .toList();
-
-      if (senderIds.isEmpty) return bottles;
-
-      final Map<String, Map<String, dynamic>> senderInfoMap = {};
+    final fetchFuture = () async {
       try {
-        final profilesResponse = await _supabase
-            .from('profiles')
-            .select('id, full_name, birth_year, department')
-            .inFilter('id', senderIds);
+        // 1. Get bidirectional blocked user IDs
+        final blockedIds = await getBlockedUsers(userId);
+        final blockerIds = await getBlockers(userId);
+        final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-        final currentYear = DateTime.now().year;
-        for (final p in (profilesResponse as List)) {
-          final id = p['id'] as String;
-          final fullName = p['full_name'] as String? ?? 'Someone';
-          final birthYear = p['birth_year'] as int?;
-          final department = p['department'] as String?;
+        var query =
+            _supabase.from('received_bottles').select().eq('receiver_id', userId);
 
-          final nickname = fullName.split(' ').first;
-          final age = birthYear != null ? currentYear - birthYear : null;
-
-          senderInfoMap[id] = {
-            'nickname': nickname,
-            'age': age,
-            'department': department,
-          };
+        if (allBlocked.isNotEmpty) {
+          query = query.not('sender_id', 'in', allBlocked);
         }
+
+        final response = await query.order('created_at', ascending: false);
+
+        final bottles = (response as List)
+            .map((json) => ReceivedBottle.fromJson(json))
+            .toList();
+
+        if (bottles.isEmpty) {
+          _cachedReceivedBottles = [];
+          return _cachedReceivedBottles!;
+        }
+
+        // Fetch sender profiles in batch
+        final senderIds = bottles
+            .map((b) => b.senderId)
+            .where((id) => id != null)
+            .toSet()
+            .toList();
+
+        if (senderIds.isEmpty) {
+          _cachedReceivedBottles = bottles;
+          return _cachedReceivedBottles!;
+        }
+
+        final Map<String, Map<String, dynamic>> senderInfoMap = {};
+        try {
+          final profilesResponse = await _supabase
+              .from('profiles')
+              .select('id, full_name, birth_year, department')
+              .inFilter('id', senderIds);
+
+          final currentYear = DateTime.now().year;
+          for (final p in (profilesResponse as List)) {
+            final id = p['id'] as String;
+            final fullName = p['full_name'] as String? ?? 'Someone';
+            final birthYear = p['birth_year'] as int?;
+            final department = p['department'] as String?;
+
+            final nickname = fullName.split(' ').first;
+            final age = birthYear != null ? currentYear - birthYear : null;
+
+            senderInfoMap[id] = {
+              'nickname': nickname,
+              'age': age,
+              'department': department,
+            };
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error fetching sender profiles: $e');
+        }
+
+        // Merge sender info into bottles
+        _cachedReceivedBottles = bottles.map((b) {
+          if (b.senderId != null && senderInfoMap.containsKey(b.senderId)) {
+            final info = senderInfoMap[b.senderId]!;
+            return b.copyWith(
+              senderNickname: info['nickname'],
+              senderAge: info['age'],
+              senderDepartment: info['department'],
+            );
+          }
+          return b.copyWith(senderNickname: 'Someone');
+        }).toList();
+        
+        return _cachedReceivedBottles!;
       } catch (e) {
-        debugPrint('⚠️ Error fetching sender profiles: $e');
+        debugPrint('Error getting all received bottles: $e');
+        return <ReceivedBottle>[];
       }
+    }();
 
-      // Merge sender info into bottles
-      return bottles.map((b) {
-        if (b.senderId != null && senderInfoMap.containsKey(b.senderId)) {
-          final info = senderInfoMap[b.senderId]!;
-          return b.copyWith(
-            senderNickname: info['nickname'],
-            senderAge: info['age'],
-            senderDepartment: info['department'],
-          );
-        }
-        return b.copyWith(senderNickname: 'Someone');
-      }).toList();
-    } catch (e) {
-      debugPrint('Error getting all received bottles: $e');
-      return [];
-    }
+    if (_cachedReceivedBottles != null) return _cachedReceivedBottles!;
+    return await fetchFuture;
   }
 
   // Get single received bottle
@@ -814,28 +994,34 @@ class DatabaseService {
 
   // Get all sent bottles
   Future<List<SentBottle>> getAllSentBottles(String userId) async {
-    try {
-      // 1. Get bidirectional blocked user IDs
-      final blockedIds = await getBlockedUsers(userId);
-      final blockerIds = await getBlockers(userId);
-      final allBlocked = {...blockedIds, ...blockerIds}.toList();
+    final fetchFuture = () async {
+      try {
+        // 1. Get bidirectional blocked user IDs
+        final blockedIds = await getBlockedUsers(userId);
+        final blockerIds = await getBlockers(userId);
+        final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-      var query =
-          _supabase.from('sent_bottles').select().eq('sender_id', userId);
+        var query =
+            _supabase.from('sent_bottles').select().eq('sender_id', userId);
 
-      if (allBlocked.isNotEmpty) {
-        query = query.not('matched_recipient_id', 'in', allBlocked);
+        if (allBlocked.isNotEmpty) {
+          query = query.not('matched_recipient_id', 'in', allBlocked);
+        }
+
+        final response = await query.order('created_at', ascending: false);
+
+        _cachedSentBottles = (response as List)
+            .map((json) => SentBottle.fromJson(json))
+            .toList();
+        return _cachedSentBottles!;
+      } catch (e) {
+        debugPrint('Error getting all sent bottles: $e');
+        return <SentBottle>[];
       }
+    }();
 
-      final response = await query.order('created_at', ascending: false);
-
-      return (response as List)
-          .map((json) => SentBottle.fromJson(json))
-          .toList();
-    } catch (e) {
-      debugPrint('Error getting all sent bottles: $e');
-      return [];
-    }
+    if (_cachedSentBottles != null) return _cachedSentBottles!;
+    return await fetchFuture;
   }
 
   // Mark bottle as read
@@ -1463,97 +1649,128 @@ class DatabaseService {
   // ==================== CONVERSATIONS & MESSAGES (STUBS) ====================
 
   Future<List<Conversation>> getUserConversations(String userId) async {
-    try {
-      debugPrint('🔍 getUserConversations called for userId: $userId');
+    final fetchFuture = () async {
+      try {
+        debugPrint('🔍 getUserConversations called for userId: $userId');
 
-      final response = await _supabase
-          .from('conversations')
-          .select()
-          .or('user_a_id.eq.$userId,user_b_id.eq.$userId')
-          .order('updated_at', ascending: false);
+        final response = await _supabase
+            .from('conversations')
+            .select()
+            .or('user_a_id.eq.$userId,user_b_id.eq.$userId')
+            .order('updated_at', ascending: false);
 
-      final blockedIds = await getBlockedUserIds(userId);
-      
-      final conversations = (response as List)
-          .map((json) => Conversation.fromJson(json))
-          .where((conv) {
-        final otherId = conv.getOtherUserId(userId);
-        return !blockedIds.contains(otherId);
-      }).toList();
-
-      if (conversations.isEmpty) return [];
-
-      // Batch Fetch: Profiles and Unread Counts
-      final convIds = conversations.map((c) => c.id).toList();
-      final otherUserIds = conversations
-          .map((c) => c.getOtherUserId(userId))
-          .toSet()
-          .toList();
-
-      // Execute queries in parallel
-      final results = await Future.wait([
-        // 1. Fetch unread counts
-        _supabase
-            .from('messages')
-            .select('conversation_id')
-            .inFilter('conversation_id', convIds)
-            .eq('is_read', false)
-            .neq('sender_id', userId),
-            
-        // 2. Fetch profiles
-        _supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url, gender, tier')
-            .inFilter('id', otherUserIds),
-      ]);
-
-      final unreadMsgs = results[0] as List;
-      final profilesRaw = results[1] as List;
-
-      // Map counts
-      final Map<String, int> unreadCounts = {};
-      for (var msg in unreadMsgs) {
-        final cId = msg['conversation_id'] as String;
-        unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
-      }
-
-      // Map profiles
-      final Map<String, Map<String, dynamic>> profileMap = {
-        for (var p in profilesRaw) p['id'] as String: p as Map<String, dynamic>
-      };
-
-      // Update conversation objects with counts and profile data (if we added it to model)
-      // Actually, since we need to stick to the model, we can return the conversations
-      // but the UI will still need the profile.
-      // OPTIMIZATION: We can "inject" the profile into a cache or return a wrapper.
-      // For now, let's keep it simple: the UI will still call getProfile, 
-      // BUT we will implement a simple Memoization/Cache in DatabaseService for profiles.
-      
-      for (var i = 0; i < conversations.length; i++) {
-        final c = conversations[i];
-        final otherId = c.getOtherUserId(userId);
+        final blockedIds = await getBlockedUserIds(userId);
         
-        // Cache the profile we just fetched to avoid subsequent N+1 calls
-        if (profileMap.containsKey(otherId)) {
-          _profileCache[otherId] = profileMap[otherId]!;
+        final conversations = (response as List)
+            .map((json) => Conversation.fromJson(json))
+            .where((conv) {
+          final otherId = conv.getOtherUserId(userId);
+          return !blockedIds.contains(otherId);
+        }).toList();
+
+        if (conversations.isEmpty) {
+          _cachedConversations = [];
+          return _cachedConversations!;
         }
 
-        if (unreadCounts.containsKey(c.id)) {
-          conversations[i] = c.copyWith(
-            unreadCount: unreadCounts[c.id]!,
-          );
+        // Batch Fetch: Profiles and Unread Counts
+        final convIds = conversations.map((c) => c.id).toList();
+        final otherUserIds = conversations
+            .map((c) => c.getOtherUserId(userId))
+            .toSet()
+            .toList();
+
+        // Execute queries in parallel
+        final results = await Future.wait([
+          // 1. Fetch unread counts
+          _supabase
+              .from('messages')
+              .select('conversation_id')
+              .inFilter('conversation_id', convIds)
+              .eq('is_read', false)
+              .neq('sender_id', userId),
+              
+          // 2. Fetch profiles
+          _supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url, gender, tier')
+              .inFilter('id', otherUserIds),
+        ]);
+
+        final unreadMsgs = results[0] as List;
+        final profilesRaw = results[1] as List;
+
+        // Map counts
+        final Map<String, int> unreadCounts = {};
+        for (var msg in unreadMsgs) {
+          final cId = msg['conversation_id'] as String;
+          unreadCounts[cId] = (unreadCounts[cId] ?? 0) + 1;
         }
+
+        // Map profiles
+        final Map<String, Map<String, dynamic>> profileMap = {
+          for (var p in profilesRaw) p['id'] as String: p as Map<String, dynamic>
+        };
+        
+        for (var i = 0; i < conversations.length; i++) {
+          final c = conversations[i];
+          final otherId = c.getOtherUserId(userId);
+          
+          // Cache the profile we just fetched to avoid subsequent N+1 calls
+          if (profileMap.containsKey(otherId)) {
+            _profileCache[otherId] = profileMap[otherId]!;
+          }
+
+          if (unreadCounts.containsKey(c.id)) {
+            conversations[i] = c.copyWith(
+              unreadCount: unreadCounts[c.id]!,
+            );
+          }
+        }
+
+        _cachedConversations = conversations;
+        return _cachedConversations!;
+      } catch (e) {
+        debugPrint('❌ Error getting conversations: $e');
+        return <Conversation>[];
       }
+    }();
 
-      return conversations;
-    } catch (e) {
-      debugPrint('❌ Error getting conversations: $e');
-      return [];
-    }
+    if (_cachedConversations != null) return _cachedConversations!;
+    return await fetchFuture;
   }
 
-  // Simple profile cache to prevent N+1 queries in lists
-  final Map<String, Map<String, dynamic>> _profileCache = {};
+  // Static caches to persist across screens for instant UI
+  static final Map<String, Map<String, dynamic>> _profileCache = {};
+  static List<String>? _cachedBlockedUserIds;
+  static int? _cachedReceivedCount;
+  static int? _cachedUnrepliedCount;
+  static int? _cachedSentCount;
+  static List<SentBottle>? _cachedRecentSentBottles;
+  static List<ReceivedBottle>? _cachedRecentReceivedBottles;
+  static List<ReceivedBottle>? _cachedReceivedBottles;
+  static List<SentBottle>? _cachedSentBottles;
+  static List<Conversation>? _cachedConversations;
+
+  static void clearCache() {
+    _profileCache.clear();
+    _cachedBlockedUserIds = null;
+    _cachedReceivedCount = null;
+    _cachedUnrepliedCount = null;
+    _cachedSentCount = null;
+    _cachedRecentSentBottles = null;
+    _cachedRecentReceivedBottles = null;
+    _cachedReceivedBottles = null;
+    _cachedSentBottles = null;
+    _cachedConversations = null;
+  }
+
+  // Synchronous getters for SWR UI pattern
+  static Map<String, dynamic>? getProfileSync(String userId) => _profileCache[userId];
+  static int getUnrepliedCountSync() => _cachedUnrepliedCount ?? 0;
+  static int getSentCountSync() => _cachedSentCount ?? 0;
+  static List<SentBottle> getRecentSentBottlesSync() => _cachedRecentSentBottles ?? [];
+  static List<Conversation> getConversationsSync() => _cachedConversations ?? [];
 
   Future<Conversation?> getConversation(String conversationId) async {
     try {
@@ -1798,7 +2015,7 @@ class DatabaseService {
           .from('messages')
           .select()
           .eq('conversation_id', conversationId)
-          .order('created_at', ascending: true);
+          .order('created_at', ascending: false);
 
       final currentUserId = _supabase.auth.currentUser?.id;
       return (res as List)
@@ -1900,46 +2117,6 @@ class DatabaseService {
       for (final c in (convs as List)) {
         if (c['user_a_id'] != userId) partnerIds.add(c['user_a_id'] as String);
         if (c['user_b_id'] != userId) partnerIds.add(c['user_b_id'] as String);
-      }
-
-      // 2. Get recipients from bottles I sent
-      final sentByMe = await _supabase
-          .from('sent_bottles')
-          .select('receiver_id, matched_recipient_id')
-          .eq('sender_id', userId)
-          .or('receiver_id.not.is.null,matched_recipient_id.not.is.null');
-
-      for (final b in (sentByMe as List)) {
-        if (b['receiver_id'] != null) {
-          partnerIds.add(b['receiver_id'] as String);
-        }
-        if (b['matched_recipient_id'] != null) {
-          partnerIds.add(b['matched_recipient_id'] as String);
-        }
-      }
-
-      // 3. Get senders from bottles I received
-      final receivedByMe = await _supabase
-          .from('received_bottles')
-          .select('sender_id')
-          .eq('receiver_id', userId);
-
-      for (final b in (receivedByMe as List)) {
-        if (b['sender_id'] != null) {
-          partnerIds.add(b['sender_id'] as String);
-        }
-      }
-
-      // 4. Get senders from bottles that were matched to me but not yet in received_bottles
-      final matchedToMe = await _supabase
-          .from('sent_bottles')
-          .select('sender_id')
-          .eq('matched_recipient_id', userId);
-
-      for (final b in (matchedToMe as List)) {
-        if (b['sender_id'] != null) {
-          partnerIds.add(b['sender_id'] as String);
-        }
       }
 
       return partnerIds.toList();
@@ -2120,24 +2297,20 @@ class DatabaseService {
       debugPrint('🔍 SecretSouls: Excluded IDs: ${excludedIds.length}');
 
       // 1.1 Get current user's preferences for reciprocal matching
-      final viewerProfile = await getProfile(currentUserId ?? '');
-      final String? viewerGender = viewerProfile?['gender']; // 'male', 'female', 'nonbinary'
-      final String? viewerInterestedIn = viewerProfile?['interested_in']; // 'Men', 'Women', 'Non-binary', 'Everyone'
+      final currentProfile =
+          currentUserId != null ? await getProfile(currentUserId) : null;
+      final viewerGender = currentProfile?['gender'];
+      final viewerInterestedIn =
+          currentProfile?['interested_in'] ?? 'everyone';
 
-      debugPrint('🔍 SecretSouls: Viewer gender=$viewerGender, interestedIn=$viewerInterestedIn');
-
-      // Helper: Does the viewer want to see this creator's content?
-      // Only the viewer's preference matters here — this is a public discovery screen.
-      // The creator's interested_in is irrelevant for what others can see about them.
-      bool isCompatible(String? creatorGender, String? creatorInterestedIn) {
-        final vInterest = viewerInterestedIn ?? 'Everyone';
-        if (vInterest == 'Everyone') return true;
-        if (vInterest == 'Men' && creatorGender == 'male') return true;
-        if (vInterest == 'Women' && creatorGender == 'female') return true;
-        if (vInterest == 'Non-binary' && creatorGender == 'nonbinary') return true;
-        // If gender not set, include it (don't exclude unspecified)
-        if (creatorGender == null) return true;
-        return false;
+      // 1. Check Reciprocal Compatibility Helper
+      bool checkCompatibility(String? creatorGender, String? creatorInterestedIn) {
+        return _isReciprocalCompatible(
+          viewerGender: viewerGender,
+          viewerInterestedIn: viewerInterestedIn,
+          creatorGender: creatorGender,
+          creatorInterestedIn: creatorInterestedIn,
+        );
       }
 
       // 2. Fetch Quotes/Bios (if all, quote, or bio)
@@ -2165,7 +2338,7 @@ class DatabaseService {
             if (excludedIds.contains(q['id'])) continue;
 
             // Reciprocal Matching Check
-            if (!isCompatible(q['gender'], q['interested_in'])) continue;
+            if (!checkCompatibility(q['gender'], q['interested_in'])) continue;
 
             String? quoteText;
             String? bioText;
@@ -2263,7 +2436,8 @@ class DatabaseService {
             final profile = profileMap[s['user_id']];
 
             // Matching check (viewer-side only)
-            if (!isCompatible(profile?['gender'], profile?['interested_in'])) continue;
+            if (!checkCompatibility(profile?['gender'], profile?['interested_in']))
+              continue;
 
             // Check if this gallery photo is the main profile picture
             final bool isMain = s['content_type'] == 'photo' &&
@@ -2311,7 +2485,8 @@ class DatabaseService {
             if (excludedIds.contains(a['id'])) return false;
             
             // Reciprocal Matching Check
-            if (!isCompatible(a['gender'], a['interested_in'])) return false;
+            if (!checkCompatibility(a['gender'], a['interested_in']))
+              return false;
 
             return true;
           }).toList();
@@ -2337,40 +2512,100 @@ class DatabaseService {
       if (contentType == null || contentType == 'photo') {
         try {
           debugPrint('🔍 SecretSouls: Fetching photos (range: $start-$end)...');
-          var query = _supabase
+          
+          // PHASE 1: Fetch from profile_photos (Gallery)
+          var photoQuery = _supabase
               .from('profile_photos')
-              .select(
-                  'id, user_id, url, created_at, is_first_face_photo, profiles!inner(city, department, full_name, age, avatar_url, gender, interested_in)')
+              .select('id, user_id, url, created_at, is_first_face_photo, show_in_secret_souls')
               .eq('show_in_secret_souls', true)
               .neq('user_id', currentUserId ?? '');
 
           if (excludedIds.isNotEmpty) {
-            query = query.not('user_id', 'in', excludedIds.toList());
+            photoQuery = photoQuery.not('user_id', 'in', excludedIds.toList());
           }
 
-          final photos = await query
+          final photosData = await photoQuery
               .order('created_at', ascending: false)
               .range(start, end);
 
-          debugPrint(
-              '🔍 SecretSouls: Raw photos fetched: ${(photos as List).length}');
+          debugPrint('🔍 SecretSouls: Raw photos fetched: ${(photosData as List).length}');
 
-          items.addAll((photos as List).where((p) {
-            // Reciprocal Matching Check
-            return isCompatible(p['profiles']?['gender'], p['profiles']?['interested_in']);
-          }).map((p) => {
+          // PHASE 2: Fetch profiles to get display info and verify compatibility
+          final photoUserIds = (photosData as List).map((p) => p['user_id'] as String).toSet().toList();
+          
+          // Fallback: Also include users who have an avatar_url but might not be in profile_photos 
+          // (Legacy support or first-time setup)
+          var profileWithPhotoQuery = _supabase
+              .from('profiles')
+              .select('id, city, department, full_name, age, avatar_url, gender, interested_in, created_at')
+              .not('avatar_url', 'is', null)
+              .neq('id', currentUserId ?? '');
+          
+          if (excludedIds.isNotEmpty) {
+            profileWithPhotoQuery = profileWithPhotoQuery.not('id', 'in', excludedIds.toList());
+          }
+
+          final extraProfiles = await profileWithPhotoQuery
+              .order('created_at', ascending: false)
+              .range(start, end);
+
+          final Map<String, Map<String, dynamic>> profileMap = {};
+          for (var p in (extraProfiles as List)) {
+            profileMap[p['id'] as String] = p as Map<String, dynamic>;
+          }
+
+          // Fetch missing profiles for gallery photos
+          final missingIds = photoUserIds.where((id) => !profileMap.containsKey(id)).toList();
+          if (missingIds.isNotEmpty) {
+             final moreProfiles = await _supabase
+                .from('profiles')
+                .select('id, city, department, full_name, age, avatar_url, gender, interested_in')
+                .filter('id', 'in', missingIds);
+             for (var p in (moreProfiles as List)) {
+               profileMap[p['id'] as String] = p as Map<String, dynamic>;
+             }
+          }
+
+          // Add gallery photos
+          for (var p in (photosData as List)) {
+            final profile = profileMap[p['user_id']];
+            if (profile != null &&
+                checkCompatibility(profile['gender'], profile['interested_in'])) {
+              items.add({
                 'id': 'photo_${p['id']}',
                 'user_id': p['user_id'],
                 'content_type': 'photo',
                 'photo_url': p['url'],
                 'is_main_profile_picture': p['is_first_face_photo'] == true ||
-                    p['url'] == p['profiles']?['avatar_url'],
-                'city': p['profiles']?['city'],
-                'department': p['profiles']?['department'],
-                'full_name': p['profiles']?['full_name'],
-                'age': p['profiles']?['age'],
+                    p['url'] == profile['avatar_url'],
+                'city': profile['city'],
+                'department': profile['department'],
+                'full_name': profile['full_name'],
+                'age': profile['age'],
                 'created_at': p['created_at'],
-              }));
+              });
+            }
+          }
+
+          // Add main photos for users who aren't yet in items (de-duplicate)
+          final existingUserIds = items.map((i) => i['user_id'] as String).toSet();
+          for (var p in (extraProfiles as List)) {
+            if (!existingUserIds.contains(p['id']) &&
+                checkCompatibility(p['gender'], p['interested_in'])) {
+               items.add({
+                'id': 'main_photo_${p['id']}',
+                'user_id': p['id'],
+                'content_type': 'photo',
+                'photo_url': p['avatar_url'],
+                'is_main_profile_picture': true,
+                'city': p['city'],
+                'department': p['department'],
+                'full_name': p['full_name'],
+                'age': p['age'],
+                'created_at': p['created_at'],
+              });
+            }
+          }
         } catch (e) {
           debugPrint('❌ ERROR fetching photos: $e');
         }
@@ -2674,21 +2909,19 @@ class DatabaseService {
       int start = page * pageSize;
       int end = (page + 1) * pageSize - 1;
 
-      // 0. Get current user's preferences
+      // 1. Get current user's profile for reciprocal matching
       final viewerProfile = await getProfile(currentUserId ?? '');
+      final String? viewerGender = viewerProfile?['gender'];
       final String? viewerInterestedIn = viewerProfile?['interested_in'];
 
-      // Helper: Does the viewer want to see this creator's content?
-      // Only the viewer's preference matters here — this is a public discovery screen.
-      bool isCompatible(String? creatorGender, String? creatorInterestedIn) {
-        final vInterest = viewerInterestedIn ?? 'Everyone';
-        if (vInterest == 'Everyone') return true;
-        if (vInterest == 'Men' && creatorGender == 'male') return true;
-        if (vInterest == 'Women' && creatorGender == 'female') return true;
-        if (vInterest == 'Non-binary' && creatorGender == 'nonbinary') return true;
-        // If gender not set, include it (don't exclude unspecified)
-        if (creatorGender == null) return true;
-        return false;
+      // 1. Check Reciprocal Compatibility Helper
+      bool checkCompatibility(String? creatorGender, String? creatorInterestedIn) {
+        return _isReciprocalCompatible(
+          viewerGender: viewerGender,
+          viewerInterestedIn: viewerInterestedIn,
+          creatorGender: creatorGender,
+          creatorInterestedIn: creatorInterestedIn,
+        );
       }
 
       // 1. Fetch from fantasies table (Explicit fantasies)
@@ -2713,7 +2946,7 @@ class DatabaseService {
           if (addedUserIds.contains(userId)) continue;
 
           // Reciprocal Matching Check
-          if (!isCompatible(
+          if (!checkCompatibility(
               f['profiles']?['gender'], f['profiles']?['interested_in'])) {
             continue;
           }
@@ -2761,7 +2994,7 @@ class DatabaseService {
           if (addedUserIds.contains(userId)) continue;
 
           // Reciprocal Matching Check
-          if (!isCompatible(
+          if (!checkCompatibility(
               s['profiles']?['gender'], s['profiles']?['interested_in'])) {
             continue;
           }
@@ -2807,7 +3040,9 @@ class DatabaseService {
           if (addedUserIds.contains(userId)) continue;
 
           // Reciprocal Matching Check
-          if (!isCompatible(p['gender'], p['interested_in'])) continue;
+          if (!checkCompatibility(p['gender'], p['interested_in'])) {
+            continue;
+          }
 
           addedUserIds.add(userId);
           allItems.add({
@@ -2988,6 +3223,12 @@ class DatabaseService {
           .from('profiles')
           .update({'avatar_url': publicUrl}).eq('id', userId);
       debugPrint('Profiles table updated.');
+
+      // Update SWR memory cache to prevent replication lag bounces 
+      // when transitioning instantly to the HomeScreen
+      if (_profileCache.containsKey(userId)) {
+        _profileCache[userId]!['avatar_url'] = publicUrl;
+      }
 
       // Notify local listeners immediately
       _profileUpdateController.add({
@@ -3230,13 +3471,16 @@ class DatabaseService {
 
   /// Get list of all blocked user IDs for a user (bidirectional)
   Future<List<String>> getBlockedUserIds(String userId) async {
+    if (_cachedBlockedUserIds != null) return _cachedBlockedUserIds!;
+    
     try {
       final blockedByMe = await getBlockedUsers(userId);
       final blockingMe = await getBlockers(userId);
-      return {...blockedByMe, ...blockingMe}.toList();
+      _cachedBlockedUserIds = {...blockedByMe, ...blockingMe}.toList();
+      return _cachedBlockedUserIds!;
     } catch (e) {
       debugPrint('❌ Error getting all blocked users: $e');
-      return [];
+      return _cachedBlockedUserIds ?? [];
     }
   }
 

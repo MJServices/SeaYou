@@ -256,24 +256,15 @@ class AuthService {
     }
   }
 
-  // Change password (requires current password for security)
-  Future<UserResponse> changePassword(
-      String currentPassword, String newPassword) async {
+  // Change password
+  Future<UserResponse> changePassword(String newPassword) async {
     try {
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null || currentUser.email == null) {
         throw Exception('No user logged in');
       }
 
-      print('🔐 Verifying current password...');
-      // Verify current password by attempting to sign in
-      await _supabase.auth.signInWithPassword(
-        email: currentUser.email!,
-        password: currentPassword,
-      );
-
-      print('✅ Current password verified, updating to new password...');
-      // If sign-in succeeds, update to new password
+      print('✅ Updating to new password...');
       final response = await _supabase.auth.updateUser(
         UserAttributes(password: newPassword),
       );
@@ -282,10 +273,6 @@ class AuthService {
       return response;
     } catch (e) {
       print('❌ Error changing password: $e');
-      // Provide more specific error messages
-      if (e.toString().contains('Invalid login credentials')) {
-        throw Exception('Current password is incorrect');
-      }
       rethrow;
     }
   }

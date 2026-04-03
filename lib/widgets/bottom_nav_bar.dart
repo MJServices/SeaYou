@@ -22,100 +22,95 @@ class BottomNavBar extends StatelessWidget {
     // Get safe area bottom padding for device compatibility
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: Container(
-        // Add minimal bottom padding - just enough for safe area
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 8,
-          bottom: bottomPadding > 0 ? bottomPadding + 4 : 6, // Minimal padding
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SizedBox(
-          height: 60, // Reduced from 70 for better spacing
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context: context,
-                iconPath: 'assets/icons/home_simple.svg',
-                label: AppLocalizations.of(context).tr('navigation.home'),
-                isActive: activeScreen == 'home',
-                onTap: () {
-                  if (activeScreen != 'home') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const HomeScreen()),
-                    );
-                  }
-                },
-              ),
-              StreamBuilder<int>(
-                  stream: DatabaseService().unreadCountStream,
-                  builder: (context, snapshot) {
-                    final unreadCount = snapshot.data ?? 0;
-                    final hasNotification = unreadCount > 0;
-
-                    return _buildNavItem(
-                      context: context,
-                      iconPath: 'assets/icons/chat_lines.svg',
-                      label: AppLocalizations.of(context).tr('navigation.chat'),
-                      isActive: activeScreen == 'chat',
-                      hasNotification: hasNotification,
-                      onTap: () {
-                        if (activeScreen != 'chat') {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const ChatListScreen()),
-                          );
-                        }
-                      },
-                    );
-                  }),
-              StreamBuilder<Map<String, dynamic>?>(
-                  stream: DatabaseService().profileStream(
-                      Supabase.instance.client.auth.currentUser?.id ?? ''),
-                  builder: (context, snapshot) {
-                    final profile = snapshot.data;
-                    final avatarUrl = profile?['avatar_url'];
-
-                    return _buildNavItem(
-                      context: context,
-                      iconPath: null,
-                      label:
-                          AppLocalizations.of(context).tr('navigation.profile'),
-                      isActive: activeScreen == 'profile',
-                      hasAvatar: true,
-                      avatarUrl: avatarUrl,
-                      onTap: () {
-                        if (activeScreen != 'profile') {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const ProfileScreen()),
-                          );
-                        }
-                      },
-                    );
-                  }),
-            ],
+    return Container(
+      // Add minimal bottom padding - just enough for safe area
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 8,
+        bottom: bottomPadding > 0 ? bottomPadding + 4 : 6, // Minimal padding
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
           ),
+        ],
+      ),
+      child: SizedBox(
+        height: 60, // Reduced from 70 for better spacing
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              context: context,
+              iconPath: 'assets/icons/home_simple.svg',
+              label: AppLocalizations.of(context).tr('navigation.home'),
+              isActive: activeScreen == 'home',
+              onTap: () {
+                if (activeScreen != 'home') {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HomeScreen()),
+                  );
+                }
+              },
+            ),
+            StreamBuilder<int>(
+                stream: DatabaseService().unreadCountStream,
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
+                  final hasNotification = unreadCount > 0;
+
+                  return _buildNavItem(
+                    context: context,
+                    iconPath: 'assets/icons/chat_lines.svg',
+                    label: AppLocalizations.of(context).tr('navigation.chat'),
+                    isActive: activeScreen == 'chat',
+                    hasNotification: hasNotification,
+                    onTap: () {
+                      if (activeScreen != 'chat') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ChatListScreen()),
+                        );
+                      }
+                    },
+                  );
+                }),
+            StreamBuilder<Map<String, dynamic>?>(
+                stream: DatabaseService().profileStream(
+                    Supabase.instance.client.auth.currentUser?.id ?? ''),
+                builder: (context, snapshot) {
+                  final profile = snapshot.data;
+                  final avatarUrl = profile?['avatar_url'];
+
+                  return _buildNavItem(
+                    context: context,
+                    iconPath: null,
+                    label:
+                        AppLocalizations.of(context).tr('navigation.profile'),
+                    isActive: activeScreen == 'profile',
+                    hasAvatar: true,
+                    avatarUrl: avatarUrl,
+                    onTap: () {
+                      if (activeScreen != 'profile') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ProfileScreen()),
+                        );
+                      }
+                    },
+                  );
+                }),
+          ],
         ),
       ),
     );

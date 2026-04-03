@@ -1,24 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/user_profile.dart';
 import 'dart:async';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/warm_gradient_background.dart';
-import '../models/bottle.dart';
 import '../models/conversation.dart';
 import 'received_bottles_screen.dart';
-import 'all_bottles_screen.dart';
 import 'send_bottle_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
-import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
-import '../widgets/voice_chat_modal.dart';
-import '../widgets/photo_stamp_modal.dart';
-import '../widgets/feeling_progress.dart';
 import '../services/database_service.dart';
-import '../services/entitlements_service.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
 import 'new_bottles_list_screen.dart';
@@ -26,16 +17,15 @@ import '../services/tutorial_service.dart';
 import 'secret_souls_screen.dart';
 import 'door_of_desires_screen.dart';
 import 'premium_screen.dart';
-import 'upload_picture_screen.dart';
-// removed unused temp imports
-import 'package:seayou_app/screens/outbox_compose_screen.dart' as outbox;
-import '../widgets/coachmark_bubble.dart';
 import '../widgets/profile_avatar.dart';
 import '../services/onboarding_service.dart';
+import '../services/entitlements_service.dart';
+import '../services/bottle_matching_service.dart';
 
 import '../widgets/tutorial_modal.dart';
 import '../services/notification_service.dart';
 import '../services/presence_service.dart';
+import '../widgets/bottom_nav_bar.dart';
 
 /// Home Screen - Dynamic with database integration
 class HomeScreen extends StatefulWidget {
@@ -52,17 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   int _receivedCount = 0;
   int _sentCount = 0;
-  List<SentBottle> _recentSentBottles = [];
   Map<String, dynamic>? _userProfile;
   String _userName = 'User';
   String? _avatarUrl;
-  int _newMessagesCount = 0;
-  final List<StreamSubscription> _messageSubs = [];
-  List<Conversation> _userConversations = [];
+  final List<RealtimeChannel> _messageChannels = []; // For optimized message listeners
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
-  bool _showSignupCoachmark = false;
-  bool _showPremiumCoachmark = false;
-  bool _showFaceCoachmark = false;
   String? _lastNotifiedBottleId;
 
   @override
@@ -75,101 +59,110 @@ class _HomeScreenState extends State<HomeScreen> {
     _subscribeNewMessages();
     _subscribeNewBottles();
     _subscribeNewConversations();
+    _triggerBottleRematching();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
-      final seenSignup = await t.hasSeenSignupCoachmark();
-      final uid = _supabase.auth.currentUser?.id;
       // DISABLED: Premium coachmark popup removed per user request
-      // if (uid != null) {
-      //   final tier = await EntitlementsService().getTier(uid);
-      //   final seenPremiumTip = await t.hasSeenPremiumGateTip();
-      //   if (tier == 'free' && !seenPremiumTip && mounted) {
-      //     setState(() => _showPremiumCoachmark = true);
-      //   }
-      // }
       if (!seen && mounted) {
         await TutorialModal.show(context);
         await t.setSeenHomeTutorial();
       }
-      if (!seenSignup && mounted) {
-        setState(() => _showSignupCoachmark = true);
-      }
     });
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
+  @override
+  void dispose() {
+    for (final channel in _messageChannels) {
+      _supabase.removeChannel(channel);
+    }
+    _profileSub?.cancel();
+    GlobalAudioController.instance.stopAmbient();
+    super.dispose();
+  }
 
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
+
+  Future<void> _loadData() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      if (mounted) {
         setState(() {
           _receivedCount = 0;
           _sentCount = 0;
-          _recentSentBottles = [];
           _userProfile = null;
           _isLoading = false;
         });
-        return;
       }
+      return;
+    }
 
-      // Load all data in parallel
-      final results = await Future.wait([
-        _databaseService
-            .getUnrepliedBottlesCount(userId), // Only unreplied bottles
-        _databaseService.getSentBottlesCount(userId),
-        _databaseService.getRecentSentBottles(userId, limit: 3),
-        _databaseService.getProfile(userId),
-        _databaseService.getUserConversations(userId),
-      ]);
+    // 🏁 SWR (Stale-While-Revalidate) INITIAL LOAD:
+    if (mounted) {
+      setState(() {
+        _userProfile = DatabaseService.getProfileSync(userId);
+        if (_userProfile != null) {
+          _userName = _userProfile!['full_name'] ?? 'User';
+          _avatarUrl = _userProfile!['avatar_url'];
+        }
 
-      if (mounted) {
-        setState(() {
-          _receivedCount = results[0] as int;
-          _sentCount = results[1] as int;
-          _recentSentBottles = results[2] as List<SentBottle>;
-          _userProfile = results[3] as Map<String, dynamic>?;
-          _userConversations = results[4] as List<Conversation>;
+        _receivedCount = DatabaseService.getUnrepliedCountSync();
+        _sentCount = DatabaseService.getSentCountSync();
 
-          // Extract user info
-          if (_userProfile != null) {
-            _userName = _userProfile!['full_name'] ?? 'User';
-            _avatarUrl = _userProfile!['avatar_url'];
+        _isLoading = (_userProfile == null);
+      });
+    }
 
-            // Check avatar_url instead of face_photo_url
-            final hasAvatar = _avatarUrl != null && _avatarUrl!.isNotEmpty;
-            if (!hasAvatar) {
-              if (mounted) _showFaceCoachmark = true;
-            } else {
-              if (mounted) _showFaceCoachmark = false;
-            }
-          }
+    try {
+      // 🔄 PROGRESSIVE REFRESH:
+      
+      // 1. Profile (highest priority)
+      _databaseService.getProfile(userId).then((profile) {
+        if (mounted && profile != null) {
+          setState(() {
+            _userProfile = profile;
+            _userName = profile['full_name'] ?? 'User';
+            _avatarUrl = profile['avatar_url'];
+            _isLoading = false;
+          });
 
-
-
-          _isLoading = false;
-        });
-        
-        // HARD GUARD: Enforce Profile Completion
-        // We pass currentStep: completed so that OnboardingService doesn't bounce us back here if we ARE complete.
-        if (mounted) {
-          await OnboardingService().resumeOnboarding(
+          // HARD GUARD: Enforce Profile Completion
+          OnboardingService().resumeOnboarding(
             context, 
-            _userProfile, 
-            currentStep: OnboardingStep.completed,
+            profile,
+            currentStep: OnboardingStep.completed
           );
         }
-      }
+      });
+
+      // 2. Unreplied Count (Circular Bottle)
+      _databaseService.getUnrepliedBottlesCount(userId).then((count) {
+        if (mounted) setState(() => _receivedCount = count);
+      });
+
+      // 3. Sent Count
+      _databaseService.getSentBottlesCount(userId).then((count) {
+        if (mounted) setState(() => _sentCount = count);
+      });
+
     } catch (e) {
-      debugPrint('Error loading home data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      debugPrint('❌ Error in progressive Home Screen load: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _triggerBottleRematching() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Run in background after a slight delay to not interfere with initial load
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          BottleMatchingService().autoMatchPendingBottlesForUser(userId);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error triggering bottle re-matching: $e');
     }
   }
 
@@ -184,9 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _userProfile = profile;
           _userName = profile['full_name'] ?? 'User';
           _avatarUrl = profile['avatar_url'];
-
-          final hasAvatar = _avatarUrl != null && _avatarUrl!.isNotEmpty;
-          _showFaceCoachmark = !hasAvatar;
         });
       }
     });
@@ -198,73 +188,76 @@ class _HomeScreenState extends State<HomeScreen> {
       if (userId == null) return;
 
       final convs = await _databaseService.getUserConversations(userId);
+      final convIds = convs.map((c) => c.id).toList();
 
-      // Calculate actual unread count from conversations
-      int totalUnread = 0;
-      for (final c in convs) {
-        totalUnread += c.unreadCount;
+      if (convIds.isEmpty) return;
+
+      // OPTIMIZATION: Use a SINGLE efficient listener for all conversations
+      for (final channel in _messageChannels) {
+        _supabase.removeChannel(channel);
       }
+      _messageChannels.clear();
 
-      setState(() {
-        _newMessagesCount = totalUnread;
-      });
+      final newChannel = _supabase
+          .channel('public:messages_unread')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.inFilter,
+              column: 'conversation_id',
+              value: convIds,
+            ),
+            callback: (payload) async {
+              final msg = payload.newRecord;
+              final senderId = msg['sender_id'] as String?;
+              final conversationId = msg['conversation_id'] as String;
 
-      // Subscribe to new messages to update count in realtime
-      for (final c in convs) {
-        final convId = c.id;
-        final sub =
-            _databaseService.subscribeMessages(convId).listen((msg) async {
-          final senderId = msg['sender_id'] as String?;
-          if (senderId != null && senderId != userId) {
-            // Check if this user is blocked
-            final isBlocked =
-                await _databaseService.isRelationBlocked(userId, senderId);
-            if (isBlocked) return; // Do not show notification if blocked
+              if (senderId != null && senderId != userId) {
+                // Check if blocked
+                final isBlocked = await _databaseService.isRelationBlocked(userId, senderId);
+                if (isBlocked) return;
 
-            // Show notification for new message
-            final messageText = msg['text'] as String?;
-            final conversationTitle = c.title ?? 'New Message';
-
-            if (mounted) {
-              NotificationService().show(
-                context: context,
-                title: '💬 $conversationTitle',
-                message: messageText ??
-                    AppLocalizations.of(context)
-                        .tr('notification.you_have_new_message'),
-                icon: const Icon(
-                  Icons.chat_bubble,
-                  color: Colors.white,
-                  size: 32,
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatConversationScreen(
-                        conversationId: convId,
-                        contactName: conversationTitle,
-                      ),
-                    ),
+                // Show notification
+                if (mounted) {
+                  final conversation = convs.firstWhere((c) => c.id == conversationId, 
+                    orElse: () => Conversation(
+                        id: conversationId, 
+                        userAId: '', 
+                        userBId: '', 
+                        createdAt: DateTime.now(), 
+                        updatedAt: DateTime.now()
+                    ));
+                  
+                  NotificationService().show(
+                    context: context,
+                    title: '💬 ${conversation.title ?? AppLocalizations.of(context).tr('notification.new_message')}',
+                    message: msg['text'] as String? ?? AppLocalizations.of(context).tr('notification.you_have_new_message'),
+                    icon: const Icon(Icons.chat_bubble, color: Colors.white, size: 32),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatConversationScreen(
+                            conversationId: conversationId,
+                            contactName: conversation.title ?? 'Chat',
+                            partnerId: senderId,
+                          ),
+                        ),
+                      );
+                    },
                   );
-                },
-              );
-            }
 
-            // Reload conversations to get updated unread counts
-            final updatedConvs =
-                await _databaseService.getUserConversations(userId);
-            int newTotalUnread = 0;
-            for (final conv in updatedConvs) {
-              newTotalUnread += conv.unreadCount;
-            }
-            setState(() {
-              _newMessagesCount = newTotalUnread;
-            });
-          }
-        });
-        _messageSubs.add(sub);
-      }
+                  // Update counts
+                  _loadData();
+                }
+              }
+            },
+          );
+      
+      newChannel.subscribe();
+      _messageChannels.add(newChannel);
     } catch (e) {
       debugPrint('Error subscribing new messages: $e');
     }
@@ -275,7 +268,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // Subscribe to received_bottles table for new bottles sent to this user
       _supabase
           .from('received_bottles')
           .stream(primaryKey: ['id'])
@@ -287,15 +279,10 @@ class _HomeScreenState extends State<HomeScreen> {
               final isRead = latestBottle['is_read'] as bool? ?? false;
               final bottleId = latestBottle['id'] as String;
 
-              // Only show notification for:
-              // 1. Bottles from others
-              // 2. Unread bottles
-              // 3. Bottles completely new to this session (prevent multi-notify)
               if (senderId != null &&
                   senderId != userId &&
                   !isRead &&
                   bottleId != _lastNotifiedBottleId) {
-                // Block check
                 final isBlocked =
                     await _databaseService.isRelationBlocked(userId, senderId);
                 if (isBlocked) return;
@@ -324,7 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 );
 
-                // Reload data to update bottle count
                 _loadData();
               }
             }
@@ -339,8 +325,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      debugPrint('🔌 Subscribing to NEW conversations for user: $userId');
-
       _supabase
           .channel('public:conversations')
           .onPostgresChanges(
@@ -353,7 +337,6 @@ class _HomeScreenState extends State<HomeScreen> {
               value: [userId],
             ),
             callback: (payload) async {
-              debugPrint('🆕 New conversation detected!');
               final newConv = payload.newRecord;
               if (newConv['user_a_id'] == userId ||
                   newConv['user_b_id'] == userId) {
@@ -367,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 if (mounted) {
-                  // Show notification
                   NotificationService().show(
                     context: context,
                     title: 'New Connection!',
@@ -383,30 +365,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   );
 
-                  // Reload everything (counts, conversation list)
                   await _loadData();
-                  // Re-subscribe to messages effectively (by calling _subscribeNewMessages which clears and re-adds)
-                  // Actually _subscribeNewMessages appends, so we should be careful.
-                  // For now, simpler to just reload the message subs entirely or let _loadData handle UI
-                  // Ideally we add the *new* specific sub.
-
-                  // For simplicity/robustness: clear old subs and re-sub to all (safe but slightly heavy)
-                  for (final s in _messageSubs) {
-                    await s.cancel();
-                  }
-                  _messageSubs.clear();
                   _subscribeNewMessages();
                 }
               }
             },
           )
           .subscribe();
-
-      // Also need to listen for user_a_id? usually I am the creator if I am A.
-      // But if someone else creates it (starts conversation), I am B.
-      // So listening for user_b_id == me is usually enough for "incoming" conversations.
-      // But let's be safe and listen to valid changes if Supabase allows OR filter in channels (it doesn't easily).
-      // We will rely on user_b_id for incoming.
     } catch (e) {
       debugPrint('Error subscribing to new conversations: $e');
     }
@@ -420,17 +385,14 @@ class _HomeScreenState extends State<HomeScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        // Explicitly exit the app when back is pressed on Home
         SystemNavigator.pop();
       },
       child: Scaffold(
         body: WarmGradientBackground(
           child: Stack(
             children: [
-              // Scrollable content
               Positioned.fill(
-                bottom:
-                    70, // Updated: 60 (content height) + safe area padding (~6-10px)
+                bottom: 90, // Adjusted to sit above nav bar
                 child: SingleChildScrollView(
                   child: Center(
                     child: ConstrainedBox(
@@ -440,10 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Column(
                         children: [
-                          const SizedBox(
-                              height: 20), // Top spacing for status bar
-
-                          // Header with profile
+                          const SizedBox(height: 20),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Row(
@@ -464,30 +423,40 @@ class _HomeScreenState extends State<HomeScreen> {
                                     isLoading: _isLoading,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  () {
-                                    // Extract first name only (split on space, take first word, remove any digits)
-                                    final String firstName = _userName
-                                        .split(' ')
-                                        .first
-                                        .replaceAll(RegExp(r'\d+'), '');
-                                    return '${AppLocalizations.of(context).tr('home.greeting')} $firstName';
-                                  }(),
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF151515),
-                                  ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _isLoading
+                                      ? Container(
+                                          width: 120,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withAlpha(50),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                        )
+                                      : Text(
+                                          () {
+                                            final String firstName = _userName
+                                                .split(' ')
+                                                .first
+                                                .replaceAll(RegExp(r'\d+'), '');
+                                            return '${AppLocalizations.of(context).tr('home.greeting')} $firstName';
+                                          }(),
+                                          style: const TextStyle(
+                                            fontFamily: 'Montserrat',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF151515),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
                                 ),
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 32),
-
-                          // Circular Bottle with message count
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () {
@@ -500,7 +469,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ).then((_) => _loadData());
                               } else {
-                                // No bottles received -> Show the swipeable received bottles screen
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -528,22 +496,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                // Message count
-                                Text(
-                                  _receivedCount == 0
-                                      ? AppLocalizations.of(context)
-                                          .tr('home.new_messages_zero')
-                                      : AppLocalizations.of(context)
-                                          .tr('home.new_messages_one'),
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF151515),
-                                  ),
-                                ),
+                                _isLoading
+                                    ? Container(
+                                        width: 140,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withAlpha(50),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      )
+                                    : Text(
+                                        _receivedCount == 0
+                                            ? AppLocalizations.of(context)
+                                                .tr('home.new_messages_zero')
+                                            : AppLocalizations.of(context)
+                                                .tr('home.new_messages_one'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF151515),
+                                        ),
+                                      ),
                                 const SizedBox(height: 4),
-                                // Discover text
                                 Text(
                                   AppLocalizations.of(context)
                                       .tr('home.discover'),
@@ -557,15 +532,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 20),
-
-                          // 2x2 Cards Grid
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Column(
                               children: [
-                                // Row 1: Ongoing Conversations + Write a message
                                 Row(
                                   children: [
                                     Expanded(
@@ -607,7 +578,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                // Row 2: Secret Souls + Door of Desires
                                 Row(
                                   children: [
                                     Expanded(
@@ -650,10 +620,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 20),
-
-                          // Premium Button
                           if (_userProfile?['gender']
                                       ?.toString()
                                       .toLowerCase() !=
@@ -717,159 +684,52 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ),
-
-                          // Debug button for testing (Visible in all modes for the user's testing phase)
+                          const SizedBox(height: 20),
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 20),
-                            child: InkWell(
-                              onTap: () async {
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: TextButton(
+                              onPressed: () async {
                                 final userId = _supabase.auth.currentUser?.id;
                                 if (userId != null) {
-                                  await EntitlementsService().grantEntitlement(
-                                      userId, 'premium', 'debug_test');
-                                  _loadData();
+                                  final entitlements = EntitlementsService();
+                                  await entitlements.grantEntitlement(userId, 'premium', 'debug_manual_activation');
+                                  
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text(
-                                            'DEBUG: Compte désormais PREMIUM'),
-                                        backgroundColor: Colors.purple,
-                                      ),
+                                          content:
+                                              Text('DEBUG: Premium Activated')),
                                     );
+                                    _loadData();
                                   }
                                 }
                               },
-                              child: Container(
-                                width: double.infinity,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: const Color(0xFF0AC5C5)
-                                          .withValues(alpha: 0.5),
-                                      width: 1),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    AppLocalizations.of(context)
-                                        .tr('home.debug_activate_premium'),
-                                    style: const TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 13,
-                                      color: Color(0xFF0AC5C5),
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
+                              child: Text(
+                                AppLocalizations.of(context)
+                                    .tr('home.debug_activate_premium'),
+                                style: const TextStyle(
+                                    color: Color(0xFFFF5252),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600),
                               ),
                             ),
                           ),
-
-                          // Bottom padding for scrolling
-                          const SizedBox(height: 100),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-
-              // Fixed Navigation Bar
-              BottomNavBar(
-                activeScreen: 'home',
-                userProfile: _userProfile,
+              // Bottom Navigation
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: BottomNavBar(
+                  activeScreen: 'home',
+                  userProfile: _userProfile,
+                ),
               ),
-
-              Builder(builder: (context) {
-                Widget? bubble;
-                if (_showSignupCoachmark) {
-                  bubble = CoachmarkBubble(
-                    title: AppLocalizations.of(context)
-                        .tr('tutorial.signup.title'),
-                    message: AppLocalizations.of(context)
-                        .tr('tutorial.signup.message'),
-                    ctaText:
-                        AppLocalizations.of(context).tr('tutorial.signup.cta'),
-                    onCta: () async {
-                      setState(() => _showSignupCoachmark = false);
-                      await TutorialService().setSeenSignupCoachmark();
-                    },
-                    onClose: () async {
-                      setState(() => _showSignupCoachmark = false);
-                      await TutorialService().setSeenSignupCoachmark();
-                    },
-                  );
-                } else if (_showPremiumCoachmark) {
-                  bubble = CoachmarkBubble(
-                    title:
-                        AppLocalizations.of(context).tr('premium.gate.title'),
-                    message:
-                        AppLocalizations.of(context).tr('premium.gate.message'),
-                    ctaText: AppLocalizations.of(context)
-                        .tr('premium.gate.subscribe'),
-                    onCta: () async {
-                      setState(() => _showPremiumCoachmark = false);
-                      await TutorialService().setSeenPremiumGateTip();
-                      if (!context.mounted) return;
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const ProfileScreen()));
-                    },
-                    onClose: () async {
-                      setState(() => _showPremiumCoachmark = false);
-                      await TutorialService().setSeenPremiumGateTip();
-                    },
-                  );
-                } else if (_showFaceCoachmark) {
-                  bubble = CoachmarkBubble(
-                    title: AppLocalizations.of(context)
-                        .tr('tutorial.face_required.title'),
-                    message: AppLocalizations.of(context)
-                        .tr('tutorial.face_required.message'),
-                    ctaText: AppLocalizations.of(context)
-                        .tr('tutorial.face_required.cta'),
-                    onCta: () async {
-                      setState(() => _showFaceCoachmark = false);
-
-                      // Create UserProfile from current data
-                      final profile = UserProfile(
-                        fullName: _userName,
-                        avatarUrl: _avatarUrl,
-                        // Add other fields if available in _userProfile map
-                        email: _supabase.auth.currentUser?.email,
-                      );
-
-                      if (_userProfile != null) {
-                        profile.age = _userProfile!['age'];
-                        profile.city = _userProfile!['city'];
-                        profile.about = _userProfile!['about'];
-                        // Map other fields as necessary if strictly required by UploadPictureScreen
-                      }
-
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              UploadPictureScreen(userProfile: profile),
-                        ),
-                      );
-                      // Refresh data after returning
-                      _loadData();
-                    },
-                    onClose: () {
-                      setState(() => _showFaceCoachmark = false);
-                    },
-                  );
-                }
-                return bubble != null
-                    ? Positioned(top: 8, left: 0, right: 0, child: bubble)
-                    : const SizedBox.shrink();
-              }),
             ],
           ),
         ),
@@ -877,939 +737,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  List<Widget> _buildBottleRows() {
-    final widgets = <Widget>[];
-
-    // Build rows of bottles (2 per row) + See all button
-    for (int i = 0; i < _recentSentBottles.length; i += 2) {
-      final bottle1 = _recentSentBottles[i];
-      final bottle2 =
-          i + 1 < _recentSentBottles.length ? _recentSentBottles[i + 1] : null;
-
-      widgets.add(
-        Row(
-          children: [
-            Expanded(
-              child: _buildDynamicBottleCard(bottle1),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: bottle2 != null
-                  ? _buildDynamicBottleCard(bottle2)
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      );
-
-      if (i + 2 < _recentSentBottles.length) {
-        widgets.add(const SizedBox(height: 20));
-      }
-    }
-
-    // Add "See all" button as last item if there are bottles
-    if (_recentSentBottles.isNotEmpty) {
-      widgets.add(const SizedBox(height: 20));
-      widgets.add(
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AllBottlesScreen(
-                  isSent: true,
-                ),
-              ),
-            );
-          },
-          child: Container(
-            height: 128,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF8FB),
-              border: Border.all(
-                color: const Color(0xFFE3E3E3),
-                width: 0.8,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'See all',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF363636),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SvgPicture.asset(
-                    'assets/icons/nav_arrow_down.svg',
-                    width: 16,
-                    height: 16,
-                    colorFilter: const ColorFilter.mode(
-                      Color(0xFF363636),
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return widgets;
-  }
-
-  String _getTranslatedMessage(BuildContext context, String? message) {
-    if (message == null) return '';
-    final l10n = AppLocalizations.of(context);
-
-    if (message.startsWith('Replying to bio: ')) {
-      return message.replaceFirst(
-          'Replying to bio: ', l10n.tr('chamber.replying_to_bio'));
-    } else if (message.startsWith('Replying to: ')) {
-      return message.replaceFirst(
-          'Replying to: ', l10n.tr('chamber.replying_to_content'));
-    }
-    return message;
-  }
-
-  Widget _buildDynamicBottleCard(SentBottle bottle) {
-    // Determine card properties based on content type
-    Color cardColor;
-    String iconPath;
-    String title;
-
-    switch (bottle.contentType) {
-      case 'voice':
-        cardColor = const Color(0xFFFFFFFF);
-        iconPath = 'assets/icons/microphone.svg';
-        title = 'Voice Chat';
-        break;
-      case 'photo':
-        cardColor = const Color(0xFFFFFBF5);
-        iconPath = 'assets/icons/media_image.svg';
-        title = 'Photo Stamp';
-        break;
-      case 'text':
-      default:
-        cardColor = const Color(0xFFFCF8FF);
-        iconPath = 'assets/icons/chat_lines.svg';
-        title = 'Text';
-    }
-
-    return GestureDetector(
-      onTap: () {
-        if (bottle.contentType == 'voice') {
-          showDialog(
-            context: context,
-            barrierColor: Colors.black.withValues(alpha: 0.5),
-            builder: (context) => VoiceChatModal(
-              isReceived: false,
-              onReply: () {
-                Navigator.pop(context);
-              },
-            ),
-          );
-        } else if (bottle.contentType == 'photo') {
-          showDialog(
-            context: context,
-            barrierColor: Colors.black.withValues(alpha: 0.5),
-            builder: (context) => PhotoStampModal(
-              imageUrl: bottle.photoUrl ?? 'assets/images/photo_stamp.png',
-              caption: bottle.caption ?? 'Photo',
-              isReceived: false,
-              onReply: () {
-                Navigator.pop(context);
-              },
-              onPrevious: () {},
-              onNext: () {},
-            ),
-          );
-        } else {
-          // SENT: Show simple preview since we removed BottleDetailScreen
-          _showSentBottlePreview(bottle);
-        }
-      },
-      child: _buildBottleCard(
-        color: cardColor,
-        iconPath: iconPath,
-        title: title,
-        message: bottle.contentType == 'text'
-            ? _getTranslatedMessage(context, bottle.message)
-            : null,
-        hasAudio: bottle.contentType == 'voice',
-        hasImage: bottle.contentType == 'photo',
-        status: bottle.hasReply
-            ? 'read'
-            : (bottle.isMatched ? 'matched' : bottle.status),
-        isMatched: bottle.isMatched,
-      ),
-    );
-  }
-
-  void _showSentBottlePreview(SentBottle bottle) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sent Bottle'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _getTranslatedMessage(context, bottle.message),
-              style: const TextStyle(fontFamily: 'Montserrat'),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Status: ${bottle.status}',
-              style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottleCard({
-    required Color color,
-    String? iconPath,
-    required String title,
-    String? message,
-    bool hasAudio = false,
-    bool hasImage = false,
-    String status = 'floating',
-    bool isMatched = false,
-  }) {
-    // Determine status badge properties
-    String statusText;
-    Color statusColor;
-
-    switch (status) {
-      case 'floating':
-        statusText = '🌊 Floating';
-        statusColor = const Color(0xFF0AC5C5);
-        break;
-      case 'matched':
-        statusText = '✓ Matched';
-        statusColor = const Color(0xFF65ADA9);
-        break;
-      case 'delivered':
-        statusText = '📬 Delivered';
-        statusColor = const Color(0xFFD89736);
-        break;
-      case 'read':
-        statusText = '👁 Read';
-        statusColor = const Color(0xFF9B98E6);
-        break;
-      case 'replied':
-        statusText = '↩ Replied';
-        statusColor = const Color(0xFF9B98E6);
-        break;
-      default:
-        statusText = 'Sent';
-        statusColor = const Color(0xFF737373);
-    }
-
-    return Container(
-      height: 128,
-      decoration: BoxDecoration(
-        color: color,
-        border: Border.all(
-          color: const Color(0xFFE3E3E3),
-          width: 0.8,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title row with icon
-          Row(
-            children: [
-              if (iconPath != null)
-                SvgPicture.asset(
-                  iconPath,
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    Color(0xFF151515),
-                    BlendMode.srcIn,
-                  ),
-                ),
-              if (iconPath != null) const SizedBox(width: 6),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF151515),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // Status badge on its own line
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: statusColor.withValues(alpha: 0.3),
-                width: 0.5,
-              ),
-            ),
-            child: Text(
-              statusText,
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: statusColor,
-              ),
-            ),
-          ),
-          if (hasAudio) ...[
-            const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final perBar = 3 + 4;
-                final count = (constraints.maxWidth / perBar).floor();
-                final heights = [
-                  12.0,
-                  20.0,
-                  28.0,
-                  16.0,
-                  24.0,
-                  14.0,
-                  22.0,
-                  18.0
-                ];
-                return Container(
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(count, (index) {
-                      return Container(
-                        width: 3,
-                        height: heights[index % heights.length],
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0AC5C5),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      );
-                    }),
-                  ),
-                );
-              },
-            ),
-          ],
-          if (hasImage) ...[
-            const SizedBox(height: 4),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/photo_stamp.png'),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (message != null) ...[
-            const SizedBox(height: 4),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF151515),
-                  height: 1.5,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureTiles() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 360;
-        final spacing = narrow ? 8.0 : 12.0;
-        final tiles = [
-          _buildBottleCard(
-            color: const Color(0xFFFDFBF7),
-            iconPath: 'assets/icons/chat_lines.svg',
-            title: _newMessagesCount > 0
-                ? '$_newMessagesCount New Messages'
-                : AppLocalizations.of(context).tr('home.ongoing_conversations'),
-            status:
-                _newMessagesCount > 0 ? 'floating' : 'read', // Visual indicator
-          ),
-          _buildBottleCard(
-            color: const Color(0xFFFAFEFE),
-            iconPath: 'assets/icons/media_image.svg',
-            title: AppLocalizations.of(context).tr('home.discover'),
-            status: 'floating',
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const outbox.OutboxComposeScreen(),
-                ),
-              );
-            },
-            child: Semantics(
-              label: 'Send Anonymous Message',
-              button: true,
-              child: _buildBottleCard(
-                color: const Color(0xFFECFAFA),
-                iconPath: 'assets/icons/chat_lines.svg',
-                title: 'Send Anonymous Message',
-                status: 'matched',
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              final userId = _supabase.auth.currentUser?.id;
-              if (userId == null) return;
-              EntitlementsService().getTier(userId).then((tier) {
-                if (tier == 'free') {
-                  if (!context.mounted) return;
-                  showDialog(
-                    context: context,
-                    barrierColor: Colors.black.withValues(alpha: 0.5),
-                    builder: (context) {
-                      final tr = AppLocalizations.of(context);
-                      return AlertDialog(
-                        title: Text(tr.tr('premium.gate.title')),
-                        content: Text(tr.tr('premium.gate.message')),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ProfileScreen(),
-                                ),
-                              );
-                            },
-                            child: Text(tr.tr('premium.gate.subscribe')),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                } else {
-                  if (!context.mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SecretSoulsScreen(),
-                    ),
-                  );
-                }
-              });
-            },
-            child: _buildBottleCard(
-              color: const Color(0xFFFAF9FF),
-              iconPath: 'assets/icons/eye_empty.svg',
-              title: AppLocalizations.of(context).tr('home.secret_souls'),
-              status: 'matched',
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              final userId = _supabase.auth.currentUser?.id;
-              if (userId == null) return;
-              EntitlementsService().getTier(userId).then((tier) {
-                if (tier == 'free') {
-                  if (!context.mounted) return;
-                  showDialog(
-                    context: context,
-                    barrierColor: Colors.black.withValues(alpha: 0.5),
-                    builder: (context) {
-                      final tr = AppLocalizations.of(context);
-                      return AlertDialog(
-                        title: Text(tr.tr('premium.gate.title')),
-                        content: Text(AppLocalizations.of(context)
-                            .tr('chamber.non_premium_bubble')),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ProfileScreen(),
-                                ),
-                              );
-                            },
-                            child: Text(tr.tr('premium.gate.subscribe')),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                } else {
-                  if (!context.mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const DoorOfDesiresScreen(),
-                    ),
-                  );
-                }
-              });
-            },
-            child: _buildBottleCard(
-              color: const Color(0xFFFFF9F9),
-              iconPath: 'assets/icons/voice.svg',
-              title: AppLocalizations.of(context).tr('home.door_of_desires'),
-              status: 'delivered',
-            ),
-          ),
-        ];
-        if (narrow) {
-          return Column(
-            children: [
-              for (var i = 0; i < tiles.length; i++) ...[
-                tiles[i],
-                if (i != tiles.length - 1) SizedBox(height: spacing),
-              ],
-            ],
-          );
-        }
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: tiles[0]),
-                SizedBox(width: spacing),
-                Expanded(child: tiles[1]),
-              ],
-            ),
-            SizedBox(height: spacing),
-            Row(
-              children: [
-                Expanded(child: tiles[2]),
-                SizedBox(width: spacing),
-                Expanded(child: tiles[3]),
-              ],
-            ),
-            SizedBox(height: spacing),
-            Row(
-              children: [
-                Expanded(child: tiles[4]),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDiscoveryCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x331E1E1E),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              image: const DecorationImage(
-                image: AssetImage('assets/images/letter.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppLocalizations.of(context).tr('home.discovery_card_title'),
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF151515),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  AppLocalizations.of(context)
-                      .tr('home.discovery_card_subtitle'),
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF737373),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AllBottlesScreen(),
-                ),
-              );
-            },
-            child: Text(
-              AppLocalizations.of(context).tr('home.discovery_card_cta'),
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF0AC5C5),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumBanner() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PremiumScreen()),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0AC5C5), Color(0xFF65ADA9)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x331E1E1E),
-              blurRadius: 16,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                AppLocalizations.of(context).tr('home.premium_cta'),
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-              ),
-              child: const Text(
-                'En savoir plus',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConversationListPreview() {
-    final conversations = _userConversations;
-    final userId = _supabase.auth.currentUser?.id;
-    final total = conversations.length;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE3E3E3), width: 0.8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppLocalizations.of(context).tr('home.conversation_list_header',
-                params: {'count': '$total'}),
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF151515),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...conversations.map((c) {
-            final name = c.title ?? 'Conversation';
-            final feeling = c.feelingPercent;
-            // last_sender_id is not in Conversation model, so we can't use it directly or need to add it.
-            // Assuming we don't strictly need it for this preview or can infer it.
-            // For now, let's just remove it or use a placeholder if not critical.
-            // Wait, the UI might use it to show "You: ..."
-            // The model has lastMessage but not lastSenderId.
-            // Let's check if we can get by without it or if we need to update the model.
-            // Looking at the error log, it was trying to access c['last_sender_id'].
-            // If the UI logic depends on it, we might need to add it to the model.
-            // However, for a quick fix to get it running, let's see how it's used.
-            // I'll assume for now we can skip it or it's not critical.
-            // Actually, let's look at how it's used in the next lines (which I can't see fully).
-            // But to fix the build error, I must replace the map access.
-
-            // Let's just use null for now as it's not in the model.
-            final lastSender = null;
-            return GestureDetector(
-              onTap: () {
-                final isUnlocked = feeling >= 100;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatConversationScreen(
-                      contactName: name,
-                      mood: 'Curious', // Default or derived
-                      isUnlocked: isUnlocked,
-                      conversationId: c.id,
-                    ),
-                  ),
-                ).then((_) {
-                  if (mounted) {
-                    setState(() {
-                      _newMessagesCount = 0; // Optimistic reset or re-fetch
-                    });
-                    _loadData(); // Reload to get fresh state
-                  }
-                });
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFFEFEFEF), width: 0.8),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF151515),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          FeelingProgress(
-                            percent: feeling,
-                            compact: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (lastSender != null &&
-                        userId != null &&
-                        lastSender != userId)
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFB3748),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    const Text(
-                      'Lire',
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF0AC5C5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    String? iconPath,
-    required String label,
-    required bool isActive,
-    bool hasAvatar = false,
-    String? avatarUrl,
-    IconData? customIcon,
-  }) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (hasAvatar)
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFE0E0E0),
-              image: avatarUrl != null && avatarUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(avatarUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : const DecorationImage(
-                      image: AssetImage('assets/images/profile_avatar.png'),
-                      fit: BoxFit.cover,
-                    ),
-            ),
-          )
-        else if (customIcon != null)
-          Icon(
-            customIcon,
-            size: 24,
-            color: isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-          )
-        else if (iconPath != null)
-          SvgPicture.asset(
-            iconPath,
-            width: 24,
-            height: 24,
-            colorFilter: ColorFilter.mode(
-              isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-              BlendMode.srcIn,
-            ),
-          ),
-        const SizedBox(height: 12),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: isActive ? const Color(0xFF0AC5C5) : const Color(0xFF737373),
-            letterSpacing: 0.24,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildNavigationCard({
     required String imagePath,
     required String label,
     required VoidCallback onTap,
-    String? badge,
   }) {
     return GestureDetector(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 130,
+        height: 144,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Background image
-              Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                ),
               ),
-              // Gradient overlay for better text visibility
-              Container(
+            ),
+            Positioned.fill(
+              child: Container(
                 decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -1820,82 +782,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              // Label at bottom
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
+            ),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
+                maxLines: 2,
               ),
-              // Optional Badge (Bottle Counter)
-              if (badge != null)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0AC5C5),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/images/letter.png',
-                          width: 12,
-                          height: 12,
-                          color: Colors.white,
-                          errorBuilder: (c, o, s) => const Icon(
-                            Icons.local_post_office,
-                            color: Colors.white,
-                            size: 10,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          badge,
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _profileSub?.cancel();
-    GlobalAudioController.instance.stopAmbient();
-    for (final s in _messageSubs) {
-      s.cancel();
-    }
-    super.dispose();
   }
 }
