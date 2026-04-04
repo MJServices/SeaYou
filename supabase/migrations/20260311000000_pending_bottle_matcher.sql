@@ -53,11 +53,14 @@ BEGIN
     LIMIT 20 -- Safety limit per run
   LOOP
     -- Gender Filter (Matching Man/Woman/Non-binary to DB gender strings)
+    -- We use LOWER() to ensure case-insensitivity against the profiles table
     IF b.target_gender IS NOT NULL AND array_length(b.target_gender, 1) > 0 THEN
        IF NOT (
-         (u.gender IN ('male', 'man') AND 'Man' = ANY(b.target_gender)) OR
-         (u.gender IN ('female', 'woman', 'femme') AND 'Woman' = ANY(b.target_gender)) OR
-         (u.gender IN ('nonbinary', 'non-binary') AND 'Non-binary' = ANY(b.target_gender))
+         (LOWER(u.gender) IN ('male', 'man', 'homme') AND 'Man' = ANY(b.target_gender)) OR
+         (LOWER(u.gender) IN ('female', 'woman', 'femme') AND 'Woman' = ANY(b.target_gender)) OR
+         (LOWER(u.gender) IN ('nonbinary', 'non-binary', 'nb') AND 'Non-binary' = ANY(b.target_gender)) OR
+         -- Fallback for direct string matches
+         (u.gender = ANY(b.target_gender))
        ) THEN
          CONTINUE;
        END IF;
@@ -80,24 +83,58 @@ BEGIN
     UPDATE public.sent_bottles 
     SET 
       matched_recipient_id = target_user_id,
-      status = 'matched',
+      status = 'delivered', -- Instant delivery status
+      delivered_at = now(),
       updated_at = now()
     WHERE id = b.id;
 
-    -- Schedule delivery (following existing pattern in bottle_delivery_queue)
+    -- Record in delivery queue as already delivered
     INSERT INTO public.bottle_delivery_queue (
       sent_bottle_id,
       sender_id,
       recipient_id,
       scheduled_delivery_at,
-      delivered
+      delivered,
+      delivered_at
     ) VALUES (
       b.id,
       b.sender_id,
       target_user_id,
-      now() + (random() * interval '10 minutes'), -- Realistic floating delay
-      false
+      now(),
+      true,
+      now()
     );
+
+    -- Create record in received_bottles (The Actual Delivery)
+    -- Fetch bottle content for insertion
+    INSERT INTO public.received_bottles (
+      sent_bottle_id,
+      receiver_id,
+      sender_id,
+      content_type,
+      message,
+      mood,
+      audio_url,
+      photo_url,
+      created_at
+    )
+    SELECT 
+      id, 
+      target_user_id, 
+      sender_id, 
+      content_type, 
+      message, 
+      mood, 
+      audio_url, 
+      photo_url, 
+      now()
+    FROM public.sent_bottles 
+    WHERE id = b.id;
+
+    -- Increment recipient counter
+    UPDATE public.profiles 
+    SET bottles_received_today = bottles_received_today + 1
+    WHERE id = target_user_id;
 
     match_count := match_count + 1;
     

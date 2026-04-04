@@ -145,6 +145,16 @@ class OnboardingService {
       return false;
     }
 
+    // NEW: Respect forcedStep for authenticated users too!
+    // This allows VerificationScreen to force the "Create Password" step
+    if (forcedStep != null) {
+      debugPrint('AUTH_DEBUG: Respecting forcedStep for authenticated user: $forcedStep');
+      if (context.mounted) {
+        await navigateToStep(context, forcedStep, currentStep: currentStep);
+      }
+      return;
+    }
+
     if (!isFieldEmpty(profile['avatar_url'])) {
       // ALL STEPS COMPLETE.
       debugPrint('AUTH_DEBUG: Avatar found. User is fully onboarded. Entering Home.');
