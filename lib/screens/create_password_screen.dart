@@ -194,15 +194,23 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                             if (!mounted) return;
                             debugPrint('AUTH_DEBUG: Password updated successfully.');
 
-                            await OnboardingService().saveStep(OnboardingStep.profileInfo);
-                            final profile = await DatabaseService().getProfile(currentUser.id);
-                            
                             if (mounted) {
+                              // Standardize Flow: Recovery users bypass assessment (GOTO Home), New users GOTO Profile Assessment
+                              final OnboardingStep? nextForced = widget.isRecovery ? OnboardingStep.completed : OnboardingStep.profileInfo;
+                              
+                              if (widget.isRecovery) {
+                                await OnboardingService().clearAll(); // Clear any pending signup state
+                              } else {
+                                await OnboardingService().saveStep(OnboardingStep.profileInfo);
+                              }
+
+                              final profile = await DatabaseService().getProfile(currentUser.id);
+
                               await OnboardingService().resumeOnboarding(
                                 context, 
                                 profile,
                                 currentStep: OnboardingStep.createPassword,
-                                forcedStep: OnboardingStep.profileInfo,
+                                forcedStep: nextForced,
                                 user: currentUser,
                               );
                             }

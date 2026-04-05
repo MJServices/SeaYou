@@ -90,6 +90,7 @@ class OnboardingService {
     OnboardingStep? currentStep,
     OnboardingStep? forcedStep,
     User? user, 
+    bool isRecovery = false,
   }) async {
     final activeUser = user ?? Supabase.instance.client.auth.currentUser;
     debugPrint('AUTH_DEBUG: resumeOnboarding (Ideal Router). User: ${activeUser?.id}, forcedStep: $forcedStep, currentStep: $currentStep');
@@ -117,7 +118,7 @@ class OnboardingService {
       resumeStep = forcedStep ?? localStep;
       debugPrint('AUTH_DEBUG: No session. Resuming from Local Step: $resumeStep');
       if (context.mounted) {
-        await navigateToStep(context, resumeStep, currentStep: currentStep);
+        await navigateToStep(context, resumeStep, currentStep: currentStep, isRecovery: isRecovery);
       }
       return;
     }
@@ -127,7 +128,7 @@ class OnboardingService {
       debugPrint('AUTH_DEBUG: User is on Verification Screen. Respecting active step.');
       resumeStep = OnboardingStep.verification; 
       if (context.mounted) {
-        await navigateToStep(context, resumeStep, currentStep: currentStep);
+        await navigateToStep(context, resumeStep, currentStep: currentStep, isRecovery: isRecovery);
       }
       return;
     }
@@ -150,7 +151,7 @@ class OnboardingService {
     if (forcedStep != null) {
       debugPrint('AUTH_DEBUG: Respecting forcedStep for authenticated user: $forcedStep');
       if (context.mounted) {
-        await navigateToStep(context, forcedStep, currentStep: currentStep);
+        await navigateToStep(context, forcedStep, currentStep: currentStep, isRecovery: isRecovery);
       }
       return;
     }
@@ -188,13 +189,13 @@ class OnboardingService {
 
     debugPrint('AUTH_DEBUG: Final determined resumeStep: $resumeStep');
     if (context.mounted) {
-      await navigateToStep(context, resumeStep, currentStep: currentStep);
+      await navigateToStep(context, resumeStep, currentStep: currentStep, isRecovery: isRecovery);
     }
   }
 
   /// Screen navigation based on onboarding step - shared across the app
   Future<void> navigateToStep(BuildContext context, OnboardingStep step,
-      {OnboardingStep? currentStep}) async {
+      {OnboardingStep? currentStep, bool isRecovery = false}) async {
     debugPrint('AUTH_DEBUG: navigateToStep called. Step: $step, currentStep: $currentStep');
     if (step == currentStep) {
       debugPrint('AUTH_DEBUG: Skipping redundant navigation to $step');
@@ -205,7 +206,7 @@ class OnboardingService {
     debugPrint('AUTH_DEBUG: pendingEmail: $email');
     final lang = LocalizationService.instance.locale.value.languageCode;
 
-    Widget? targetScreen;
+    late Widget targetScreen;
 
     switch (step) {
       case OnboardingStep.languageSelection:
@@ -227,6 +228,7 @@ class OnboardingService {
           email: email,
           tempPassword: tempPass,
           selectedLanguage: lang,
+          isRecovery: isRecovery,
         );
         break;
       case OnboardingStep.profileInfo:
@@ -252,14 +254,15 @@ class OnboardingService {
         targetScreen = UploadPictureScreen(
             userProfile: UserProfile(email: email, language: lang));
         break;
-      default:
+      case OnboardingStep.completed:
+        targetScreen = const HomeScreen();
         break;
     }
 
-    if (targetScreen != null && context.mounted) {
+    if (context.mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => targetScreen!),
+        MaterialPageRoute(builder: (context) => targetScreen),
       );
     }
   }

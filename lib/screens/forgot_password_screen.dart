@@ -96,7 +96,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   selectedLanguage: null,
                                   isSignIn: true,
                                   isRecovery:
-                                      false, // OTP login, not password recovery
+                                      true, // Password recovery flow
                                 ),
                               ),
                             );

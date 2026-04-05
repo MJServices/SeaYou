@@ -67,12 +67,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
       if (mounted) {
         debugPrint('AUTH_DEBUG: Verification success. Resuming onboarding...');
+        
+        // DECISION: Only force password if it's explicitly a Recovery OR a fresh Signup
+        final OnboardingStep? forcedPath = (!widget.isSignIn || widget.isRecovery) 
+            ? OnboardingStep.createPassword 
+            : null;
+
         await OnboardingService().resumeOnboarding(
           context,
           profile,
           currentStep: OnboardingStep.verification,
-          forcedStep: OnboardingStep.createPassword,
+          forcedStep: forcedPath,
           user: user, // Pass the explicit user object
+          isRecovery: widget.isRecovery,
         );
       }
     } catch (e) {
