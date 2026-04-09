@@ -151,17 +151,21 @@ class BottomNavBar extends StatelessWidget {
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFE0E0E0),
+                color: const Color(0xFFF5F5F5), // Light grey background
                 image: avatarUrl != null && avatarUrl.isNotEmpty
                     ? DecorationImage(
                         image: NetworkImage(avatarUrl),
                         fit: BoxFit.cover,
                       )
-                    : const DecorationImage(
-                        image: AssetImage('assets/images/profile_avatar.png'),
-                        fit: BoxFit.cover,
-                      ),
+                    : null,
               ),
+              child: (avatarUrl == null || avatarUrl.isEmpty)
+                  ? Icon(
+                      Icons.person,
+                      size: 16,
+                      color: itemColor,
+                    )
+                  : null,
             )
           else if (iconPath != null)
             Stack(

@@ -6,6 +6,12 @@ class EntitlementsService {
   EntitlementsService({sf.SupabaseClient? supabase})
       : _supabase = supabase ?? sf.Supabase.instance.client;
 
+  static final Map<String, bool> _isPremiumCache = {};
+
+  static void clearCache() {
+    _isPremiumCache.clear();
+  }
+
   Future<String> getTier(String userId) async {
     try {
       // 1. Check Gender (Women get premium features for free)
@@ -37,8 +43,19 @@ class EntitlementsService {
         return rec['tier'] as String? ?? 'free';
       }
 
-      // 3. Fallback to profile tier
-      return (profJson?['tier'] as String?) ?? 'free';
+      // 3. Fallback to profile tier (only if it's not premium, or for backward compatibility)
+      // Safety: If it's a man and he reached here, he has no active entitlement record.
+      // So even if the profile says premium, we treat it as free to be safe.
+      final profileTier = (profJson?['tier'] as String?) ?? 'free';
+      if (profileTier == 'premium' || profileTier == 'elite') {
+        // Double check gender one more time just in case
+        final gender = (profJson?['gender'] as String?)?.toLowerCase() ?? '';
+        if (gender == 'woman' || gender == 'female' || gender == 'femme') {
+          return 'premium';
+        }
+        return 'free'; // Man with stale profile tier
+      }
+      return profileTier;
     } catch (_) {
       return 'free';
     }
@@ -58,7 +75,10 @@ class EntitlementsService {
     try {
       // 1. Check Tier
       final tier = await getTier(userId);
-      if (tier == 'premium' || tier == 'elite') return true;
+      if (tier == 'premium' || tier == 'elite') {
+        _isPremiumCache[userId] = true;
+        return true;
+      }
 
       // 2. Check Gender (Women get premium features for free)
       final prof = await _supabase
@@ -69,9 +89,12 @@ class EntitlementsService {
 
       if (prof != null) {
         final gender = (prof['gender'] as String?)?.toLowerCase() ?? '';
-        return gender == 'woman' || gender == 'female' || gender == 'femme';
+        final res = gender == 'woman' || gender == 'female' || gender == 'femme';
+        _isPremiumCache[userId] = res;
+        return res;
       }
 
+      _isPremiumCache[userId] = false;
       return false;
     } catch (_) {
       return false;

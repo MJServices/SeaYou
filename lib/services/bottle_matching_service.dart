@@ -17,6 +17,11 @@ class BottleMatchingService {
   final DatabaseService _db = DatabaseService();
   final Random _random = Random();
 
+  // Efficiency Cache: Avoid redundant historical lookups in a single session
+  static final Map<String, List<String>> _historicalRecipientsCache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
+  static const Duration _cacheDuration = Duration(minutes: 5);
+
   /// Main method to match a bottle to a compatible recipient
   /// Returns the recipient's user ID if match found, null otherwise
   Future<String?> matchBottle({
@@ -46,7 +51,30 @@ class BottleMatchingService {
       final List<String> targetDepartments =
           (bottle['target_departments'] as List?)?.cast<String>() ?? [];
 
-      // 2. Multi-stage matching with increasing leniency
+      // 2. Fetch exclusion lists (Conversations + historical matches)
+      // ⚡ EFFICIENCY: Use local cache if fresh (5 min) to avoid slamming DB
+      final now = DateTime.now();
+      List<String> historyIds;
+      
+      if (_historicalRecipientsCache.containsKey(senderId) && 
+          now.difference(_cacheTimestamps[senderId]!) < _cacheDuration) {
+        historyIds = _historicalRecipientsCache[senderId]!;
+        debugPrint('⚡ Matching: Using cached historical recipients for $senderId');
+      } else {
+        historyIds = await _db.getHistoricalRecipientIds(senderId);
+        _historicalRecipientsCache[senderId] = historyIds;
+        _cacheTimestamps[senderId] = now;
+      }
+
+      final conversationIds = await _db.getRepliedPartnerIds(senderId);
+      
+      final Set<String> allExclusionIds = {
+        ...historyIds,
+        ...conversationIds,
+      };
+
+      debugPrint('🛡️ Total exclusion list for sender: ${allExclusionIds.length} users');
+
       List<Map<String, dynamic>> eligibleUsers = [];
       MatchLeniency selectedLeniency = MatchLeniency.strict;
 
@@ -58,7 +86,8 @@ class BottleMatchingService {
       ];
 
       for (final leniency in leniencyLevels) {
-        debugPrint('🔍 Attempting matching with leniency: ${leniency.name}');
+        debugPrint(
+            '🔍 Attempting matching with leniency: ${leniency.name}');
         eligibleUsers = await _getEligibleRecipients(
           senderId: senderId,
           senderProfile: senderProfile,
@@ -67,6 +96,7 @@ class BottleMatchingService {
           targetGender: targetGender,
           targetDepartments: targetDepartments,
           leniency: leniency,
+          exclusionIds: allExclusionIds,
         );
 
         if (eligibleUsers.isNotEmpty) {
@@ -134,6 +164,7 @@ class BottleMatchingService {
     List<String> targetGender = const [],
     List<String> targetDepartments = const [],
     MatchLeniency leniency = MatchLeniency.strict,
+    Set<String>? exclusionIds,
   }) async {
     try {
       final lookingFor = senderProfile['interested_in'] as String? ?? 'everyone';
@@ -288,11 +319,15 @@ class BottleMatchingService {
       final filteredWithoutBlocks =
           await _filterBlockedUsers(senderId, filtered);
 
-      // Check for existing conversations
-      final filteredWithoutExisting =
-          await _filterExistingConversations(senderId, filteredWithoutBlocks);
+      // Check for existing conversations and historical matches
+      // ⚡ STICKY REGRESSION FIX:
+      // Per latest user feedback, NO user should receive multiple bottles from the same sender.
+      // This filter is now absolute.
+      final filteredStrict = filteredWithoutBlocks
+          .where((user) => !(exclusionIds?.contains(user['id'] ?? '') ?? false))
+          .toList();
 
-      return filteredWithoutExisting.cast<Map<String, dynamic>>();
+      return filteredStrict.cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('Error getting eligible recipients: $e');
       return [];
@@ -325,23 +360,6 @@ class BottleMatchingService {
           .toList();
     } catch (e) {
       debugPrint('Error filtering blocked users: $e');
-      return users;
-    }
-  }
-
-  /// Filter out users who already have an active conversation or bottle history with the sender
-  Future<List<dynamic>> _filterExistingConversations(
-    String senderId,
-    List<dynamic> users,
-  ) async {
-    try {
-      final existingPartnerIds = await _db.getRepliedPartnerIds(senderId);
-
-      return users
-          .where((user) => !existingPartnerIds.contains(user['id']))
-          .toList();
-    } catch (e) {
-      debugPrint('Error filtering existing partners: $e');
       return users;
     }
   }
@@ -427,10 +445,13 @@ class BottleMatchingService {
     required String bottleId,
     required String senderId,
     required String recipientId,
+    bool isImmediate = false,
   }) async {
-    // Random delay between 1-5 minutes for realistic "floating" effect
-    final delayMinutes = 1 + _random.nextInt(5);
-    final scheduledTime = DateTime.now().add(Duration(minutes: delayMinutes));
+    // ⚡ EFFICIENCY FIX: 
+    // If isImmediate (e.g. Premium) -> 0 delay.
+    // Otherwise -> 5-15 seconds (reduced from 1-5 minutes for better UX).
+    final delaySeconds = isImmediate ? 0 : 5 + _random.nextInt(11);
+    final scheduledTime = DateTime.now().add(Duration(seconds: delaySeconds));
 
     await _supabase.from('bottle_delivery_queue').insert({
       'sent_bottle_id': bottleId,
@@ -440,7 +461,13 @@ class BottleMatchingService {
       'delivered': false,
     });
 
-    debugPrint('Bottle $bottleId scheduled for delivery at $scheduledTime');
+    debugPrint('Bottle $bottleId scheduled for delivery at $scheduledTime (Delay: $delaySeconds)');
+    
+    // If it's immediate, trigger delivery check now for best performance
+    if (isImmediate) {
+      deliverPendingBottles();
+    }
+    
     return scheduledTime;
   }
 

@@ -72,14 +72,16 @@ class CustomBottomNav extends StatelessWidget {
                 height: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/profile_avatar.png'),
-                    fit: BoxFit.cover,
-                  ),
+                  color: const Color(0xFFF5F5F5),
                   border: Border.all(
                     color: color,
                     width: 1.5,
                   ),
+                ),
+                child: const Icon(
+                  Icons.person,
+                  size: 16,
+                  color: Color(0xFF737373),
                 ),
               )
             else

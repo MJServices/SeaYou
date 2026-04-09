@@ -397,10 +397,17 @@ class _VoiceRegistrationScreenState extends State<VoiceRegistrationScreen>
                                         .uploadVoiceClip(user.id, File(_path!));
 
                                     if (url != null) {
-                                      await DatabaseService()
-                                          .upsertUserPreferences(
-                                              userId: user.id,
-                                              voiceClipUrl: url);
+                                      final db = DatabaseService();
+
+                                      // 1. Save to user_preferences (for duration tracking)
+                                      await db.upsertUserPreferences(
+                                          userId: user.id,
+                                          voiceClipUrl: url,
+                                          voiceClipDuration: _duration);
+
+                                      // 2. 🔑 Also save to profiles.secret_audio_url
+                                      //    This is what the chat profile screen reads from.
+                                      await db.updateSecretAudio(user.id, url);
 
                                       // Update profile object
                                       widget.userProfile.secretAudioUrl = url;

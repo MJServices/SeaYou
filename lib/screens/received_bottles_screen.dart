@@ -32,9 +32,10 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
     super.initState();
     _loadData().then((_) {
       if (widget.initialBottle != null) {
-        _db.markBottleAsRead(widget.initialBottle!.id);
+        _db.markBottleAsRead(widget.initialBottle!.id, senderId: widget.initialBottle!.senderId, receiverId: _currentUserId);
       } else if (_bottles.isNotEmpty) {
-        _db.markBottleAsRead(_bottles[_currentIndex].id);
+        final b = _bottles[_currentIndex];
+        _db.markBottleAsRead(b.id, senderId: b.senderId, receiverId: _currentUserId);
       }
     });
   }
@@ -179,14 +180,16 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
   void _nextBottle() {
     if (_currentIndex < _bottles.length - 1) {
       setState(() => _currentIndex++);
-      _db.markBottleAsRead(_bottles[_currentIndex].id);
+      final b = _bottles[_currentIndex];
+      _db.markBottleAsRead(b.id, senderId: b.senderId, receiverId: _currentUserId);
     }
   }
 
   void _prevBottle() {
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
-      _db.markBottleAsRead(_bottles[_currentIndex].id);
+      final b = _bottles[_currentIndex];
+      _db.markBottleAsRead(b.id, senderId: b.senderId, receiverId: _currentUserId);
     }
   }
 

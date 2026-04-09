@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'onboarding_service.dart';
+import 'database_service.dart';
+import 'entitlements_service.dart';
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -279,6 +281,8 @@ class AuthService {
 
   // Sign out
   Future<void> signOut() async {
+    DatabaseService.clearCache();
+    EntitlementsService.clearCache();
     await _supabase.auth.signOut();
   }
 

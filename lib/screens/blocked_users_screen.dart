@@ -208,15 +208,17 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                           height: 48,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: user['avatar_url'] != null
-                                  ? NetworkImage(user['avatar_url'])
-                                  : const AssetImage(
-                                      'assets/images/profile_avatar.png',
-                                    ) as ImageProvider,
-                              fit: BoxFit.cover,
-                            ),
+                            color: const Color(0xFFF5F5F5),
+                            image: user['avatar_url'] != null
+                                ? DecorationImage(
+                                    image: NetworkImage(user['avatar_url']),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
                           ),
+                          child: user['avatar_url'] == null
+                              ? const Icon(Icons.person, size: 24, color: Color(0xFF737373))
+                              : null,
                         ),
                         title: Text(
                           user['full_name'] ?? 'Unknown',

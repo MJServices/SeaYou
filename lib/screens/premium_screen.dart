@@ -6,6 +6,7 @@ import 'purchase_scrolls_screen.dart';
 import 'home_screen.dart';
 import '../services/iap_service.dart';
 import '../services/database_service.dart';
+import '../services/entitlements_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'dart:async';
 
@@ -81,7 +82,11 @@ class _PremiumScreenState extends State<PremiumScreen>
         if (mounted) {
           setState(() {
             final tier = profile['tier'] as String? ?? 'free';
-            _isPremium = tier == 'premium' || tier == 'elite';
+            final isNowPremium = tier == 'premium' || tier == 'elite';
+            if (isNowPremium && !_isPremium) {
+              EntitlementsService.clearCache();
+            }
+            _isPremium = isNowPremium;
             _userGender = profile['gender'] as String?;
             _isLoading = false;
           });
@@ -116,6 +121,7 @@ class _PremiumScreenState extends State<PremiumScreen>
 
           if (isNowPremium && !_isPremium) {
             debugPrint('💎 Premium status detected via realtime!');
+            EntitlementsService.clearCache();
             _pollingTimer?.cancel();
             await closeInAppWebView();
             if (mounted) {

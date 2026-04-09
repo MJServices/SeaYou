@@ -11,6 +11,18 @@ import '../models/naughty_question.dart';
 class DatabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // -- Static Caches (Persist across screens for instant UI) --
+  static final Map<String, Map<String, dynamic>> _profileCache = {};
+  static List<String>? _cachedBlockedUserIds;
+  static int? _cachedReceivedCount;
+  static int? _cachedUnrepliedCount;
+  static int? _cachedSentCount;
+  static List<SentBottle>? _cachedRecentSentBottles;
+  static List<ReceivedBottle>? _cachedRecentReceivedBottles;
+  static List<ReceivedBottle>? _cachedReceivedBottles;
+  static List<SentBottle>? _cachedSentBottles;
+  static List<Conversation>? _cachedConversations;
+
   // Local broadcast for profile updates to ensure high reactivity
   static final StreamController<Map<String, dynamic>> _profileUpdateController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -783,6 +795,7 @@ class DatabaseService {
           .from('received_bottles')
           .select('id')
           .eq('receiver_id', userId)
+          .or('is_read.eq.false,is_read.is.null')
           .or('is_replied.eq.false,is_replied.is.null'); // Handle NULL as unreplied
 
       if (blockedIds.isNotEmpty) {
@@ -1025,12 +1038,24 @@ class DatabaseService {
   }
 
   // Mark bottle as read
-  Future<void> markBottleAsRead(String bottleId) async {
+  Future<void> markBottleAsRead(String bottleId, {String? senderId, String? receiverId}) async {
     try {
-      await _supabase.from('received_bottles').update({
-        'is_read': true,
-        'updated_at': DateTime.now().toIso8601String()
-      }).eq('id', bottleId);
+      if (senderId != null && receiverId != null) {
+        // Mark ALL bottles from this sender as read for this receiver
+        await _supabase.from('received_bottles').update({
+          'is_read': true,
+          'updated_at': DateTime.now().toIso8601String()
+        }).eq('receiver_id', receiverId).eq('sender_id', senderId).eq('is_read', false);
+      } else {
+        // Just mark the specific bottle
+        await _supabase.from('received_bottles').update({
+          'is_read': true,
+          'updated_at': DateTime.now().toIso8601String()
+        }).eq('id', bottleId);
+      }
+      
+      // Invalidate cache for Home Screen indicator
+      _cachedUnrepliedCount = null;
     } catch (e) {
       debugPrint('Error marking bottle as read: $e');
     }
@@ -1043,6 +1068,9 @@ class DatabaseService {
         'is_replied': true,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', bottleId);
+      
+      // Invalidate cache for Home Screen indicator
+      _cachedUnrepliedCount = null;
       debugPrint('✅ Bottle marked as replied: $bottleId');
     } catch (e) {
       debugPrint('❌ Error marking bottle as replied: $e');
@@ -1588,6 +1616,7 @@ class DatabaseService {
     bool? consentPhotoReveal,
     String? secretQuote,
     String? voiceClipUrl,
+    int? voiceClipDuration,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -1621,6 +1650,9 @@ class DatabaseService {
       }
       if (voiceClipUrl != null) {
         data['voice_clip_url'] = voiceClipUrl;
+      }
+      if (voiceClipDuration != null) {
+        data['voice_clip_duration'] = voiceClipDuration;
       }
 
       await _supabase.from('user_preferences').upsert(data);
@@ -1739,18 +1771,6 @@ class DatabaseService {
     if (_cachedConversations != null) return _cachedConversations!;
     return await fetchFuture;
   }
-
-  // Static caches to persist across screens for instant UI
-  static final Map<String, Map<String, dynamic>> _profileCache = {};
-  static List<String>? _cachedBlockedUserIds;
-  static int? _cachedReceivedCount;
-  static int? _cachedUnrepliedCount;
-  static int? _cachedSentCount;
-  static List<SentBottle>? _cachedRecentSentBottles;
-  static List<ReceivedBottle>? _cachedRecentReceivedBottles;
-  static List<ReceivedBottle>? _cachedReceivedBottles;
-  static List<SentBottle>? _cachedSentBottles;
-  static List<Conversation>? _cachedConversations;
 
   static void clearCache() {
     _profileCache.clear();
@@ -2122,6 +2142,27 @@ class DatabaseService {
       return partnerIds.toList();
     } catch (e) {
       debugPrint('Error getting replied partner IDs: $e');
+      return [];
+    }
+  }
+
+  /// Get IDs of ALL users who have ever received a bottle from this sender
+  /// Used for strict one-time-only matching policy
+  Future<List<String>> getHistoricalRecipientIds(String senderId) async {
+    try {
+      final response = await _supabase
+          .from('received_bottles')
+          .select('receiver_id')
+          .eq('sender_id', senderId);
+
+      final List<String> historyIds = (response as List)
+          .map((row) => row['receiver_id'] as String)
+          .toList();
+
+      debugPrint('📜 Fetched ${historyIds.length} historical recipients for $senderId');
+      return historyIds;
+    } catch (e) {
+      debugPrint('Error getting historical recipient IDs: $e');
       return [];
     }
   }
@@ -2926,8 +2967,10 @@ class DatabaseService {
 
       // 1. Fetch from fantasies table (Explicit fantasies)
       try {
-        var fQuery = _supabase.from('fantasies').select(
-            'id, user_id, text, created_at, profiles!inner(city, department, full_name, age, gender, interested_in)');
+        var fQuery = _supabase
+            .from('fantasies')
+            .select('id, user_id, text, created_at')
+            .eq('is_active', true);
 
         if (!includeSelf) {
           fQuery = fQuery.neq('user_id', currentUserId ?? '');
@@ -2941,28 +2984,43 @@ class DatabaseService {
             .order('created_at', ascending: false)
             .range(start, end);
 
-        for (var f in (fantasyItems as List)) {
-          final userId = f['user_id'];
-          if (addedUserIds.contains(userId)) continue;
+        if ((fantasyItems as List).isNotEmpty) {
+          // Batch-fetch profiles for all user_ids to avoid N+1 queries
+          final userIds = fantasyItems.map((f) => f['user_id'] as String).toSet().toList();
+          final profilesData = await _supabase
+              .from('profiles')
+              .select('id, city, department, full_name, age, gender, interested_in')
+              .filter('id', 'in', userIds);
 
-          // Reciprocal Matching Check
-          if (!checkCompatibility(
-              f['profiles']?['gender'], f['profiles']?['interested_in'])) {
-            continue;
+          final Map<String, Map<String, dynamic>> profileMap = {
+            for (var p in (profilesData as List)) p['id'] as String: p as Map<String, dynamic>
+          };
+
+          for (var f in fantasyItems) {
+            final userId = f['user_id'];
+            if (addedUserIds.contains(userId)) continue;
+
+            final profile = profileMap[userId];
+            if (profile == null) continue;
+
+            // Reciprocal Matching Check
+            if (!checkCompatibility(profile['gender'], profile['interested_in'])) {
+              continue;
+            }
+
+            addedUserIds.add(userId);
+            allItems.add({
+              'id': 'fan_${f['id']}',
+              'user_id': userId,
+              'fantasy_text': f['text'],
+              'type': 'fantasy',
+              'city': profile['city'],
+              'department': profile['department'],
+              'full_name': profile['full_name'],
+              'age': profile['age'],
+              'created_at': f['created_at'],
+            });
           }
-
-          addedUserIds.add(userId);
-          allItems.add({
-            'id': 'fan_${f['id']}',
-            'user_id': userId,
-            'fantasy_text': f['text'],
-            'type': 'fantasy',
-            'city': f['profiles']?['city'],
-            'department': f['profiles']?['department'],
-            'full_name': f['profiles']?['full_name'],
-            'age': f['profiles']?['age'],
-            'created_at': f['created_at'],
-          });
         }
       } catch (e) {
         debugPrint('❌ Error fetching fantasies table: $e');
@@ -2972,8 +3030,7 @@ class DatabaseService {
       try {
         var sscQuery = _supabase
             .from('secret_souls_content')
-            .select(
-                'id, user_id, content_type, quote_text, created_at, profiles!inner(city, department, full_name, age, gender, interested_in)')
+            .select('id, user_id, content_type, quote_text, created_at')
             .eq('is_visible', true)
             .eq('content_type', 'fantasy');
 
@@ -2989,28 +3046,43 @@ class DatabaseService {
             .order('created_at', ascending: false)
             .range(start, end);
 
-        for (var s in (sscItems as List)) {
-          final userId = s['user_id'];
-          if (addedUserIds.contains(userId)) continue;
+        if ((sscItems as List).isNotEmpty) {
+           // Batch-fetch profiles for all user_ids to avoid N+1 queries
+          final userIds = sscItems.map((s) => s['user_id'] as String).toSet().toList();
+          final profilesData = await _supabase
+              .from('profiles')
+              .select('id, city, department, full_name, age, gender, interested_in')
+              .filter('id', 'in', userIds);
 
-          // Reciprocal Matching Check
-          if (!checkCompatibility(
-              s['profiles']?['gender'], s['profiles']?['interested_in'])) {
-            continue;
+          final Map<String, Map<String, dynamic>> profileMap = {
+            for (var p in (profilesData as List)) p['id'] as String: p as Map<String, dynamic>
+          };
+
+          for (var s in sscItems) {
+            final userId = s['user_id'];
+            if (addedUserIds.contains(userId)) continue;
+
+            final profile = profileMap[userId];
+            if (profile == null) continue;
+
+            // Reciprocal Matching Check
+            if (!checkCompatibility(profile['gender'], profile['interested_in'])) {
+              continue;
+            }
+
+            addedUserIds.add(userId);
+            allItems.add({
+              'id': 'ssc_${s['id']}',
+              'user_id': userId,
+              'fantasy_text': s['quote_text'],
+              'type': 'ssc_fantasy',
+              'city': profile['city'],
+              'department': profile['department'],
+              'full_name': profile['full_name'] ?? 'Secret Soul',
+              'age': profile['age'],
+              'created_at': s['created_at'],
+            });
           }
-
-          addedUserIds.add(userId);
-          allItems.add({
-            'id': 'ssc_${s['id']}',
-            'user_id': userId,
-            'fantasy_text': s['quote_text'],
-            'type': 'ssc_fantasy',
-            'city': s['profiles']?['city'],
-            'department': s['profiles']?['department'],
-            'full_name': s['profiles']?['full_name'] ?? 'Secret Soul',
-            'age': s['profiles']?['age'],
-            'created_at': s['created_at'],
-          });
         }
       } catch (e) {
         debugPrint('❌ Error fetching secret_souls_content fantasies: $e');
@@ -3528,6 +3600,30 @@ class DatabaseService {
     } catch (e) {
       debugPrint('❌ Error fetching naughty questions: $e');
       return [];
+    }
+  }
+
+  // --- PREFETCHING & OPTIMIZATION ---
+
+  /// Prefetch content for special sections (Door of Desires / Secret Souls)
+  /// to make transitions instantaneous for premium users.
+  Future<void> prefetchSpecialSections() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      debugPrint('🚀 DB: Starting prefetch for special sections...');
+      
+      // Prefetch concurrently
+      await Future.wait([
+        listFantasies(page: 0),
+        getSecretSoulsContent(page: 0),
+        getUnrepliedBottlesCount(user.id),
+      ]);
+      
+      debugPrint('✅ DB: Prefetch complete.');
+    } catch (e) {
+      debugPrint('⚠️ DB: Prefetch failed (non-critical): $e');
     }
   }
 

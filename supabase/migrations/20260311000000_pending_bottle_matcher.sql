@@ -49,6 +49,12 @@ BEGIN
         SELECT 1 FROM public.bottle_delivery_queue bdq
         WHERE bdq.sent_bottle_id = sent_bottles.id AND bdq.recipient_id = target_user_id
       )
+      -- ⚡ STRICT HISTORY EXCLUSION (Per user request: no duplicates from same sender)
+      AND NOT EXISTS (
+        SELECT 1 FROM public.received_bottles rb
+        WHERE rb.sender_id = sent_bottles.sender_id 
+          AND rb.receiver_id = target_user_id
+      )
     ORDER BY created_at ASC
     LIMIT 20 -- Safety limit per run
   LOOP

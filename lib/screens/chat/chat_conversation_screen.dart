@@ -69,7 +69,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isPlayingVoice = false;
   String? _playingVoiceId;
   late final AudioPlayer _audioPlayer;
-  String? _currentlyPlayingId;
+
   int _feelingPercent = 0;
   String? _threadTitle;
   String? _partnerAvatarUrl;
@@ -100,7 +100,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Conversation? _conversation;
   bool _isBlocked = false;
   bool _isPremium = false; // Track if user has premium subscription
-  bool _isAccessGranted = false; // Track if user has free access (Woman) or Premium
+  bool _isAccessGranted =
+      false; // Track if user has free access (Woman) or Premium
   Map<String, dynamic>? _partnerProfile;
   StreamSubscription<Map<String, dynamic>?>? _partnerProfileSub;
   ChatMessage? _replyingTo;
@@ -130,6 +131,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       });
       _checkMilestones();
     });
+
+    // 🎧 Centralized Audio Listener
+    _audioPlayer.onPlayerComplete.listen((event) {
+      if (mounted) {
+        debugPrint('🎵 [AudioPlayer] Playback complete.');
+        setState(() {
+          _isPlayingVoice = false;
+          _playingVoiceId = null;
+        });
+      }
+    });
+
     Future.microtask(_checkMilestones);
 
     _initializeData();
@@ -176,33 +189,57 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           final messageId = messageData['id'];
 
           debugPrint(
-              '📨 Received realtime event: $eventType for message ID: $messageId');
+              '📨 [REALTIME-MSG] Received event: $eventType, ID: $messageId');
 
           setState(() {
             if (eventType == 'delete') {
               _messages.removeWhere((m) => m.id == messageId);
-              debugPrint('✅ Deleted message from local list');
+              debugPrint('✅ [REALTIME-MSG] Removed message from local list');
             } else {
-              final message = ChatMessage.fromJson(messageData,
-                  currentUserId: currentUserId);
-              final existingIndex =
-                  _messages.indexWhere((m) => m.id == message.id);
+              try {
+                final message = ChatMessage.fromJson(messageData,
+                    currentUserId: currentUserId);
+                final existingIndex =
+                    _messages.indexWhere((m) => m.id == message.id);
 
-              if (eventType == 'insert' || eventType == 'INSERT') {
-                if (existingIndex == -1) {
-                  _messages.add(message);
-                  _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                  debugPrint('✅ Added new message');
+                if (eventType == 'insert' || eventType == 'INSERT') {
+                  if (existingIndex == -1) {
+                    // Also check for optimistic temp messages to replace
+                    final tempIndex = _messages.indexWhere((m) =>
+                        m.mood == message.mood &&
+                        m.text == message.text &&
+                        m.senderId == message.senderId &&
+                        m.id.startsWith('temp_'));
+
+                    if (tempIndex != -1) {
+                      _messages[tempIndex] = message;
+                      debugPrint(
+                          '✅ [REALTIME-MSG] Replaced optimistic temp message with real record');
+                    } else {
+                      _messages.add(message);
+                      _messages
+                          .sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                      debugPrint('✅ [REALTIME-MSG] Added new message to list');
+                    }
+                  } else {
+                    debugPrint(
+                        'ℹ️ [REALTIME-MSG] Message already exists, skipping insert');
+                  }
+                } else if (eventType == 'update' || eventType == 'UPDATE') {
+                  if (existingIndex != -1) {
+                    _messages[existingIndex] = message;
+                    debugPrint('✅ [REALTIME-MSG] Updated existing message');
+                  } else {
+                    _messages.add(message);
+                    _messages
+                        .sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                    debugPrint(
+                        '✅ [REALTIME-MSG] Added updated message that was missing locally');
+                  }
                 }
-              } else if (eventType == 'update' || eventType == 'UPDATE') {
-                if (existingIndex != -1) {
-                  _messages[existingIndex] = message;
-                  debugPrint('✅ Updated existing message');
-                } else {
-                  // If for some reason we missed the insert, add it now
-                  _messages.add(message);
-                  _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                }
+              } catch (e, stack) {
+                debugPrint('❌ [REALTIME-MSG] Error parsing message: $e');
+                debugPrint(stack.toString());
               }
             }
           });
@@ -211,16 +248,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _scrollToBottom();
           }
 
-          // Refresh conversation state (feeling percent)
+          // Trigger refresh of conversation state for feeling changes
           _loadConversation();
         }
+      }, onError: (err) {
+        debugPrint('❌ [REALTIME-MSG] Stream Error: $err');
       });
 
       // Subscribe to conversation changes to update feeling bar
       _db.subscribeConversation(widget.conversationId!).listen((row) {
         if (mounted) {
           debugPrint(
-              '📊 Received conversation update via realtime: feeling=${row['feeling_percent']}');
+              '📊 [REALTIME-CONV] Received update: feeling=${row['feeling_percent']}');
           // Also check/mark read status if new messages came
           final currentUserId = Supabase.instance.client.auth.currentUser?.id;
           if (currentUserId != null) {
@@ -245,6 +284,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           }
           _checkMilestones();
         }
+      }, onError: (err) {
+        debugPrint('❌ [REALTIME-CONV] Stream Error: $err');
       });
     }
 
@@ -264,7 +305,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       if (userId != null) {
         // Use EntitlementsService for centralized access logic
         final access = await EntitlementsService().isPremiumOrWoman(userId);
-        
+
         // Fetch profile for tier (text) and gender (for local display if needed)
         final profile = await Supabase.instance.client
             .from('profiles')
@@ -368,7 +409,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
       // Load photo reveal state from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      final revealedKey = 'is_photo_revealed_${widget.conversationId}';
+      final currentUserId = AuthService().currentUser?.id ?? '';
+      final revealedKey =
+          'is_photo_revealed_${widget.conversationId}_$currentUserId';
       if (mounted) {
         setState(() {
           _isPhotoRevealed = prefs.getBool(revealedKey) ?? false;
@@ -378,7 +421,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       await _fetchPartnerProfile();
 
       // 🛡️ Consolidated: Extract naughty answer & milestones directly from Conversation model
-      final currentUserId = AuthService().currentUser?.id;
       final isUserA = conversation.userAId == currentUserId;
 
       // 1. Set seen milestones
@@ -409,25 +451,27 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         percent: conversation.feelingPercent,
         title: conversation.title,
       );
+
+      // 🛡️ Ensure any missed milestones (e.g. while offline) trigger the popup when the conversation loads.
+      _checkMilestones();
     }
   }
 
   Future<void> _fetchPartnerProfile() async {
     // If we already have the partnerId, we can start fetching immediately without waiting for conversation object
-    final partnerIdToUse = widget.partnerId ?? (
-      _conversation != null ? (
-        _conversation!.userAId == AuthService().currentUser?.id 
-          ? _conversation!.userBId 
-          : _conversation!.userAId
-      ) : null
-    );
+    final partnerIdToUse = widget.partnerId ??
+        (_conversation != null
+            ? (_conversation!.userAId == AuthService().currentUser?.id
+                ? _conversation!.userBId
+                : _conversation!.userAId)
+            : null);
 
     if (partnerIdToUse == null) return;
 
     try {
       final currentUserId = AuthService().currentUser?.id;
       final partnerId = partnerIdToUse;
-      
+
       if (partnerId == currentUserId) {
         debugPrint('⚠️ Warning: partnerId matches currentUserId');
         return;
@@ -452,7 +496,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         setState(() {
           _partnerId = partnerId;
           _partnerAvatarUrl = profileData?['avatar_url'] as String?;
-          _partnerUsername = profileData?['full_name'] as String? ?? widget.contactName;
+          _partnerUsername =
+              profileData?['full_name'] as String? ?? widget.contactName;
           _isBlocked = blocked;
           debugPrint(
               '🔍 ChatConversation: set _partnerUsername to $_partnerUsername');
@@ -1267,22 +1312,45 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                     _isPlayingVoice = true;
                     _playingVoiceId = voiceId;
                   });
-                  await _audioPlayer.play(UrlSource(message.mediaUrl!));
-                  _audioPlayer.onPlayerComplete.listen((event) {
-                    if (mounted && _playingVoiceId == voiceId) {
-                      setState(() {
-                        _isPlayingVoice = false;
-                        _playingVoiceId = null;
-                      });
-                    }
-                  });
+                  final mediaUrl = message.mediaUrl!;
+                  final source = mediaUrl.startsWith('http')
+                      ? UrlSource(mediaUrl)
+                      : DeviceFileSource(mediaUrl);
+                  await _audioPlayer.play(source);
+                  // Automatic reset handled by centralized listener
                 }
               } catch (e) {
+                debugPrint('Error playing standard voice message: $e');
+
+                // Fallback attempt for corrupted local paths
+                if (mounted &&
+                    message.mediaUrl != null &&
+                    !message.mediaUrl!.startsWith('http')) {
+                  try {
+                    final profileResp = await Supabase.instance.client
+                        .from('profiles')
+                        .select('secret_audio_url')
+                        .eq('id', message.senderId)
+                        .single();
+                    final realUrl = profileResp['secret_audio_url'] as String?;
+                    if (realUrl != null && realUrl.startsWith('http')) {
+                      await _audioPlayer.play(UrlSource(realUrl));
+                      return; // Successfully recovered!
+                    }
+                  } catch (_) {}
+                }
+
                 if (mounted) {
                   setState(() {
                     _isPlayingVoice = false;
                     _playingVoiceId = null;
                   });
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(AppLocalizations.of(context)
+                        .tr('errors.voice_unavailable')),
+                    backgroundColor: Colors.orange,
+                    duration: const Duration(seconds: 2),
+                  ));
                 }
               }
             },
@@ -1395,7 +1463,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         ],
       );
     } else if (message.mood?.startsWith('milestone_') ?? false) {
-      final isMilestone50 = message.mood == 'milestone_50';
+
       final hasAudio = message.mediaUrl != null;
       final voiceId = message.id;
       final isPlaying = _isPlayingVoice && _playingVoiceId == voiceId;
@@ -1443,6 +1511,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
           // Render extra content (Bio for 25%, Photo for 100%, etc.)
           if (extraContent != null && extraContent.isNotEmpty) ...[
+            () {
+              debugPrint('🔍 MILESTONE BUBBLE: extraContent="$extraContent"');
+              return const SizedBox.shrink();
+            }(),
             const SizedBox(height: 8),
             if (message.mood == 'milestone_25')
               Container(
@@ -1526,23 +1598,44 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           _playingVoiceId = voiceId;
                         });
 
-                        await _audioPlayer.play(UrlSource(message.mediaUrl!));
-                        _audioPlayer.onPlayerComplete.listen((event) {
-                          if (mounted && _playingVoiceId == voiceId) {
-                            setState(() {
-                              _isPlayingVoice = false;
-                              _playingVoiceId = null;
-                            });
-                          }
-                        });
+                        final mediaUrl = message.mediaUrl!;
+                        final source = mediaUrl.startsWith('http')
+                            ? UrlSource(mediaUrl)
+                            : DeviceFileSource(mediaUrl);
+                        await _audioPlayer.play(source);
+                        // Automatic reset handled by centralized listener
                       }
                     } catch (e) {
                       debugPrint('Error playing milestone audio: $e');
+
+                      // Auto-recovery for legacy local paths in historical milestones
+                      if (mounted && !message.mediaUrl!.startsWith('http')) {
+                        try {
+                          final profileResp = await Supabase.instance.client
+                              .from('profiles')
+                              .select('secret_audio_url')
+                              .eq('id', message.senderId)
+                              .single();
+                          final realUrl =
+                              profileResp['secret_audio_url'] as String?;
+                          if (realUrl != null && realUrl.startsWith('http')) {
+                            await _audioPlayer.play(UrlSource(realUrl));
+                            return; // Successfully recovered!
+                          }
+                        } catch (_) {}
+                      }
+
                       if (mounted) {
                         setState(() {
                           _isPlayingVoice = false;
                           _playingVoiceId = null;
                         });
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(AppLocalizations.of(context)
+                              .tr('errors.voice_unavailable')),
+                          backgroundColor: Colors.orange,
+                          duration: const Duration(seconds: 2),
+                        ));
                       }
                     }
                   },
@@ -2034,7 +2127,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                                   });
                                 },
                                 decoration: InputDecoration(
-                                  hintText: AppLocalizations.of(context).tr('chat.start_chatting_hint'),
+                                  hintText: AppLocalizations.of(context)
+                                      .tr('chat.start_chatting_hint'),
                                   hintStyle: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 16,
@@ -2255,7 +2349,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     // Load seen milestones from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    final seenKey = 'seen_milestones_${widget.conversationId}';
+    final currentUserId = AuthService().currentUser?.id ?? '';
+    final seenKey = 'seen_milestones_${widget.conversationId}_$currentUserId';
     final seenList = prefs.getStringList(seenKey) ?? [];
     final seenSet = seenList.map(int.parse).toSet();
 
@@ -2286,19 +2381,25 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
           if (_conversation != null) {
             try {
+              // 💡 PERSPECTIVE FIX: When a user hits a milestone, they share THEIR OWN secret with the partner.
+              // So we fetch the current user's data and post it to the thread, NOT the partner's data.
               final currentUserId = AuthService().currentUser?.id;
-              final partnerId = _conversation!.userAId == currentUserId
-                  ? _conversation!.userBId
-                  : _conversation!.userAId;
 
               final response = await Supabase.instance.client
                   .from('profiles')
-                  .select('about, secret_audio_url')
-                  .eq('id', partnerId)
+                  .select('secret_quote, secret_audio_url')
+                  .eq('id', currentUserId ?? '')
                   .single();
 
-              partnerBio = response['about'] as String?;
+              partnerBio = response['secret_quote'] as String?;
               partnerSecretAudioUrl = response['secret_audio_url'] as String?;
+
+              debugPrint(
+                  '🔍 MILESTONE DATA: Fetched currentUserId=$currentUserId');
+              debugPrint(
+                  '🔍 MILESTONE DATA: secret_quote="${response['secret_quote']}"');
+              debugPrint(
+                  '🔍 MILESTONE DATA: partnerBio variable="$partnerBio"');
             } catch (e) {
               debugPrint('❌ Error fetching partner data for milestone: $e');
             }
@@ -2362,19 +2463,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 _partnerAvatarUrl; // Link to reveals photo if exists
           }
 
-          // NEW: Auto-post milestone to chat thread
-          // EXCEPTION: 100% photo reveal is manual. We only post it when they click the button!
-          if (milestone.percentage != 100) {
-            _postMilestoneMessage(milestone,
-                content: milestoneContent, audioUrl: partnerSecretAudioUrl);
-          }
-
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               _showMilestoneModal(
                 milestone,
                 partnerBio: partnerBio,
                 partnerSecretAudioUrl: partnerSecretAudioUrl,
+                milestoneContent: milestoneContent,
               );
             }
           });
@@ -2426,7 +2521,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
       if (milestone.percentage == 50 && audioUrl != null) {
         mediaUrl = audioUrl;
-        duration = 3; // Provide a default duration for the media
+        // Default to 10 if we can't find duration (it's better than 3s which is often too short)
+        // But we now expect it to be passed from the caller who fetched the user preferences
+        duration = 5; // Default duration for milestone voice clips
       }
 
       // We use a custom mood to identify this as a milestone message in the UI
@@ -2437,11 +2534,34 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         messageText = '$messageText|--CONTENT--|$content';
       }
 
+      // 🛡️ Optimistic UI update for milestones
+      final tempId =
+          'temp_milestone_${milestone.percentage}_${DateTime.now().millisecondsSinceEpoch}';
+      final tempMsg = ChatMessage(
+        id: tempId,
+        conversationId: widget.conversationId!,
+        senderId: userId,
+        type: 'text', // Standardized for milestone records
+        text: messageText,
+        mediaUrl: mediaUrl,
+        duration: duration,
+        createdAt: DateTime.now(),
+        isMe: true,
+        mood: 'milestone_${milestone.percentage}',
+      );
+
+      if (mounted) {
+        setState(() {
+          _messages.add(tempMsg);
+          _messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        });
+        _scrollToBottom();
+      }
+
       await _db.sendMessage(
         conversationId: widget.conversationId!,
         senderId: userId,
-        type:
-            'text', // Always use text for milestones to ensure DB compatibility
+        type: 'text',
         text: messageText,
         mood: 'milestone_${milestone.percentage}',
         mediaUrl: mediaUrl,
@@ -2450,8 +2570,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         lastMessageSummary: AppLocalizations.of(context)
             .tr('chat.milestone_summary_${milestone.percentage}'),
       );
+
+      debugPrint(
+          '✅ [MILESTONE] Message sent successfully for ${milestone.percentage}%');
     } catch (e) {
-      debugPrint('❌ Error posting milestone message: $e');
+      debugPrint('❌ [MILESTONE] Error posting message: $e');
     }
   }
 
@@ -2459,6 +2582,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     FeelingMilestone milestone, {
     String? partnerBio,
     String? partnerSecretAudioUrl,
+    String? milestoneContent,
   }) async {
     debugPrint(
         '🎉 _showMilestoneModal called for: ${milestone.getTitle(context)}');
@@ -2510,6 +2634,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         },
         onContinue: () {
           Navigator.pop(context);
+
+          // 💬 The milestone message gets pushed to chat AFTER clicking continue
+          if (milestone.percentage != 100) {
+            _postMilestoneMessage(
+              milestone,
+              content: milestoneContent,
+              audioUrl: partnerSecretAudioUrl,
+            );
+          }
+
           // At 75% milestone: only premium males and females can answer naughty questions
           if (milestone == FeelingMilestone.gift) {
             final isFemale = _userGender?.toLowerCase() == 'female' ||
@@ -2599,7 +2733,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     ).then((_) async {
       // Refresh status after returning from premium screen
       await _checkPremiumStatus();
-      
+
       // After reactivation, scroll to bottom to ensure user is at the newest messages
       // This solves the issue of returning to the beginning of the conversation.
       _scrollToBottom();
@@ -2756,8 +2890,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
                         // Persist revealed state locally
                         final prefs = await SharedPreferences.getInstance();
+                        final currentUserId =
+                            AuthService().currentUser?.id ?? '';
                         await prefs.setBool(
-                            'is_photo_revealed_${widget.conversationId}', true);
+                            'is_photo_revealed_${widget.conversationId}_$currentUserId',
+                            true);
 
                         // Also save consent/status to database if needed
                         final uid =
@@ -2834,7 +2971,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           }
         }
 
-        // Handle auto-refresh if needed, but the realtime stream listener 
+        // Handle auto-refresh if needed, but the realtime stream listener
         // already handles most cases immediately.
         if (mounted) {
           Future.delayed(const Duration(milliseconds: 300), () {
@@ -2920,7 +3057,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).tr('chat.mood.changed', params: {'mood': AppLocalizations.of(context).tr('chat.mood.${mood.toLowerCase()}')})),
+            content: Text(AppLocalizations.of(context).tr('chat.mood.changed',
+                params: {
+                  'mood': AppLocalizations.of(context)
+                      .tr('chat.mood.${mood.toLowerCase()}')
+                })),
             duration: const Duration(seconds: 2),
             backgroundColor: const Color(0xFF0AC5C5),
           ),
@@ -2958,7 +3099,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                AppLocalizations.of(context).tr('chat.mood.${mood.toLowerCase()}'),
+                AppLocalizations.of(context)
+                    .tr('chat.mood.${mood.toLowerCase()}'),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
                   fontSize: 18,
@@ -2987,7 +3129,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Color(0xFF0AC5C5)),
-              title: Text(AppLocalizations.of(context).tr('chat.attachment.take_photo'),
+              title: Text(
+                  AppLocalizations.of(context).tr('chat.attachment.take_photo'),
                   style: const TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
@@ -2997,7 +3140,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             ListTile(
               leading:
                   const Icon(Icons.photo_library, color: Color(0xFF0AC5C5)),
-              title: Text(AppLocalizations.of(context).tr('chat.attachment.from_gallery'),
+              title: Text(
+                  AppLocalizations.of(context)
+                      .tr('chat.attachment.from_gallery'),
                   style: const TextStyle(fontFamily: 'Montserrat')),
               onTap: () {
                 Navigator.pop(context);
@@ -3237,7 +3382,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  AppLocalizations.of(context).tr('chat.voice_message.recording'),
+                  AppLocalizations.of(context)
+                      .tr('chat.voice_message.recording'),
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 16,
@@ -3349,7 +3495,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           ),
                           child: Center(
                             child: Text(
-                              _isRecording ? AppLocalizations.of(context).tr('chat.voice_message.send') : AppLocalizations.of(context).tr('chat.voice_message.record'),
+                              _isRecording
+                                  ? AppLocalizations.of(context)
+                                      .tr('chat.voice_message.send')
+                                  : AppLocalizations.of(context)
+                                      .tr('chat.voice_message.record'),
                               style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 16,
@@ -3490,7 +3640,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     });
   }
 
-
   void _showFullScreenImage(String imageUrl) {
     showDialog(
       context: context,
@@ -3529,7 +3678,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       ),
     );
   }
-
 
   @override
   void dispose() {

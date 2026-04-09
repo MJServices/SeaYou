@@ -532,6 +532,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                               "English (device's language)",
                           secretDesire: _secretDesireController.text,
                           secretQuote: _secretQuoteController.text,
+                          // Note: secretAudioUrl stores the local path temporarily during onboarding.
+                          // It is uploaded and replaced with a remote Supabase URL in UploadPictureScreen._proceedToNextScreen.
                           secretAudioUrl: _secretAudioPath,
                         );
                         await OnboardingService().saveStep(OnboardingStep.genderIdentity);

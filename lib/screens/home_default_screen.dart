@@ -52,12 +52,9 @@ class HomeDefaultScreen extends StatelessWidget {
                         height: 24,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          image: DecorationImage(
-                            image:
-                                AssetImage('assets/images/profile_avatar.png'),
-                            fit: BoxFit.cover,
-                          ),
+                          color: Color(0xFFF5F5F5),
                         ),
+                        child: const Icon(Icons.person, size: 16, color: Color(0xFF737373)),
                       ),
                       const SizedBox(width: 8),
                       const Text(
@@ -261,11 +258,9 @@ class HomeDefaultScreen extends StatelessWidget {
             height: 24,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              image: DecorationImage(
-                image: AssetImage('assets/images/profile_avatar.png'),
-                fit: BoxFit.cover,
-              ),
+              color: Color(0xFFF5F5F5),
             ),
+            child: const Icon(Icons.person, size: 16, color: Color(0xFF737373)),
           )
         else
           Icon(

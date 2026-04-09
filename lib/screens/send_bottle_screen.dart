@@ -1166,6 +1166,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
           bottleId: bottleId,
           senderId: currentUser.id,
           recipientId: recipientId,
+          isImmediate: isPremiumOrWoman, // ⚡ Instant delivery for Premium!
         );
       }
 

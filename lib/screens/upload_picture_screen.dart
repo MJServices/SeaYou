@@ -170,6 +170,28 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       final gender = widget.userProfile.gender?.toLowerCase() ?? '';
       final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
 
+      // NEW: Upload secret audio clip IF it's a local path BEFORE creating the profile
+      // This ensures the first DB entry has the remote URL, not a local path.
+      if (widget.userProfile.secretAudioUrl != null &&
+          !widget.userProfile.secretAudioUrl!.startsWith('http')) {
+        debugPrint('🎤 [UploadPicture] Pre-uploading secret audio clip...');
+        final audioFile = File(widget.userProfile.secretAudioUrl!);
+        if (await audioFile.exists()) {
+          final audioUrl = await DatabaseService().uploadAudioClip(
+            userId: userId,
+            audioFile: audioFile,
+          );
+          if (audioUrl != null) {
+            widget.userProfile.secretAudioUrl = audioUrl;
+            debugPrint('✅ [UploadPicture] Audio uploaded successfully: $audioUrl');
+          } else {
+            debugPrint('⚠️ [UploadPicture] Audio upload failed, proceeding with local path (will be broken)');
+          }
+        } else {
+          debugPrint('⚠️ [UploadPicture] Audio file not found at local path: ${widget.userProfile.secretAudioUrl}');
+        }
+      }
+
       await DatabaseService().createProfile(
         userId: userId,
         email: widget.userProfile.email ?? '',
@@ -227,22 +249,6 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         }
 
         debugPrint('✅ All photos uploaded successfully');
-
-        if (widget.userProfile.secretAudioUrl != null &&
-            !widget.userProfile.secretAudioUrl!.startsWith('http')) {
-          debugPrint('🎤 Uploading secret audio clip...');
-          final audioFile = File(widget.userProfile.secretAudioUrl!);
-          if (await audioFile.exists()) {
-            final audioUrl = await DatabaseService().uploadAudioClip(
-              userId: user.id,
-              audioFile: audioFile,
-            );
-            if (audioUrl != null) {
-              widget.userProfile.secretAudioUrl = audioUrl;
-              debugPrint('✅ Audio uploaded: $audioUrl');
-            }
-          }
-        }
       }
 
       if (!mounted) return;

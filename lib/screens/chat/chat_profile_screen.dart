@@ -21,7 +21,7 @@ class ChatProfileScreen extends StatefulWidget {
     required this.feelingPercent,
     required this.contactName,
     this.mood,
-  });
+   });
 
   @override
   State<ChatProfileScreen> createState() => _ChatProfileScreenState();
@@ -41,8 +41,38 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
 
   Future<void> _loadPartnerProfile() async {
     try {
-      // Fetch partner profile
-      final profile = await _db.getProfile(widget.partnerId);
+      // Fetch partner profile — bypass cache to get fresh secret_quote & secret_audio_url
+      final profile = await _db.getProfile(widget.partnerId, useCache: false);
+
+      // 🔄 Backfill: for users who registered before the profile-write fix,
+      // their secret_audio_url / secret_quote may only exist in user_preferences.
+      if (profile != null) {
+        final needsAudio = profile['secret_audio_url'] == null ||
+            (profile['secret_audio_url'] as String?)?.isEmpty == true;
+        final needsQuote = profile['secret_quote'] == null ||
+            (profile['secret_quote'] as String?)?.isEmpty == true;
+
+        if (needsAudio || needsQuote) {
+          try {
+            final prefs = await Supabase.instance.client
+                .from('user_preferences')
+                .select('voice_clip_url, secret_quote')
+                .eq('user_id', widget.partnerId)
+                .maybeSingle();
+
+            if (prefs != null) {
+              if (needsAudio && prefs['voice_clip_url'] != null) {
+                profile['secret_audio_url'] = prefs['voice_clip_url'];
+              }
+              if (needsQuote && prefs['secret_quote'] != null) {
+                profile['secret_quote'] = prefs['secret_quote'];
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠️ Could not backfill from user_preferences: $e');
+          }
+        }
+      }
 
       // Fetch naughty answer if feeling >= 75%
       String? naughtyAnswer;
@@ -271,7 +301,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                 AppLocalizations.of(context)
                     .tr('chat_profile.bio_unlocked', params: {'percent': '25'}),
                 style: const TextStyle(
-                  fontFamily: 'Montserrat',
+                   fontFamily: 'Montserrat',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF0AC5C5),
@@ -280,6 +310,11 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          () {
+            debugPrint('🔍 MILESTONE DATA UI: Displaying message from _partnerProfile?["secret_quote"]');
+            debugPrint('🔍 MILESTONE DATA UI: Value="${_partnerProfile?['secret_quote']}"');
+            return const SizedBox.shrink();
+          }(),
           Text(
             _partnerProfile?['secret_quote'] as String? ??
                 AppLocalizations.of(context).tr('chat_profile.no_bio'),

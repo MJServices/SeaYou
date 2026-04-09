@@ -20,7 +20,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   final List<Map<String, dynamic>> _fantasies = [];
   int _currentIndex = 0;
   bool _loading = false;
-  bool _isPremium = false;
+  bool? _isPremium;
   int _page = 0;
   late AnimationController _swipeController;
 
@@ -49,17 +49,35 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   Future<void> _init() async {
     final user = AuthService().currentUser;
     if (user != null) {
+      // 🏁 SWR (Stale-While-Revalidate) Pattern:
+      // Try to get cached premium status from profile sync for instant UI
+      final cachedProfile = DatabaseService.getProfileSync(user.id);
+      if (cachedProfile != null && mounted) {
+        final tier = cachedProfile['tier'] as String? ?? 'free';
+        final gender = (cachedProfile['gender'] as String?)?.toLowerCase() ?? '';
+        final isP = tier == 'premium' || 
+                   tier == 'elite' || 
+                   gender == 'woman' || 
+                   gender == 'female' || 
+                   gender == 'femme';
+        
+        setState(() {
+          _isPremium = isP;
+        });
+      }
+
       final isPremiumOrWoman =
           await EntitlementsService().isPremiumOrWoman(user.id);
+      
       if (mounted) {
         setState(() {
           _isPremium = isPremiumOrWoman;
         });
-      }
-    }
 
-    if (_isPremium) {
-      await _loadFantasies();
+        if (isPremiumOrWoman) {
+          _loadFantasies();
+        }
+      }
     }
   }
 
@@ -726,7 +744,13 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   const Spacer(),
 
                   // Action Button
-                  if (_isPremium)
+                  if (_isPremium == null)
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFD4B484),
+                      ),
+                    )
+                  else if (_isPremium!)
                     // Direct Access (Premium)
                     GestureDetector(
                       onTap: () {

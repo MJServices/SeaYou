@@ -27,7 +27,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   int _page = 0;
   bool _loading = false;
   int _fetchSessionId = 0; // Added to prevent race conditions during rapid tab switching
-  bool _isPremium = false;
+  bool? _isPremium;
   bool _showGate = true;
 
   @override
@@ -39,17 +39,35 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   Future<void> _init() async {
     final user = AuthService().currentUser;
     if (user != null) {
+      // 🏁 SWR (Stale-While-Revalidate) Pattern:
+      // Try to get cached premium status from profile sync for instant UI
+      final cachedProfile = DatabaseService.getProfileSync(user.id);
+      if (cachedProfile != null && mounted) {
+        final tier = cachedProfile['tier'] as String? ?? 'free';
+        final gender = (cachedProfile['gender'] as String?)?.toLowerCase() ?? '';
+        final isP = tier == 'premium' || 
+                   tier == 'elite' || 
+                   gender == 'woman' || 
+                   gender == 'female' || 
+                   gender == 'femme';
+        
+        setState(() {
+          _isPremium = isP;
+        });
+      }
+
       final isPremiumOrWoman =
           await EntitlementsService().isPremiumOrWoman(user.id);
+      
       if (mounted) {
         setState(() {
           _isPremium = isPremiumOrWoman;
         });
-      }
-    }
 
-    if (_isPremium) {
-      _loadContent();
+        if (isPremiumOrWoman) {
+          _loadContent();
+        }
+      }
     }
   }
 
@@ -616,7 +634,13 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   const Spacer(),
 
                   // Action Button
-                  if (_isPremium)
+                  if (_isPremium == null)
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFD4B483),
+                      ),
+                    )
+                  else if (_isPremium == true)
                     // Direct Access (Premium)
                     GestureDetector(
                       onTap: () {
@@ -1025,6 +1049,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
               child: photoUrl != null
                   ? Image.network(
                       photoUrl,
+                      key: ValueKey(photoUrl),
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;

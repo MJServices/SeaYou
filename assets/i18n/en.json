@@ -7,7 +7,10 @@
     "discover": "Discover",
     "write_message": "Write a message",
     "premium_cta": "DISCOVER SEAYOU PREMIUM",
-    "discovery_card_title": "3 new messages",
+    "discovery_card_title": "{count} new messages",
+    "discovery_card_title_none": "No new messages",
+    "discovery_card_title_one": "1 new message",
+    "discovery_card_title_plural": "{count} new messages",
     "new_messages_count": "New messages received",
     "discovery_card_subtitle": "What if you let chance do the rest...",
     "discovery_card_cta": "Discover",
@@ -15,7 +18,8 @@
     "new_messages_zero": "No new messages",
     "new_messages_one": "New message",
     "new_messages_other": "New messages received",
-    "debug_activate_premium": "DEBUG: ACTIVATE PREMIUM"
+    "debug_activate_premium": "DEBUG: ACTIVATE PREMIUM",
+    "discovery_card_generic": "Discovery Zone"
   },
   "auth": {
     "sign_up": "Sign up",
@@ -114,7 +118,7 @@
     "audio_unlocked": "Voice message unlocked ({percent}%)",
     "intimate_unlocked": "Naughty question unlocked ({percent}%)",
     "reveal_photo": "Reveal Photo ({percent}%)",
-    "no_bio": "No bio available",
+    "no_bio": "No quote available",
     "no_audio": "No audio available",
     "block_user": "Block {name}",
     "block_warning": "This person won't be able to message you. They won't know you blocked or reported them.",
@@ -313,6 +317,7 @@
     "load_bio_failed": "Failed to load bio",
     "load_quote_failed": "Failed to load quote",
     "load_voice_failed": "Failed to load voice message",
+    "voice_unavailable": "Voice message is being processed and will be available soon.",
     "block_user_failed": "Failed to block user. Please try again.",
     "cannot_delete_main_photo": "You cannot delete your Main Photo. Please set another photo as Main first.",
     "enter_password_to_change_email": "Please enter your current password to change your email address."

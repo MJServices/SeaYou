@@ -46,8 +46,22 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
       setState(() => _isPlaying = false);
     } else {
       if (widget.partnerSecretAudioUrl != null) {
-        await _audioPlayer.play(UrlSource(widget.partnerSecretAudioUrl!));
-        setState(() => _isPlaying = true);
+        // NEW: Safety guard to ensure we only play remote URLs.
+        // If it looks like a local path (corrupted data), we don't try to play it.
+        if (widget.partnerSecretAudioUrl!.startsWith('http')) {
+          await _audioPlayer.play(UrlSource(widget.partnerSecretAudioUrl!));
+          setState(() => _isPlaying = true);
+        } else {
+          debugPrint('⚠️ [MilestoneUnlock] Cannot play local path or malformed URL: ${widget.partnerSecretAudioUrl}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).tr('errors.voice_unavailable')),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
       }
     }
   }
@@ -156,6 +170,7 @@ class _MilestoneUnlockModalState extends State<MilestoneUnlockModal> {
     switch (widget.milestone) {
       case FeelingMilestone.feather:
         // 25% - Show partner's bio/quote
+        debugPrint('🔍 MILESTONE MODAL: partnerBio="${widget.partnerBio}"');
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

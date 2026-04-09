@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _subscribeNewBottles();
     _subscribeNewConversations();
     _triggerBottleRematching();
+    _prefetchContent();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final t = TutorialService();
       final seen = await t.hasSeenHomeTutorial();
@@ -164,6 +165,13 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       debugPrint('Error triggering bottle re-matching: $e');
     }
+  }
+
+  Future<void> _prefetchContent() async {
+    // RUN IN BACKGROUND
+    Future.microtask(() async {
+      await _databaseService.prefetchSpecialSections();
+    });
   }
 
   void _subscribeProfile() {
@@ -273,21 +281,21 @@ class _HomeScreenState extends State<HomeScreen> {
           .stream(primaryKey: ['id'])
           .eq('receiver_id', userId)
           .listen((data) async {
-            if (data.isNotEmpty && mounted) {
+            if (data.isNotEmpty) {
+              // Always refresh count for Home Screen reactivity
+              _loadData();
+
               final latestBottle = data.last;
-              final senderId = latestBottle['sender_id'] as String?;
               final isRead = latestBottle['is_read'] as bool? ?? false;
+              final String? senderId = latestBottle['sender_id'] as String?;
               final bottleId = latestBottle['id'] as String;
 
+              // Only show toast/vibration for actual NEW unread bottles from others
               if (senderId != null &&
                   senderId != userId &&
                   !isRead &&
+                  latestBottle['created_at'] != null &&
                   bottleId != _lastNotifiedBottleId) {
-                final isBlocked =
-                    await _databaseService.isRelationBlocked(userId, senderId);
-                if (isBlocked) return;
-
-                _lastNotifiedBottleId = bottleId;
 
                 NotificationService().show(
                   context: context,
@@ -509,8 +517,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         _receivedCount == 0
                                             ? AppLocalizations.of(context)
                                                 .tr('home.new_messages_zero')
-                                            : AppLocalizations.of(context)
-                                                .tr('home.new_messages_one'),
+                                            : (_receivedCount == 1
+                                                ? AppLocalizations.of(context)
+                                                    .tr('home.new_messages_one')
+                                                : AppLocalizations.of(context)
+                                                    .tr('home.new_messages_other')),
                                         style: const TextStyle(
                                           fontFamily: 'Montserrat',
                                           fontSize: 14,
@@ -520,8 +531,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  AppLocalizations.of(context)
-                                      .tr('home.discover'),
+                                  AppLocalizations.of(context).tr('home.discover'),
                                   style: const TextStyle(
                                     fontFamily: 'Montserrat',
                                     fontSize: 12,
