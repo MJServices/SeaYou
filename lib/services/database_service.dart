@@ -30,6 +30,19 @@ class DatabaseService {
   Stream<Map<String, dynamic>> get profileUpdateBroadcast =>
       _profileUpdateController.stream;
 
+  // 🔗 Cross-screen broadcast: fires a partnerId when a new conversation is created.
+  // Both Secret Souls and Door of Desires subscribe to this to remove the user immediately.
+  static final StreamController<String> _newConversationController =
+      StreamController<String>.broadcast();
+
+  static Stream<String> get newConversationStream =>
+      _newConversationController.stream;
+
+  /// Notify all subscribers that a new conversation has been started with [partnerId].
+  static void notifyNewConversation(String partnerId) {
+    _newConversationController.add(partnerId);
+  }
+
   /// Reciprocal Compatibility Check (Shared Logic)
   /// Checks if Viewer likes Creator AND Creator likes Viewer
   bool _isReciprocalCompatible({
@@ -276,7 +289,9 @@ class DatabaseService {
           .select('daily_free_scrolls, scrolls_count')
           .eq('id', userId)
           .single();
-      return (res['daily_free_scrolls'] ?? 0) + (res['scrolls_count'] ?? 0);
+      final int daily = res['daily_free_scrolls'] as int? ?? 0;
+      final int regular = res['scrolls_count'] as int? ?? 0;
+      return (daily + regular).clamp(0, double.maxFinite.toInt());
     } catch (e) {
       debugPrint('Error getting scrolls count: $e');
       return 0;
@@ -1288,6 +1303,20 @@ class DatabaseService {
     int matchScore = 0,
   }) async {
     try {
+      // DUPLICATION GUARD: Check if this bottle was already received by this user
+      final existing = await _supabase
+          .from('received_bottles')
+          .select('id')
+          .eq('receiver_id', receiverId)
+          .eq('sent_bottle_id', bottleId)
+          .maybeSingle();
+
+      if (existing != null) {
+        debugPrint(
+            '🛡️ createReceivedBottle: Bottle $bottleId already received by $receiverId. Skipping insert.');
+        return existing['id'] as String;
+      }
+
       final response = await _supabase
           .from('received_bottles')
           .insert({
@@ -2137,6 +2166,32 @@ class DatabaseService {
       for (final c in (convs as List)) {
         if (c['user_a_id'] != userId) partnerIds.add(c['user_a_id'] as String);
         if (c['user_b_id'] != userId) partnerIds.add(c['user_b_id'] as String);
+      }
+
+      // 2. Get partners from received bottles OR where user is sender
+      final received = await _supabase
+          .from('received_bottles')
+          .select('sender_id, receiver_id')
+          .or('sender_id.eq.$userId,receiver_id.eq.$userId');
+
+      for (final r in (received as List)) {
+        final sId = r['sender_id'] as String?;
+        final rId = r['receiver_id'] as String?;
+        if (sId != null && sId != userId) partnerIds.add(sId);
+        if (rId != null && rId != userId) partnerIds.add(rId);
+      }
+
+      // 3. Get partners from sent bottles (matched ones)
+      final sent = await _supabase
+          .from('sent_bottles')
+          .select('sender_id, matched_recipient_id')
+          .or('sender_id.eq.$userId,matched_recipient_id.eq.$userId');
+
+      for (final s in (sent as List)) {
+        final sId = s['sender_id'] as String?;
+        final rId = s['matched_recipient_id'] as String?;
+        if (sId != null && sId != userId) partnerIds.add(sId);
+        if (rId != null && rId != userId) partnerIds.add(rId);
       }
 
       return partnerIds.toList();

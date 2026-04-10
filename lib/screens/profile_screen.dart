@@ -84,8 +84,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _interests = List<String>.from(profile['interests']);
           }
 
-          _availableBottles = (profile['scrolls_count'] ?? 0) +
-              (profile['daily_free_scrolls'] ?? 0);
+          _availableBottles = ((profile['scrolls_count'] as int? ?? 0) +
+              (profile['daily_free_scrolls'] as int? ?? 0))
+              .clamp(0, double.maxFinite.toInt());
 
           _isLoading = false;
         });

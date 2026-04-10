@@ -36,13 +36,24 @@ class BottleMatchingService {
         return null;
       }
 
-      // 1.5. Fetch bottle details for targeting
+      // 1.5. Fetch bottle details for targeting and status check
       final bottle = await _supabase
           .from('sent_bottles')
           .select(
-              'target_min_age, target_max_age, target_gender, target_departments')
+              'target_min_age, target_max_age, target_gender, target_departments, matched_recipient_id, status')
           .eq('id', bottleId)
           .single();
+
+      // DUPLICATION GUARD:
+      // If the bottle is already matched or delivered, return the existing recipient ID
+      final existingRecipient = bottle['matched_recipient_id'] as String?;
+      final status = bottle['status'] as String?;
+      if (existingRecipient != null &&
+          (status == 'matched' || status == 'delivered' || status == 'read')) {
+        debugPrint(
+            '🛡️ Duplication Guard: Bottle $bottleId already matched to $existingRecipient. Skipping.');
+        return existingRecipient;
+      }
 
       final int? minAge = bottle['target_min_age'];
       final int? maxAge = bottle['target_max_age'];
@@ -85,9 +96,13 @@ class BottleMatchingService {
         MatchLeniency.global,
       ];
 
+      final bool hasSpecificTargeting = minAge != null ||
+          maxAge != null ||
+          targetGender.isNotEmpty ||
+          targetDepartments.isNotEmpty;
+
       for (final leniency in leniencyLevels) {
-        debugPrint(
-            '🔍 Attempting matching with leniency: ${leniency.name}');
+        debugPrint('🔍 Attempting matching with leniency: ${leniency.name}');
         eligibleUsers = await _getEligibleRecipients(
           senderId: senderId,
           senderProfile: senderProfile,
@@ -103,6 +118,16 @@ class BottleMatchingService {
           selectedLeniency = leniency;
           debugPrint(
               '✅ Found ${eligibleUsers.length} users with ${leniency.name} leniency');
+          break;
+        }
+
+        // ⚡ REGRESSION FIX:
+        // If the user has specified strict targeting (Age, Department, or Gender),
+        // we DO NOT fall back to higher leniency levels. The bottle should
+        // stay 'pending/floating' until a truly compatible user matches.
+        if (hasSpecificTargeting) {
+          debugPrint(
+              '🚫 Strict targeting detected for $bottleId: Skipping fallback leniency levels to ensure criteria compliance.');
           break;
         }
       }
@@ -452,6 +477,18 @@ class BottleMatchingService {
     // Otherwise -> 5-15 seconds (reduced from 1-5 minutes for better UX).
     final delaySeconds = isImmediate ? 0 : 5 + _random.nextInt(11);
     final scheduledTime = DateTime.now().add(Duration(seconds: delaySeconds));
+
+    // DUPLICATION GUARD: Check if already in queue or already delivered
+    final existingQueue = await _supabase
+        .from('bottle_delivery_queue')
+        .select('id')
+        .eq('sent_bottle_id', bottleId)
+        .maybeSingle();
+
+    if (existingQueue != null) {
+      debugPrint('🛡️ scheduleBottleDelivery: Bottle $bottleId already in delivery queue. Skipping.');
+      return scheduledTime; // Re-use time (approximate)
+    }
 
     await _supabase.from('bottle_delivery_queue').insert({
       'sent_bottle_id': bottleId,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../services/auth_service.dart';
@@ -30,10 +31,25 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
   bool? _isPremium;
   bool _showGate = true;
 
+  // 🔗 Cross-screen sync: listens for new conversations started in ANY screen
+  StreamSubscription<String>? _newConvSub;
+
   @override
   void initState() {
     super.initState();
     _init();
+    // Subscribe to cross-screen new-conversation events
+    _newConvSub = DatabaseService.newConversationStream.listen((partnerId) {
+      if (mounted) {
+        setState(() {
+          _content.removeWhere((item) => item['user_id'] == partnerId);
+          // Fix index if needed
+          if (_currentIndex >= _content.length && _content.isNotEmpty) {
+            _currentIndex = _content.length - 1;
+          }
+        });
+      }
+    });
   }
 
   Future<void> _init() async {
@@ -73,6 +89,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
 
   @override
   void dispose() {
+    _newConvSub?.cancel();
     _pageController.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -190,6 +207,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         await _db.getConversationId(user.id, content['user_id'] as String);
     if (existingConvId != null) {
       if (!mounted) return;
+      // 🔗 Broadcast so other screens also remove this partner
+      DatabaseService.notifyNewConversation(content['user_id'] as String);
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -203,24 +223,20 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       return;
     }
 
-    // 2. Check limits (Scrolls available)
-    final hasScrolls = await _db.hasAvailableScrolls(user.id);
-    if (!hasScrolls) {
-      if (!mounted) return;
-      _showOutOfScrollsDialog();
-      return;
-    }
-    
     final int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
 
+
     // 3. Show message input dialog
-    final messageController = TextEditingController();
     if (!mounted) return;
-    final message = await showDialog<String>(
+    final messageController = TextEditingController();
+    // ✅ FIX: Declared OUTSIDE the StatefulBuilder so it persists across rebuilds
+    bool isSendingLocal = false;
+
+    await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (dialogContext) => Dialog(
-        backgroundColor: const Color(0xFFFFFDF5), // Premium light cream
+        backgroundColor: const Color(0xFFFFFDF5),
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
@@ -245,7 +261,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '($availableScrollsCount)',
+                    '(${availableScrollsCount < 0 ? 0 : availableScrollsCount})',
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
@@ -261,7 +277,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: () => Navigator.pop(dialogContext, null),
+                    onTap: () => Navigator.pop(dialogContext),
                     child: Icon(Icons.close_rounded,
                         size: 22, color: Colors.grey.withValues(alpha: 0.6)),
                   ),
@@ -270,7 +286,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
               const SizedBox(height: 16),
               StatefulBuilder(
                 builder: (modalContext, setDialogState) {
-                  final l10n = AppLocalizations.of(modalContext);
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -289,13 +304,14 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             ],
                           ),
                           child: TextField(
+                            key: const ValueKey('secret_soul_input'), // 🔑 Fix for text deletion
                             controller: messageController,
                             maxLines: 2,
                             maxLength: 200,
-                            autofocus: true,
+                            autofocus: true, 
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: l10n.tr('chamber.type_message_hint'),
+                              hintText: AppLocalizations.of(modalContext).tr('chamber.type_message_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13,
@@ -332,51 +348,117 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                           const SizedBox(height: 8),
                           // Premium Send Button
                           GestureDetector(
-                            onTap: () {
+                            onTap: isSendingLocal ? null : () async {
                               final msg = messageController.text.trim();
-                              if (msg.isNotEmpty) {
-                                Navigator.pop(modalContext, msg);
+                              if (msg.isEmpty) return;
+
+                              setDialogState(() => isSendingLocal = true);
+
+                              try {
+                                final l10n = AppLocalizations.of(context);
+                                final contentTypeStr = content['content_type'] as String?;
+                                final replyPrefix = contentTypeStr == 'bio'
+                                    ? l10n.tr('chamber.replying_to_bio')
+                                    : l10n.tr('chamber.replying_to_content');
+
+                                // 1. Deduct scroll
+                                final deducted = await _db.deductScroll(user.id);
+                                if (!deducted) {
+                                  if (mounted) {
+                                    Navigator.of(dialogContext).pop();
+                                    _showOutOfScrollsDialog();
+                                  }
+                                  return;
+                                }
+
+                                // 2. Send Bottle
+                                final bottleId = await _db.sendDirectBottle(
+                                  senderId: user.id,
+                                  receiverId: content['user_id'] as String,
+                                  contentType: 'text',
+                                  message: msg,
+                                  replyToContentType: contentTypeStr,
+                                  replyToContent: _getContentPreview(content),
+                                  replyPrefix: replyPrefix,
+                                );
+
+                                if (bottleId != null) {
+                                  // ✅ Use Navigator.of(dialogContext).pop() for absolute reliability
+                                  if (mounted) Navigator.of(dialogContext).pop();
+
+                                  // 🔗 Broadcast so Door of Desires also removes this partner
+                                  DatabaseService.notifyNewConversation(
+                                    content['user_id'] as String,
+                                  );
+
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(l10n.tr('chamber.bottle_sent_success')),
+                                        backgroundColor: const Color(0xFF4CAF50),
+                                      ),
+                                    );
+
+                                    // Remove from list immediately so user sees next card
+                                    setState(() {
+                                      if (_currentIndex < _content.length) {
+                                        _content.removeAt(_currentIndex);
+                                        if (_currentIndex >= _content.length && _content.isNotEmpty) {
+                                          _currentIndex = _content.length - 1;
+                                        }
+                                        if (_content.length < 3) _loadContent();
+                                      }
+                                    });
+                                  }
+                                } else {
+                                  throw Exception('Send failed');
+                                }
+                              } catch (e) {
+                                debugPrint('❌ Error sending: $e');
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context).tr('errors.send_bottle_failed')),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                                setDialogState(() => isSendingLocal = false);
                               }
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: messageController.text.trim().isEmpty
+                                color: (messageController.text.trim().isEmpty || isSendingLocal)
                                     ? Colors.grey.withValues(alpha: 0.2)
                                     : const Color(0xFFD4B483),
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: messageController.text.trim().isEmpty
-                                    ? []
-                                    : [
-                                        BoxShadow(
-                                          color: const Color(0xFFD4B483)
-                                              .withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ],
                               ),
-                              child: Text(
-                                l10n.tr('chamber.send'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                              ),
+                              child: isSendingLocal 
+                                ? const SizedBox(
+                                    width: 14, 
+                                    height: 14, 
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                                  )
+                                : Text(
+                                    AppLocalizations.of(modalContext).tr('chamber.send'),
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                             ),
                           ),
                           const SizedBox(height: 6),
-                          // Subtle Cancel
                           GestureDetector(
-                            onTap: () => Navigator.pop(modalContext, null),
+                            onTap: isSendingLocal ? null : () => Navigator.of(dialogContext).pop(),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                l10n.tr('dialogs.cancel'),
+                                AppLocalizations.of(modalContext).tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   color: Colors.grey.withValues(alpha: 0.7),
@@ -397,95 +479,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
         ),
       ),
     );
-
-    // If user cancelled or didn't type a message, return
-    if (message == null || message.isEmpty || !mounted) return;
-
-    // 4. Send Bottle (NOT Conversation)
-    try {
-      debugPrint('🚀 SECRET SOULS: Sending bottle...');
-      debugPrint('  Content ID: ${content['id']}');
-      debugPrint('  Requester ID: ${user.id}');
-      debugPrint('  Owner ID: ${content['user_id']}');
-      debugPrint('  Message: $message');
-
-      final l10n = AppLocalizations.of(context);
-      final contentTypeStr = content['content_type'] as String?;
-      final replyPrefix = contentTypeStr == 'bio'
-          ? l10n.tr('chamber.replying_to_bio')
-          : l10n.tr('chamber.replying_to_content');
-
-      // 3. Deduct scroll (Verify and consume)
-      final deducted = await _db.deductScroll(user.id);
-      if (!deducted) {
-        if (!mounted) return;
-        _showOutOfScrollsDialog();
-        return;
-      }
-
-      final bottleId = await _db.sendDirectBottle(
-        senderId: user.id,
-        receiverId: content['user_id'] as String,
-        contentType: 'text', // Bottle content is text (the reply)
-        message: message,
-        replyToContentType: contentTypeStr,
-        replyToContent: _getContentPreview(content),
-        replyPrefix: replyPrefix,
-      );
-
-      debugPrint('📬 SECRET SOULS: Bottle ID returned: $bottleId');
-
-      if (bottleId != null) {
-        debugPrint('✅ SECRET SOULS: Bottle sent successfully...');
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppLocalizations.of(context)
-                  .tr('chamber.bottle_sent_success')),
-              backgroundColor: const Color(0xFF4CAF50),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-
-          // ADDED: Immediate disappearance
-          setState(() {
-            if (_currentIndex < _content.length) {
-              _content.removeAt(_currentIndex);
-              // Adjust index if needed
-              if (_currentIndex >= _content.length && _content.isNotEmpty) {
-                _currentIndex = _content.length - 1;
-              }
-              // If we removed the item, we might need to load more if the list is getting empty
-              if (_content.length < 3) {
-                _loadContent();
-              }
-            }
-          });
-        }
-      } else {
-        debugPrint('❌ SECRET SOULS: Bottle ID is NULL - send failed');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  AppLocalizations.of(context).tr('errors.send_bottle_failed')),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ SECRET SOULS: Exception caught: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
   }
 
   void _showOutOfScrollsDialog() {
+
     showDialog(
       context: context,
       builder: (context) {
@@ -502,9 +499,9 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 const Icon(Icons.history_edu,
                     size: 50, color: Color(0xFFD4B483)),
                 const SizedBox(height: 16),
-                const Text(
-                  'Plus de Parchemins',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_title'),
+                  style: const TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -512,15 +509,16 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Vous avez atteint votre limite quotidienne de 3 réponses gratuites pour les sections spéciales. Les membres Premium bénéficient de cette limite de 3 parchemins gratuits par jour pour ces zones.',
+                Text(
+                  AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_message'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 14,
                     color: Color(0xFF5D4037),
                   ),
                 ),
+
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {

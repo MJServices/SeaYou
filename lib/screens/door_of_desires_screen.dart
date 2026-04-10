@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
@@ -27,6 +28,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
   // New state for the Gate
   bool _showGate = true;
 
+  // 🔗 Cross-screen sync: listens for new conversations started in ANY screen
+  StreamSubscription<String>? _newConvSub;
+
   @override
   void initState() {
     super.initState();
@@ -38,10 +42,23 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
       value: 0.0, // Start centered
     );
     _init();
+    // Subscribe to cross-screen new-conversation events
+    _newConvSub = DatabaseService.newConversationStream.listen((partnerId) {
+      if (mounted) {
+        setState(() {
+          _fantasies.removeWhere((f) => f['user_id'] == partnerId);
+          if (_currentIndex >= _fantasies.length && _fantasies.isNotEmpty) {
+            _currentIndex = _fantasies.length - 1;
+          }
+          _swipeController.value = 0;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _newConvSub?.cancel();
     _swipeController.dispose();
     super.dispose();
   }
@@ -176,6 +193,9 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         await _db.getConversationId(user.id, fantasy['user_id'] as String);
     if (existingConvId != null) {
       if (!mounted) return;
+      // 🔗 Broadcast so other screens also remove this partner
+      DatabaseService.notifyNewConversation(fantasy['user_id'] as String);
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -183,26 +203,23 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
             conversationId: existingConvId,
             contactName:
                 AppLocalizations.of(context).tr('common.door_of_desires'),
+            partnerId: fantasy['user_id'] as String,
           ),
         ),
       );
       return;
     }
 
-    // 2. Check limits (Scrolls available)
-    final hasScrolls = await _db.hasAvailableScrolls(user.id);
-    if (!hasScrolls) {
-      if (!mounted) return;
-      _showOutOfScrollsDialog();
-      return;
-    }
-    
     final int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
 
+
     // 3. Show message input dialog (like Secret Souls)
-    final messageController = TextEditingController();
     if (!mounted) return;
-    final message = await showDialog<String>(
+    final messageController = TextEditingController();
+    // ✅ FIX: Declared OUTSIDE the StatefulBuilder so it persists across rebuilds
+    bool isSendingLocal = false;
+
+    await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (dialogContext) => Dialog(
@@ -231,7 +248,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '($availableScrollsCount)',
+                    '(${availableScrollsCount < 0 ? 0 : availableScrollsCount})',
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 14,
@@ -247,7 +264,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: () => Navigator.pop(dialogContext, null),
+                    onTap: () => Navigator.pop(dialogContext),
                     child: Icon(Icons.close_rounded,
                         size: 22, color: Colors.grey.withValues(alpha: 0.6)),
                   ),
@@ -256,7 +273,6 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
               const SizedBox(height: 16),
               StatefulBuilder(
                 builder: (modalContext, setDialogState) {
-                  final l10n = AppLocalizations.of(modalContext);
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -275,13 +291,14 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                             ],
                           ),
                           child: TextField(
+                            key: const ValueKey('door_of_desires_input'), // 🔑 Fix for text deletion
                             controller: messageController,
                             maxLines: 2,
                             maxLength: 200,
                             autofocus: true,
                             onChanged: (value) => setDialogState(() {}),
                             decoration: InputDecoration(
-                              hintText: l10n.tr('chamber.whisper_hint'),
+                              hintText: AppLocalizations.of(modalContext).tr('chamber.whisper_hint'),
                               hintStyle: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontSize: 13,
@@ -318,51 +335,113 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                           const SizedBox(height: 8),
                           // Premium Send Button
                           GestureDetector(
-                            onTap: () {
+                            onTap: isSendingLocal ? null : () async {
                               final msg = messageController.text.trim();
-                              if (msg.isNotEmpty) {
-                                Navigator.pop(modalContext, msg);
+                              if (msg.isEmpty) return;
+
+                              setDialogState(() => isSendingLocal = true);
+
+                              try {
+                                final l10n = AppLocalizations.of(context);
+                                final replyPrefix = l10n.tr('chamber.replying_to_content');
+
+                                // 1. Deduct scroll
+                                final deducted = await _db.deductScroll(user.id);
+                                if (!deducted) {
+                                  if (mounted) {
+                                    Navigator.of(dialogContext).pop();
+                                    _showOutOfScrollsDialog();
+                                  }
+                                  return;
+                                }
+
+                                // 2. Send Bottle
+                                final bottleId = await _db.sendDirectBottle(
+                                  senderId: user.id,
+                                  receiverId: fantasy['user_id'] as String,
+                                  contentType: 'text',
+                                  message: msg,
+                                  replyToContentType: 'fantasy',
+                                  replyToContent: fantasy['fantasy_text'] as String?,
+                                  replyPrefix: replyPrefix,
+                                );
+
+                                if (bottleId != null) {
+                                  // ✅ Use Navigator.of(dialogContext).pop() for absolute reliability
+                                  if (mounted) Navigator.of(dialogContext).pop();
+
+                                  // 🔗 Broadcast so Secret Souls also removes this partner
+                                  DatabaseService.notifyNewConversation(
+                                    fantasy['user_id'] as String,
+                                  );
+
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(l10n.tr('chamber.bottle_sent_success')),
+                                        backgroundColor: const Color(0xFF4CAF50),
+                                      ),
+                                    );
+
+                                    // Remove card from list immediately
+                                    setState(() {
+                                      if (_currentIndex < _fantasies.length) {
+                                        _fantasies.removeAt(_currentIndex);
+                                        if (_fantasies.length < 3) _loadFantasies();
+                                        if (_currentIndex >= _fantasies.length) _currentIndex = 0;
+                                        _swipeController.value = 0;
+                                      }
+                                    });
+                                  }
+                                } else {
+                                  throw Exception('Send failed');
+                                }
+                              } catch (e) {
+                                debugPrint('❌ ERROR sending fantasy bottle: $e');
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context).tr('errors.send_bottle_failed')),
+                                      backgroundColor: const Color(0xFFF44336),
+                                    ),
+                                  );
+                                }
+                                setDialogState(() => isSendingLocal = false);
                               }
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: messageController.text.trim().isEmpty
+                                color: (messageController.text.trim().isEmpty || isSendingLocal)
                                     ? Colors.grey.withValues(alpha: 0.2)
                                     : const Color(0xFF8A2BE2),
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: messageController.text.trim().isEmpty
-                                    ? []
-                                    : [
-                                        BoxShadow(
-                                          color: const Color(0xFF8A2BE2)
-                                              .withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ],
                               ),
-                              child: Text(
-                                l10n.tr('chamber.send'),
-                                style: const TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                              ),
+                              child: isSendingLocal 
+                                ? const SizedBox(
+                                    width: 14, 
+                                    height: 14, 
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                                  )
+                                : Text(
+                                    AppLocalizations.of(modalContext).tr('chamber.send'),
+                                    style: const TextStyle(
+                                      fontFamily: 'Montserrat',
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                             ),
                           ),
                           const SizedBox(height: 6),
-                          // Subtle Cancel
                           GestureDetector(
-                            onTap: () => Navigator.pop(modalContext, null),
+                            onTap: isSendingLocal ? null : () => Navigator.of(dialogContext).pop(),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Text(
-                                l10n.tr('dialogs.cancel'),
+                                AppLocalizations.of(modalContext).tr('dialogs.cancel'),
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   color: Colors.grey.withValues(alpha: 0.7),
@@ -383,89 +462,6 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
         ),
       ),
     );
-
-    // If user cancelled or didn't type a message, return
-    if (message == null || message.isEmpty || !mounted) return;
-
-    // 3. Send Bottle (NOT Conversation)
-    try {
-      debugPrint('🚀 Sending fantasy bottle...');
-      debugPrint('  Fantasy ID: ${fantasy['id']}');
-      debugPrint('  Requester ID: ${user.id}');
-      debugPrint('  Owner ID: ${fantasy['user_id']}');
-      debugPrint('  Message: $message');
-
-      final l10n = AppLocalizations.of(context);
-      final replyPrefix = l10n.tr('chamber.replying_to_content');
-
-      // 3. Deduct scroll (Verify and consume)
-      final deducted = await _db.deductScroll(user.id);
-      if (!deducted) {
-        if (!mounted) return;
-        _showOutOfScrollsDialog();
-        return;
-      }
-
-      final bottleId = await _db.sendDirectBottle(
-        senderId: user.id,
-        receiverId: fantasy['user_id'] as String,
-        contentType: 'text', // Bottle content
-        message: message,
-        replyToContentType: 'fantasy',
-        replyToContent: fantasy['fantasy_text'] as String?,
-        replyPrefix: replyPrefix,
-      );
-
-      debugPrint('📬 Bottle creation result: $bottleId');
-
-      if (mounted) {
-        if (bottleId != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppLocalizations.of(context)
-                  .tr('chamber.bottle_sent_success')),
-              backgroundColor: const Color(0xFF4CAF50),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-
-          // Remove the fantasy from the list so they can't reply again
-          setState(() {
-            if (_currentIndex < _fantasies.length) {
-              _fantasies.removeAt(_currentIndex);
-              // If list becomes empty or near empty, load more
-              if (_fantasies.length < 3) {
-                _loadFantasies();
-              }
-              // Adjust index if needed
-              if (_currentIndex >= _fantasies.length) {
-                _currentIndex = 0; // Or handle empty state
-              }
-              // Reset swipe controller just in case
-              _swipeController.value = 0;
-            }
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  AppLocalizations.of(context).tr('errors.send_bottle_failed')),
-              backgroundColor: const Color(0xFFF44336),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ ERROR sending fantasy bottle: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: const Color(0xFFF44336),
-          ),
-        );
-      }
-    }
   }
 
   void _showOutOfScrollsDialog() {
@@ -482,11 +478,8 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.history_edu,
-                    size: 50, color: Color(0xFF8A2BE2)),
-                const SizedBox(height: 16),
                 Text(
-                  tr.tr('profile.out_of_scrolls_title'),
+                  AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_title'),
                   style: const TextStyle(
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 22,
@@ -496,7 +489,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  tr.tr('profile.out_of_scrolls_message'),
+                  AppLocalizations.of(context).tr('send_bottle.out_of_scrolls_message'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
@@ -504,6 +497,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
                     color: Color(0xFF5D4037),
                   ),
                 ),
+
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {

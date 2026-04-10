@@ -421,17 +421,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Flexible(
-              child: Image.asset(
-                'assets/images/empty-bottle.png',
-                width: 200,
-                height: 250,
-                fit: BoxFit.contain,
-              ),
+            Image.asset(
+              'assets/images/empty-bottle.png',
+              width: 160,
+              height: 160,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             Text(
               emptyMessage,
               textAlign: TextAlign.center,
