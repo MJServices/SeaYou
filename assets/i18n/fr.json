@@ -145,6 +145,8 @@
     "naughty_question_selection_title": "",
     "naughty_question_submit": "Soumettre la réponse",
     "naughty_question_submitting": "Soumission...",
+    "naughty_question_waiting_partner": "En attente du partenaire...",
+    "naughty_question_hidden_until_answered": "Réponse cachée jusqu'à ce que vous répondiez tous les deux.",
     "naughty_question_subtitle": "Choisissez un parchemin pour révéler une question et approfondir votre connexion",
     "naughty_question_your_answer": "VOTRE RÉPONSE",
     "online_status": "En ligne",
@@ -202,6 +204,7 @@
   "common": {
     "years_old": "ans",
     "dept_prefix": "Dép.",
+    "you": "Vous",
     "all": "Tout",
     "audio": "Audio",
     "back": "Retour",
@@ -555,7 +558,9 @@
       "secret_quote": "Citation secrète",
       "secret_quote_hint": "Ajoutez votre citation secrète",
       "title": "Parlez-nous de vous",
-      "voice_too_short": "Le message vocal doit durer au moins 5 secondes."
+      "voice_too_short": "Le message vocal doit durer au moins 5 secondes.",
+      "age_error_title": "Limite d'âge",
+      "age_error_message": "Vous devez avoir au moins 18 ans pour utiliser SeaYou."
     },
     "sexual_orientation": {
       "input_placeholder": "Entrer l'orientation sexuelle",

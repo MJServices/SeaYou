@@ -1,13 +1,12 @@
-import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import '../../widgets/warm_gradient_background.dart';
@@ -72,12 +71,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   int _feelingPercent = 0;
   String? _threadTitle;
   String? _partnerAvatarUrl;
+  String? _myAvatarUrl;
   String? _partnerUsername;
   String? _partnerId;
   late final FeelingController _feelingController;
 
   bool _isPhotoRevealed = false;
-  final bool _hasAutoShownNaughty = false;
+  bool _isShowingMilestoneModal = false; // Prevents double-stacked 75% modals
   bool _isInitialLoad = true; // Prevents 75% lock flicker
 
   // 🔒 Feeling Bar Limit State
@@ -90,7 +90,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   int _previousFeelingPercent = 0;
 
   List<ChatMessage> _messages = [];
-  StreamSubscription<List<Map<String, dynamic>>>? _msgSub;
+  StreamSubscription<Map<String, dynamic>>? _msgSub;
+  StreamSubscription<Map<String, dynamic>>? _convSub;
   late final UploadController _uploadController;
   double _uploadProgress = 0.0;
   String _currentMood = 'Curieux';
@@ -181,81 +182,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _db.markMessagesAsRead(widget.conversationId!, currentUserId);
       }
 
-      // Subscribe to new messages in realtime
-      _db.subscribeMessages(widget.conversationId!).listen((messageData) {
-        if (mounted) {
-          final eventType = messageData['event_type'];
-          final messageId = messageData['id'];
-
-          debugPrint(
-              '📨 [REALTIME-MSG] Received event: $eventType, ID: $messageId');
-
-          setState(() {
-            if (eventType == 'delete') {
-              _messages.removeWhere((m) => m.id == messageId);
-              debugPrint('✅ [REALTIME-MSG] Removed message from local list');
-            } else {
-              try {
-                final message = ChatMessage.fromJson(messageData,
-                    currentUserId: currentUserId);
-                final existingIndex =
-                    _messages.indexWhere((m) => m.id == message.id);
-
-                if (eventType == 'insert' || eventType == 'INSERT') {
-                  if (existingIndex == -1) {
-                    // Also check for optimistic temp messages to replace
-                    final tempIndex = _messages.indexWhere((m) =>
-                        m.mood == message.mood &&
-                        m.text == message.text &&
-                        m.senderId == message.senderId &&
-                        m.id.startsWith('temp_'));
-
-                    if (tempIndex != -1) {
-                      _messages[tempIndex] = message;
-                      debugPrint(
-                          '✅ [REALTIME-MSG] Replaced optimistic temp message with real record');
-                    } else {
-                      _messages.add(message);
-                      _messages
-                          .sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                      debugPrint('✅ [REALTIME-MSG] Added new message to list');
-                    }
-                  } else {
-                    debugPrint(
-                        'ℹ️ [REALTIME-MSG] Message already exists, skipping insert');
-                  }
-                } else if (eventType == 'update' || eventType == 'UPDATE') {
-                  if (existingIndex != -1) {
-                    _messages[existingIndex] = message;
-                    debugPrint('✅ [REALTIME-MSG] Updated existing message');
-                  } else {
-                    _messages.add(message);
-                    _messages
-                        .sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                    debugPrint(
-                        '✅ [REALTIME-MSG] Added updated message that was missing locally');
-                  }
-                }
-              } catch (e, stack) {
-                debugPrint('❌ [REALTIME-MSG] Error parsing message: $e');
-                debugPrint(stack.toString());
-              }
-            }
-          });
-
-          if (eventType == 'insert' || eventType == 'INSERT') {
-            _scrollToBottom();
-          }
-
-          // Trigger refresh of conversation state for feeling changes
-          _loadConversation();
+      // Optimistic message sync using periodic polling + conv trigger (since _msgSub is unreliable)
+      // Polling guarantees updates even if Realtime drops entirely.
+      const syncInterval = Duration(seconds: 4);
+      Timer.periodic(syncInterval, (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
         }
-      }, onError: (err) {
-        debugPrint('❌ [REALTIME-MSG] Stream Error: $err');
+        _syncMessages();
       });
 
       // Subscribe to conversation changes to update feeling bar
-      _db.subscribeConversation(widget.conversationId!).listen((row) {
+      _convSub = _db.subscribeConversation(widget.conversationId!).listen((row) {
         if (mounted) {
           debugPrint(
               '📊 [REALTIME-CONV] Received update: feeling=${row['feeling_percent']}');
@@ -269,6 +208,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _conversation = Conversation.fromJson(row);
             _feelingPercent = _conversation!.feelingPercent;
             _threadTitle = _conversation!.title;
+            
+            // Sync message stream manually as fallback
+            _syncMessages();
 
             // 🛡️ Ensure naughty answer state is synced from RT update too
             final isUserA = _conversation!.userAId == currentUserId;
@@ -308,7 +250,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         // Fetch profile for tier (text) and gender (for local display if needed)
         final profile = await Supabase.instance.client
             .from('profiles')
-            .select('tier, gender')
+            .select('tier, gender, avatar_url')
             .eq('id', userId)
             .single();
 
@@ -317,6 +259,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             final tier = profile['tier'] as String? ?? 'free';
             _isPremium = tier == 'premium' || tier == 'elite';
             _userGender = profile['gender'] as String?;
+            _myAvatarUrl = profile['avatar_url'] as String?;
             _isAccessGranted = access;
             debugPrint(
                 '👤 Loaded User: Gender=$_userGender, Tier=$tier, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
@@ -555,16 +498,52 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          // With reverse: true, "bottom" (latest messages) is position 0.0
-          _scrollController.animateTo(
-            0.0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
+      // Immediate scroll check for reverse: true list
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _syncMessages() async {
+    if (widget.conversationId == null) return;
+    try {
+      // 1. Force conversation update so feeling/naughty state is instantly accurate
+      await _loadConversation();
+      
+      // 2. Fetch new messages safely
+      final msgs = await _db.getMessages(widget.conversationId!);
+      msgs.sort((a, b) => b.createdAt.millisecondsSinceEpoch
+          .compareTo(a.createdAt.millisecondsSinceEpoch));
+          
+      if (mounted) {
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+        final latestDbMsgId = msgs.isNotEmpty ? msgs.first.id : null;
+        final existingLatestMsgId = _messages.where((m) => !m.id.startsWith('temp_')).isNotEmpty 
+            ? _messages.firstWhere((m) => !m.id.startsWith('temp_')).id 
+            : null;
+
+        bool isNewContent = (latestDbMsgId != existingLatestMsgId);
+
+        setState(() {
+          // Keep optimistic messages that haven't registered yet
+          final tempMsgs = _messages.where((m) => m.id.startsWith('temp_')).toList();
+          _messages = [...tempMsgs, ...msgs];
+          
+          // Clear temp messages if the real one has arrived (simple heuristic: if we got a new message from us, clear temps)
+          if (isNewContent && msgs.isNotEmpty && msgs.first.senderId == currentUserId) {
+              _messages.removeWhere((m) => m.id.startsWith('temp_'));
+          }
+        });
+        
+        if (isNewContent) {
+           _scrollToBottom();
         }
-      });
+      }
+    } catch (e, stack) {
+      debugPrint('Sync messages error: $e\n$stack');
     }
   }
 
@@ -651,8 +630,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             builder: (context) => NaughtyQuestionsScreen(
               conversationId: widget.conversationId!,
               onComplete: () {
-                if (mounted) setState(() => _hasAnsweredNaughty = true);
-                Navigator.pop(context);
+                if (mounted) {
+                  setState(() => _hasAnsweredNaughty = true);
+                  _syncMessages(); // Force fetch just in case!
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(AppLocalizations.of(context)
+                          .tr('chat.answer_submitted')),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
               },
             ),
           ),
@@ -1153,6 +1143,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Widget _buildMessageBubble(ChatMessage message) {
     bool isMe = message.isMe;
+    bool isMilestone = message.mood?.startsWith('milestone_') ?? false;
+    bool isNaughty = message.mood?.startsWith('naughty_') ?? false;
+    
+    if (isNaughty) {
+      bool bothAnswered = false;
+      if (_conversation != null) {
+        final a1 = _conversation!.user1NaughtyAnswer;
+        final a2 = _conversation!.user2NaughtyAnswer;
+        bothAnswered = (a1 != null && a1.trim().isNotEmpty) && (a2 != null && a2.trim().isNotEmpty);
+      }
+      
+      // 1. Show nothing until both persons answer
+      if (!bothAnswered) {
+        return const SizedBox.shrink();
+      }
+      
+      // 2. Only show the question and answer of the partner, not the current user's
+      if (isMe) {
+        return const SizedBox.shrink();
+      }
+    }
+
+    // Milestones and Intimacy Questions are always shown on the right side for both users per user request
+    bool alignRight = isMe || isMilestone || isNaughty;
+
     // Use message's saved mood if available, otherwise use default 'Curieux' for old messages
     final messageMood = message.mood ?? 'Curieux';
     final gradient = _getMoodGradient(messageMood);
@@ -1161,13 +1176,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment:
-                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
             children: [
-              if (!isMe) ...[
+              if (!alignRight) ...[
                 Expanded(
                   child: Text(
                     _partnerUsername ?? widget.contactName,
@@ -1180,11 +1195,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                 ),
               ],
-              if (isMe) ...[
-                const Expanded(
+              if (alignRight) ...[
+                Expanded(
                   child: Text(
-                    'You',
-                    style: TextStyle(
+                    AppLocalizations.of(context).tr('common.you'),
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -1222,8 +1237,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMe ? 16 : 0),
-                  bottomRight: Radius.circular(isMe ? 0 : 16),
+                  bottomLeft: Radius.circular(alignRight ? 16 : 0),
+                  bottomRight: Radius.circular(alignRight ? 0 : 16),
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -1238,7 +1253,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 children: [
                   if (message.replyToId != null)
                     _buildRepliedMessageContext(message.replyToId!),
-                  _buildMessageContent(message, isMe),
+                  _buildMessageContent(message, isMe), // Still pass TRUE isMe status for secret revealing logic
                 ],
               ),
             ),
@@ -1392,6 +1407,58 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         questionText = AppLocalizations.of(context).tr('surprise.q$id');
       }
 
+      // 🔄 [HARDENED CANONICAL] Question Parser
+      String? partnerQ;
+      final currentUserIdStr = sb.Supabase.instance.client.auth.currentUser?.id;
+      final myId = (currentUserIdStr ?? "").toLowerCase().trim();
+
+      if (questionText.contains('|--RECIPROCAL--|')) {
+        final parts = questionText.split('|--RECIPROCAL--|');
+        final dataParts = parts[1].split('|--SPLIT--|');
+        for (final part in dataParts) {
+          final colonIndex = part.indexOf(':');
+          if (colonIndex != -1) {
+            final userIdPart = part.substring(0, colonIndex).toLowerCase().trim();
+            final content = part.substring(colonIndex + 1);
+            
+            // Canonical check: skip if it belongs to current viewer
+            if (myId.isNotEmpty && userIdPart != myId && content.isNotEmpty) {
+              partnerQ = content;
+              break;
+            }
+          }
+        }
+      }
+
+      // 🛡️ Redundant Identity Check: 
+      // If the model flag says 'isMe' OR the raw senderId matches our ID, we MUST NOT show the partner answer.
+      final isReallyMe = message.isMe || (currentUserIdStr != null && message.senderId.toLowerCase().trim() == myId);
+
+      final String displayQuestion;
+      if (isReallyMe) {
+        // Find OUR own question text in the payload
+        String? myQ;
+        if (questionText.contains('|--RECIPROCAL--|')) {
+          final parts = questionText.split('|--RECIPROCAL--|');
+          final dataParts = parts[1].split('|--SPLIT--|');
+          for (final part in dataParts) {
+             final colonIndex = part.indexOf(':');
+             if (colonIndex != -1) {
+               final userIdPart = part.substring(0, colonIndex).toLowerCase().trim();
+               if (userIdPart == myId) {
+                 myQ = part.substring(colonIndex + 1);
+                 break;
+               }
+             }
+          }
+        }
+        displayQuestion = myQ ?? questionText;
+      } else {
+        displayQuestion = (partnerQ != null && partnerQ.isNotEmpty)
+            ? partnerQ
+            : AppLocalizations.of(context).tr('chat.naughty_question_hidden_until_answered');
+      }
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1415,7 +1482,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            questionText,
+            displayQuestion,
             style: const TextStyle(
               fontFamily: 'PlayfairDisplay',
               fontSize: 16,
@@ -1427,54 +1494,160 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         ],
       );
     } else if (message.mood == 'naughty_answer') {
+      String rawText = message.text ?? '';
+      final currentUserIdStr = sb.Supabase.instance.client.auth.currentUser?.id;
+      final myId = (currentUserIdStr ?? "").toLowerCase().trim();
+      String? partnerAnswer;
+
+      // 🔄 [HARDENED CANONICAL] Answer Parser - ALWAYS show partner's answer
+      if (rawText.contains('|--RECIPROCAL--|')) {
+        final parts = rawText.split('|--RECIPROCAL--|');
+        final dataParts = parts[1].split('|--SPLIT--|');
+        
+        for (final part in dataParts) {
+          final colonIndex = part.indexOf(':');
+          if (colonIndex != -1) {
+            final userIdPart = part.substring(0, colonIndex).toLowerCase().trim();
+            final content = part.substring(colonIndex + 1).trim();
+            
+            // Explicitly filter out viewer's ID for reciprocity
+            if (myId.isNotEmpty && userIdPart != myId && content.isNotEmpty) {
+              partnerAnswer = content;
+              break;
+            }
+          }
+        }
+      } 
+
+      // 🛡️ Redundant Identity Check: 
+      // Ensure we NEVER show text in our OWN legacy or malformed bubbles.
+      final isReallyMe = message.isMe || (currentUserIdStr != null && message.senderId.toLowerCase().trim() == myId);
+
+      // Final Answer Text Logic
+      String? answerQuestion;
+      final String answerText;
+      
+      if (isReallyMe && partnerAnswer == null) {
+        // It's my bubble, but partner hasn't replied yet.
+        answerText = AppLocalizations.of(context).tr('chat.naughty_question_hidden_until_answered');
+      } else if (partnerAnswer != null && partnerAnswer.isNotEmpty) {
+        // We found a partner answer! 
+        // 🔄 Check for embedded question text
+        if (partnerAnswer.contains('|--QTEXT--|')) {
+          final qParts = partnerAnswer.split('|--QTEXT--|');
+          answerQuestion = qParts[0];
+          answerText = qParts[1];
+        } else {
+          answerText = partnerAnswer;
+        }
+      } else if (!isReallyMe && !rawText.contains('|--RECIPROCAL--|')) {
+        // Legacy fallback: if it's NOT me, the raw text IS the partner's answer.
+        if (rawText.contains('|--QTEXT--|')) {
+           final qParts = rawText.split('|--QTEXT--|');
+           answerQuestion = qParts[0];
+           answerText = qParts[1];
+        } else {
+           answerText = rawText;
+        }
+      } else {
+        answerText = AppLocalizations.of(context).tr('chat.naughty_question_hidden_until_answered');
+      }
+
+      final hasPartnerAnswer = partnerAnswer != null && partnerAnswer.isNotEmpty;
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.forum, size: 14, color: Colors.white),
+              const Icon(Icons.favorite, size: 14, color: Colors.white),
               const SizedBox(width: 6),
               Text(
-                isMe
-                    ? AppLocalizations.of(context)
-                        .tr('chat.naughty_question_your_answer')
-                    : AppLocalizations.of(context)
-                        .tr('chat.naughty_question_partner_choice'),
+                (hasPartnerAnswer 
+                    ? AppLocalizations.of(context).tr('chat.naughty_question_partner_choice')
+                    : AppLocalizations.of(context).tr('chat.naughty_question_waiting_partner'))
+                .toUpperCase(),
                 style: const TextStyle(
                   fontFamily: 'Montserrat',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                   color: Colors.white,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          if (answerQuestion != null && answerQuestion.isNotEmpty) ...[
+            Text(
+              answerQuestion,
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF363636), // Slightly lighter than answer
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
           Text(
-            message.text ?? '',
+            answerText,
             style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
               color: Color(0xFF151515),
             ),
           ),
         ],
       );
     } else if (message.mood?.startsWith('milestone_') ?? false) {
-
-      final hasAudio = message.mediaUrl != null;
-      final voiceId = message.id;
-      final isPlaying = _isPlayingVoice && _playingVoiceId == voiceId;
-
-      // Extract content if present (separated by |--CONTENT--|)
       String title = message.text ?? '';
       String? extraContent;
-      if (title.contains('|--CONTENT--|')) {
+      String? audioUrl = message.mediaUrl;
+      final currentUserId = AuthService().currentUser?.id;
+
+      // 🔄 [ROBUST RECIPROCAL] Parser using User IDs
+      if (title.contains('|--RECIPROCAL--|')) {
+        final parts = title.split('|--RECIPROCAL--|');
+        title = parts[0];
+        final dataParts = parts[1].split('|--SPLIT--|');
+        
+        String? foundData;
+        final myId = currentUserId?.trim();
+
+        for (final part in dataParts) {
+          final colonIndex = part.indexOf(':');
+          if (colonIndex != -1) {
+            final userIdPart = part.substring(0, colonIndex).trim();
+            final content = part.substring(colonIndex + 1);
+            
+            // We want to show the content that does NOT belong to us (Reciprocal)
+            if (userIdPart != myId && content.isNotEmpty) {
+              foundData = content;
+              break;
+            }
+          }
+        }
+
+        if (message.mood == 'milestone_50') {
+          audioUrl = foundData;
+        } else {
+          extraContent = foundData;
+        }
+      } else if (title.contains('|--CONTENT--|')) {
+        // Fallback for legacy messages
         final parts = title.split('|--CONTENT--|');
         title = parts[0];
         extraContent = parts.length > 1 ? parts[1] : null;
       }
+
+      final hasAudio = audioUrl != null && audioUrl.isNotEmpty;
+      final voiceId = message.id;
+      final isPlaying = _isPlayingVoice && _playingVoiceId == voiceId;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1510,10 +1683,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
           // Render extra content (Bio for 25%, Photo for 100%, etc.)
           if (extraContent != null && extraContent.isNotEmpty) ...[
-            () {
-              debugPrint('🔍 MILESTONE BUBBLE: extraContent="$extraContent"');
-              return const SizedBox.shrink();
-            }(),
             const SizedBox(height: 8),
             if (message.mood == 'milestone_25')
               Container(
@@ -1535,6 +1704,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                 ),
               )
+            else if (message.mood == 'milestone_50')
+              const SizedBox.shrink() // Managed by the audio player
             else if (message.mood == 'milestone_75')
               Container(
                 padding: const EdgeInsets.all(12),
@@ -1597,7 +1768,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           _playingVoiceId = voiceId;
                         });
 
-                        final mediaUrl = message.mediaUrl!;
+                        final mediaUrl = audioUrl; // Use the parsed Reciprocal URL
+                        if (mediaUrl == null) return;
                         final source = mediaUrl.startsWith('http')
                             ? UrlSource(mediaUrl)
                             : DeviceFileSource(mediaUrl);
@@ -1608,7 +1780,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                       debugPrint('Error playing milestone audio: $e');
 
                       // Auto-recovery for legacy local paths in historical milestones
-                      if (mounted && !message.mediaUrl!.startsWith('http')) {
+                      if (mounted && audioUrl != null && !audioUrl.startsWith('http')) {
                         try {
                           final profileResp = await Supabase.instance.client
                               .from('profiles')
@@ -2358,9 +2530,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     for (final threshold in milestones) {
       if (_feelingPercent >= threshold && !seenSet.contains(threshold)) {
-        debugPrint(
-            '✅ Milestone $threshold% reached and NOT seen locally! Showing modal...');
-
+        if (_isShowingMilestoneModal) return; // Prevent concurrent stack triggers
+        
         // Mark as seen immediately to prevent duplicate shows
         seenSet.add(threshold);
         await prefs.setStringList(
@@ -2374,111 +2545,95 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
         final milestone = FeelingMilestone.fromPercentage(threshold);
         if (milestone != null) {
-          // Fetch partner data if needed for the milestone
-          String? partnerBio;
-          String? partnerSecretAudioUrl;
+          // 💡 RECIPROCAL FETCH: Fetch BOTH current user's data and partner's data
+          String? mySecret;
+          String? partnerSecret;
+          String? myAudioUrl;
+          String? partnerAudioUrl;
 
-          if (_conversation != null) {
-            try {
-              // 💡 PERSPECTIVE FIX: When a user hits a milestone, they share THEIR OWN secret with the partner.
-              // So we fetch the current user's data and post it to the thread, NOT the partner's data.
-              final currentUserId = AuthService().currentUser?.id;
+          try {
+            final partnerId = _conversation!.userAId == currentUserId
+                ? _conversation!.userBId
+                : _conversation!.userAId;
 
-              final response = await Supabase.instance.client
+            // Fetch both profiles
+            final results = await Future.wait([
+              Supabase.instance.client
                   .from('profiles')
-                  .select('secret_quote, secret_audio_url')
-                  .eq('id', currentUserId ?? '')
-                  .single();
+                  .select('secret_quote, secret_audio_url, avatar_url')
+                  .eq('id', currentUserId)
+                  .single(),
+              Supabase.instance.client
+                  .from('profiles')
+                  .select('secret_quote, secret_audio_url, avatar_url')
+                  .eq('id', partnerId)
+                  .single()
+            ]);
 
-              partnerBio = response['secret_quote'] as String?;
-              partnerSecretAudioUrl = response['secret_audio_url'] as String?;
+            final myProfile = results[0];
+            final partnerProfile = results[1];
 
-              debugPrint(
-                  '🔍 MILESTONE DATA: Fetched currentUserId=$currentUserId');
-              debugPrint(
-                  '🔍 MILESTONE DATA: secret_quote="${response['secret_quote']}"');
-              debugPrint(
-                  '🔍 MILESTONE DATA: partnerBio variable="$partnerBio"');
-            } catch (e) {
-              debugPrint('❌ Error fetching partner data for milestone: $e');
-            }
-          }
-
-          // Determine content to show in the chat bubble based on milestone
-          String? milestoneContent;
-          if (milestone.percentage == 25) {
-            milestoneContent = partnerBio ??
-                AppLocalizations.of(context).tr('chat.milestone_no_bio');
-          } else if (milestone.percentage == 50) {
-            // No extra text content for 50%, the audio player is the material
-            milestoneContent = null;
-          } else if (milestone.percentage == 75) {
-            // ONLY fetch intimate questions if the user is PREMIUM
-            if (_isPremium) {
-              try {
-                final currentUserId = AuthService().currentUser?.id;
-                final partnerId = _conversation!.userAId == currentUserId
-                    ? _conversation!.userBId
-                    : _conversation!.userAId;
-
-                final questionsResponse = await Supabase.instance.client
+            if (threshold == 25) {
+              mySecret = myProfile['secret_quote'] as String?;
+              partnerSecret = partnerProfile['secret_quote'] as String?;
+            } else if (threshold == 50) {
+              myAudioUrl = myProfile['secret_audio_url'] as String?;
+              partnerAudioUrl = partnerProfile['secret_audio_url'] as String?;
+            } else if (threshold == 75) {
+              // Fetch intimate questions for BOTH
+              final resultsQ = await Future.wait([
+                Supabase.instance.client
+                    .from('intimate_questions')
+                    .select('question_1, question_2, question_3')
+                    .eq('conversation_id', widget.conversationId!)
+                    .eq('user_id', currentUserId)
+                    .maybeSingle(),
+                Supabase.instance.client
                     .from('intimate_questions')
                     .select('question_1, question_2, question_3')
                     .eq('conversation_id', widget.conversationId!)
                     .eq('user_id', partnerId)
-                    .maybeSingle();
+                    .maybeSingle()
+              ]);
 
-                if (questionsResponse != null) {
-                  final q1 = questionsResponse['question_1'] as String?;
-                  final q2 = questionsResponse['question_2'] as String?;
-                  final q3 = questionsResponse['question_3'] as String?;
-
-                  List<String> questions = [];
-                  if (q1 != null && q1.isNotEmpty) questions.add(q1);
-                  if (q2 != null && q2.isNotEmpty) questions.add(q2);
-                  if (q3 != null && q3.isNotEmpty) questions.add(q3);
-
-                  if (questions.isNotEmpty) {
-                    milestoneContent = questions.join('\n\n');
-                  } else {
-                    milestoneContent = AppLocalizations.of(context)
-                        .tr('chat.milestone_75_congrats');
-                  }
-                } else {
-                  milestoneContent = AppLocalizations.of(context)
-                      .tr('chat.milestone_75_congrats');
+              for (int i = 0; i < 2; i++) {
+                final resp = resultsQ[i];
+                if (resp != null) {
+                  final q = [
+                    resp['question_1'] as String?,
+                    resp['question_2'] as String?,
+                    resp['question_3'] as String?
+                  ].where((e) => e != null && e.isNotEmpty).join('\n\n');
+                  if (i == 0) mySecret = q; else partnerSecret = q;
                 }
-              } catch (e) {
-                milestoneContent = AppLocalizations.of(context)
-                    .tr('chat.milestone_75_congrats');
               }
-            } else {
-              // Non-premium users just get the generic "congrats" text, no answers!
-              milestoneContent =
-                  AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+
+              final fallback = AppLocalizations.of(context).tr('chat.milestone_75_congrats');
+              mySecret ??= fallback;
+              partnerSecret ??= fallback;
+            } else if (threshold == 100) {
+              mySecret = myProfile['avatar_url'] as String?;
+              partnerSecret = partnerProfile['avatar_url'] as String?;
             }
-          } else if (milestone.percentage == 100) {
-            milestoneContent =
-                _partnerAvatarUrl; // Link to reveals photo if exists
+          } catch (e) {
+            debugPrint('❌ Error fetching reciprocal data for milestone: $e');
           }
 
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               _showMilestoneModal(
                 milestone,
-                partnerBio: partnerBio,
-                partnerSecretAudioUrl: partnerSecretAudioUrl,
-                milestoneContent: milestoneContent,
+                partnerBio: partnerSecret, // Still pass partner secret for the modal experience
+                partnerSecretAudioUrl: partnerAudioUrl,
+                mySecret: mySecret,
+                myAudioUrl: myAudioUrl,
               );
             }
           });
         }
-
-        // Only show one milestone at a time
         break;
       }
     }
-
     _previousFeelingPercent = _feelingPercent;
   }
 
@@ -2504,49 +2659,55 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   }
 
   Future<void> _postMilestoneMessage(FeelingMilestone milestone,
-      {String? content, String? audioUrl}) async {
+      {String? myContent, String? partnerContent, String? myAudioUrl, String? partnerAudioUrl}) async {
     if (widget.conversationId == null) return;
 
     final userId = AuthService().currentUser?.id;
     if (userId == null) return;
 
-    debugPrint(
-        '📣 Posting milestone message to thread: ${milestone.percentage}%');
+    // 🛡️ Prevent duplicate messages for the same milestone in local state
+    final milestoneMood = 'milestone_${milestone.percentage}';
+    final alreadyExists = _messages.any((m) => m.mood == milestoneMood);
+    if (alreadyExists) {
+      debugPrint('⚠️ Milestone message for ${milestone.percentage}% already exists, skipping.');
+      return;
+    }
+
+    debugPrint('📣 Posting reciprocal milestone message: ${milestone.percentage}%');
 
     try {
-      // Determine message type and content
-      String? mediaUrl;
-      int? duration;
+      if (_conversation == null) {
+        debugPrint('❌ [MILESTONE] Conversation is null, cannot post message');
+        return;
+      }
+      // 💬 [RECIPROCAL] Dynamic content based on user IDs
+      final currentUserId = AuthService().currentUser?.id;
+      final userId = currentUserId ?? 'unknown';
+      final partnerId = _conversation!.userAId == userId 
+          ? _conversation!.userBId 
+          : _conversation!.userAId;
 
-      if (milestone.percentage == 50 && audioUrl != null) {
-        mediaUrl = audioUrl;
-        // Default to 10 if we can't find duration (it's better than 3s which is often too short)
-        // But we now expect it to be passed from the caller who fetched the user preferences
-        duration = 5; // Default duration for milestone voice clips
+      // Format: Title|--RECIPROCAL--|userIdA:dataA|--SPLIT--|userIdB:dataB
+      String title = milestone.getTitle(context);
+      String encodedText = '$title|--RECIPROCAL--|$userId:';
+      
+      if (milestone.percentage == 50) {
+        encodedText += '${myAudioUrl ?? ""}|--SPLIT--|$partnerId:${partnerAudioUrl ?? ""}';
+      } else {
+        encodedText += '${myContent ?? ""}|--SPLIT--|$partnerId:${partnerContent ?? ""}';
       }
 
-      // We use a custom mood to identify this as a milestone message in the UI
-      // For content-rich milestones (25% bio, 75% naughty, 100% photo),
-      // we append the content to the text field with a separator
-      String messageText = milestone.getTitle(context);
-      if (content != null && content.isNotEmpty) {
-        messageText = '$messageText|--CONTENT--|$content';
-      }
-
-      // 🛡️ Optimistic UI update for milestones
-      final tempId =
-          'temp_milestone_${milestone.percentage}_${DateTime.now().millisecondsSinceEpoch}';
+      // ⚡ OPTIMISTIC UI: Add to local list immediately
+      final tempId = 'temp_milestone_${milestone.percentage}_${DateTime.now().millisecondsSinceEpoch}';
       final tempMsg = ChatMessage(
         id: tempId,
         conversationId: widget.conversationId!,
         senderId: userId,
-        type: 'text', // Standardized for milestone records
-        text: messageText,
-        mediaUrl: mediaUrl,
-        duration: duration,
+        type: 'text',
+        text: encodedText,
         createdAt: DateTime.now(),
         isMe: true,
-        mood: 'milestone_${milestone.percentage}',
+        mood: milestoneMood,
       );
 
       if (mounted) {
@@ -2561,17 +2722,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         conversationId: widget.conversationId!,
         senderId: userId,
         type: 'text',
-        text: messageText,
-        mood: 'milestone_${milestone.percentage}',
-        mediaUrl: mediaUrl,
-        duration: duration,
+        text: encodedText,
+        mood: milestoneMood,
         feelingDelta: 0,
         lastMessageSummary: AppLocalizations.of(context)
             .tr('chat.milestone_summary_${milestone.percentage}'),
       );
-
-      debugPrint(
-          '✅ [MILESTONE] Message sent successfully for ${milestone.percentage}%');
     } catch (e) {
       debugPrint('❌ [MILESTONE] Error posting message: $e');
     }
@@ -2581,7 +2737,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     FeelingMilestone milestone, {
     String? partnerBio,
     String? partnerSecretAudioUrl,
-    String? milestoneContent,
+    String? mySecret,
+    String? myAudioUrl,
   }) async {
     debugPrint(
         '🎉 _showMilestoneModal called for: ${milestone.getTitle(context)}');
@@ -2601,16 +2758,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       );
     }
 
-    // Data is now passed in to avoid redundant fetching
-    debugPrint(
-        '✅ Milestone data - bio: ${partnerBio != null}, audio: ${partnerSecretAudioUrl != null}');
-
     if (!mounted) {
-      debugPrint('⚠️ Widget not mounted, skipping modal');
+      _isShowingMilestoneModal = false;
       return;
     }
 
-    debugPrint('🎭 Showing dialog for ${milestone.getTitle(context)}');
+    _isShowingMilestoneModal = true;
 
     await showDialog(
       context: context,
@@ -2622,26 +2775,21 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         isPremium: _isPremium,
         userGender: _userGender,
         onPremiumRequested: () async {
-          Navigator.pop(context); // close the milestone unlocked modal
-          _showPremiumPaywall(); // the function itself shows dialog synchronously
-          // Check if they upgraded
+          Navigator.pop(context); // close modal
+          _showPremiumPaywall();
           await _loadPremiumStatus();
-          if (!_isPremium && mounted) {
-            // Kick them out of the conversation back to the previous screen
-            Navigator.pop(context);
-          }
+          if (!_isPremium && mounted) Navigator.pop(context);
         },
         onContinue: () {
           Navigator.pop(context);
-
-          // 💬 The milestone message gets pushed to chat AFTER clicking continue
-          if (milestone.percentage != 100) {
-            _postMilestoneMessage(
-              milestone,
-              content: milestoneContent,
-              audioUrl: partnerSecretAudioUrl,
-            );
-          }
+          // 💬 RECIPROCAL: Post message containing BOTH secrets
+          _postMilestoneMessage(
+            milestone,
+            myContent: mySecret,
+            partnerContent: partnerBio,
+            myAudioUrl: myAudioUrl,
+            partnerAudioUrl: partnerSecretAudioUrl,
+          );
 
           // At 75% milestone: only premium males and females can answer naughty questions
           if (milestone == FeelingMilestone.gift) {
@@ -2665,21 +2813,22 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                     conversationId: widget.conversationId!,
                     onComplete: () {
                       debugPrint('✅ Naughty question answered');
-
                       if (mounted) {
                         setState(() {
                           _hasAnsweredNaughty = true;
                         });
+                        // Immediately fetch conversation state and messages so it displays natively
+                        _loadConversation();
+                        _syncMessages();
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(AppLocalizations.of(context)
+                                .tr('chat.answer_submitted')),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
                       }
-
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(AppLocalizations.of(context)
-                              .tr('chat.answer_submitted')),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
                     },
                   ),
                 ),
@@ -2700,8 +2849,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       ),
     );
 
-    // After dialog is dismissed, force a rebuild so _isPremiumLocked re-evaluates.
-    // This ensures non-premium males cannot bypass the lock by dismissing the modal.
+    // After dialog is dismissed, release stack lock and force rebuild
+    _isShowingMilestoneModal = false;
+    
     if (mounted) {
       setState(() {});
 
@@ -2885,7 +3035,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
                         // Manual trigger: Now that they clicked reveal, post the milestone to the chat thread!
                         _postMilestoneMessage(FeelingMilestone.heart,
-                            content: _partnerAvatarUrl);
+                            myContent: _myAvatarUrl,
+                            partnerContent: _partnerAvatarUrl);
 
                         // Persist revealed state locally
                         final prefs = await SharedPreferences.getInstance();
@@ -2928,62 +3079,74 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSaving) return;
 
-    // IMMEDIATE FEEDBACK: Clear input and stop typing animation instantly
-    _messageController.clear();
-    if (mounted) {
-      setState(() {
-        _isTyping = false;
-        // Not setting _isSaving = true for text to give immediate "gone" feel
-      });
-    }
-
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (widget.conversationId != null && userId != null) {
-      try {
-        if (_editingMessage != null) {
-          // UPDATE existing message
+      if (_editingMessage != null) {
+        // For edits, we just wait for the DB for now to avoid complexity
+        try {
           await _db.updateMessage(_editingMessage!.id, text);
-          setState(() {
-            _editingMessage = null;
-          });
-        } else {
-          // Optimized: Removed redundant "isExchange" query which added latency
+          if (mounted) setState(() => _editingMessage = null);
+        } catch (e) {
+          debugPrint('❌ Error updating message: $e');
+        }
+        return;
+      }
 
-          // SEND new message in background
-          await _db.sendMessage(
-            conversationId: widget.conversationId!,
-            senderId: userId,
+      // HAPTIC FEEDBACK: Immediate physical confirmation
+      HapticFeedback.lightImpact();
+
+      // OPTIMISTIC UPDATE: Create and add a temporary message immediately
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final optimisticMsg = ChatMessage(
+        id: tempId,
+        conversationId: widget.conversationId!,
+        senderId: userId,
+        type: 'text',
+        text: text,
+        createdAt: DateTime.now(),
+        isMe: true,
+        mood: _currentMood,
+        replyToId: _replyingTo?.id,
+      );
+
+      if (mounted) {
+        // ATOMIC STATE UPDATE: Consolidate input clear, message addition, and feeling progress
+        setState(() {
+          _messageController.clear();
+          _isTyping = false;
+          _messages.insert(0, optimisticMsg);
+          _replyingTo = null; // Clear reply state immediately
+        });
+        _scrollToBottom();
+      }
+
+      try {
+        // Optimized: SEND new message in background without blocking UI
+        await _db.sendMessage(
+          conversationId: widget.conversationId!,
+          senderId: userId,
+          type: 'text',
+          text: text,
+          mood: _currentMood,
+          feelingDelta: _db.calculateFeelingPoints(
             type: 'text',
             text: text,
-            mood: _currentMood,
-            feelingDelta: _db.calculateFeelingPoints(
-              type: 'text',
-              text: text,
-            ),
-            replyToId: _replyingTo?.id,
-          );
+          ),
+          replyToId: optimisticMsg.replyToId,
+        );
 
-          if (mounted) {
-            setState(() {
-              _replyingTo = null;
-            });
-          }
-        }
-
-        // Handle auto-refresh if needed, but the realtime stream listener
-        // already handles most cases immediately.
-        if (mounted) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _loadConversation();
-          });
-        }
+        // Immediate refresh of conversation data for faster progress update
+        if (mounted) _loadConversation();
       } catch (e) {
         debugPrint('❌ Error in _sendMessage: $e');
         if (mounted) {
-          // Restore text if it failed
-          _messageController.text = text;
+          // Remove the optimistic message if it failed and restore text
+          setState(() {
+            _messages.removeWhere((m) => m.id == tempId);
+            _messageController.text = text;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
+            SnackBar(content: Text('Error sending message: $e')),
           );
         }
       } finally {
@@ -3158,6 +3321,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   @override
   void dispose() {
     _msgSub?.cancel();
+    _convSub?.cancel();
     _partnerProfileSub?.cancel();
     _feelingController.dispose();
     _messageController.dispose();

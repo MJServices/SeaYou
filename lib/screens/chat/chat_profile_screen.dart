@@ -32,6 +32,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _partnerProfile;
   String? _naughtyAnswer;
+  String? _naughtyQuestion;
 
   @override
   void initState() {
@@ -43,9 +44,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
     try {
       // Fetch partner profile — bypass cache to get fresh secret_quote & secret_audio_url
       final profile = await _db.getProfile(widget.partnerId, useCache: false);
-
-      // 🔄 Backfill: for users who registered before the profile-write fix,
-      // their secret_audio_url / secret_quote may only exist in user_preferences.
+      
+      // ... (existing backfill logic remains unchanged)
       if (profile != null) {
         final needsAudio = profile['secret_audio_url'] == null ||
             (profile['secret_audio_url'] as String?)?.isEmpty == true;
@@ -74,27 +74,39 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         }
       }
 
-      // Fetch naughty answer if feeling >= 75%
+      // Fetch naughty data if feeling >= 75%
       String? naughtyAnswer;
+      String? naughtyQuestion;
+
       if (widget.feelingPercent >= 75) {
         final convData = await Supabase.instance.client
             .from('conversations')
-            .select('user_a_id, user1_naughty_answer, user2_naughty_answer')
+            .select('user_a_id, user1_naughty_answer, user2_naughty_answer, user1_naughty_question_id, user2_naughty_question_id')
             .eq('id', widget.conversationId)
             .single();
 
         final currentUserId = AuthService().currentUser?.id;
         final isUserA = convData['user_a_id'] == currentUserId;
-        // Get partner's answer (opposite of current user)
+        
+        // Get partner's answer and question ID (opposite of current user)
         naughtyAnswer = isUserA
             ? convData['user2_naughty_answer']
             : convData['user1_naughty_answer'];
+            
+        final partnerQId = isUserA
+            ? convData['user2_naughty_question_id']
+            : convData['user1_naughty_question_id'];
+
+        if (partnerQId != null && mounted) {
+          naughtyQuestion = AppLocalizations.of(context).tr('surprise.q$partnerQId');
+        }
       }
 
       if (mounted) {
         setState(() {
           _partnerProfile = profile;
           _naughtyAnswer = naughtyAnswer;
+          _naughtyQuestion = naughtyQuestion;
           _isLoading = false;
         });
       }
@@ -423,6 +435,20 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          if (_naughtyQuestion != null) ...[
+            Text(
+              _naughtyQuestion!,
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF737373),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             _naughtyAnswer!,
             style: const TextStyle(

@@ -65,12 +65,11 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
             await EntitlementsService().isPremiumOrWoman(_currentUserId);
       }
 
-      final allBottles = await _db.getAllReceivedBottles(_currentUserId);
-      // Filter unreplied only, and deduplicate by sender (one bottle per sender)
-      final unreplied = allBottles.where((b) => !b.isReplied).toList();
+      final allBottles = await _db.getAllReceivedBottles(_currentUserId, forceRefresh: true);
+      // Deduplicate by sender (one bottle per sender)
       final seenSenders = <String?>{};
       final deduplicated = <ReceivedBottle>[];
-      for (final b in unreplied) {
+      for (final b in allBottles) {
         if (!seenSenders.contains(b.senderId)) {
           seenSenders.add(b.senderId);
           deduplicated.add(b);
@@ -118,6 +117,63 @@ class _NewBottlesListScreenState extends State<NewBottlesListScreen> {
   @override
   Widget build(BuildContext context) {
     final locked = _isLocked();
+
+    if (!_isLoading && _bottles.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFAF0D6), // Warm sand — matches nobottles.jpeg background
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Simple back arrow — no fake status bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF5C4A2A)),
+                    ),
+                  ],
+                ),
+              ),
+              // Image fills most of the screen
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/nobottles.jpeg',
+                          width: 320,
+                          height: 320,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.mail_outline,
+                            size: 120,
+                            color: Color(0xFF8D6E63),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        AppLocalizations.of(context).tr('bottles.no_new_bottles'),
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF8D6E63),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: WarmGradientBackground(

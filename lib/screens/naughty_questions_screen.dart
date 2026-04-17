@@ -151,32 +151,69 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
         answer: _answerController.text.trim(),
       );
 
-      // 1. Send the selected question
-      // We now use a more specific mood to allow for easier translation on the receiver side
-      // Both users send their own question prompt to the chat.
+      // Fetch latest conversation state to include both users' data
+      final convData = await Supabase.instance.client
+          .from('conversations')
+          .select('user1_naughty_question_id, user2_naughty_question_id, user1_naughty_answer, user2_naughty_answer, user_a_id, user_b_id')
+          .eq('id', widget.conversationId)
+          .single();
+
+      final isUserA = convData['user_a_id'] == currentUserId;
+      final canonicalUserId = currentUserId.toLowerCase().trim();
+      final partnerId = (isUserA ? convData['user_b_id'] : convData['user_a_id']).toString().toLowerCase().trim();
+      
+      // Determine partner question (for Reciprocal Question Prompt)
+      final partnerQId = isUserA ? convData['user2_naughty_question_id'] : convData['user1_naughty_question_id'];
+
+      // Helper to get question text by ID
+      String? getQuestionText(String? id) {
+        if (id == null) return null;
+        return AppLocalizations.of(context).tr('surprise.q$id');
+      }
+
+      final myQuestionText = getQuestionText(_selectedQuestion!.id.toString());
+      final partnerQuestionText = getQuestionText(partnerQId?.toString());
+
+      // 1. Send the selected question (RECIPROCAL format)
       final mood = 'naughty_question_${_selectedQuestion!.id}';
+      final title = AppLocalizations.of(context).tr('chat.naughty_question_main_title');
+      
+      // 🔄 Build reciprocal Question & Answer strings
+      final encodedQuestion = '$myQuestionText|--RECIPROCAL--|$canonicalUserId:$myQuestionText|--SPLIT--|$partnerId:${partnerQuestionText ?? ""}';
 
       await _db.sendMessage(
         conversationId: widget.conversationId,
         senderId: currentUserId,
         type: 'text',
         mood: mood,
-        text: _selectedQuestion!
-            .questionText, // Still send English as fallback/storage
+        text: encodedQuestion,
         feelingDelta: 0,
       );
 
-      // 2. Send the user's specific answer
+      // 2. Send the user's specific answer (RECIPROCAL format)
+      final myAnswer = _answerController.text.trim();
+      final partnerAnswer = isUserA 
+          ? convData['user2_naughty_answer'] 
+          : convData['user1_naughty_answer'];
+
+      // 🔄 Build reciprocal Answer string including the Question Text
+      // Format: UserID:QuestionText|--QTEXT--|AnswerText
+      final encodedAnswer = '$title|--RECIPROCAL--|'
+          '$canonicalUserId:$myQuestionText|--QTEXT--|$myAnswer'
+          '|--SPLIT--|'
+          '$partnerId:${partnerQuestionText ?? ""}|--QTEXT--|${partnerAnswer ?? ""}';
+
       await _db.sendMessage(
         conversationId: widget.conversationId,
         senderId: currentUserId,
-        type: 'text', // Standard type to avoid constraint violation
-        mood: 'naughty_answer', // Custom mood for UI logic
-        text: _answerController.text.trim(),
+        type: 'text',
+        mood: 'naughty_answer',
+        text: encodedAnswer,
         feelingDelta: 0,
       );
 
       if (mounted) {
+        Navigator.of(context).pop();
         widget.onComplete();
       }
     } catch (e) {

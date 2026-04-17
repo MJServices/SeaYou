@@ -274,6 +274,10 @@ class BottleMatchingService {
               (userGender == 'nonbinary' || userGender == 'non-binary')) {
             genderMatch = true;
           }
+          
+          if (userGender == 'nonbinary' || userGender == 'non-binary') {
+            genderMatch = true; // Wildcard recipient
+          }
 
           if (!genderMatch) {
             return false;
@@ -288,17 +292,17 @@ class BottleMatchingService {
             (senderProfile['gender'] as String?)?.toLowerCase() ?? 'other';
 
         bool reciprocalMatch = false;
-        if (recipientLookingFor == 'everyone') {
+        if (recipientLookingFor == 'everyone' || recipientLookingFor.contains('everyone') || recipientLookingFor == 'all' || senderGender == 'nonbinary' || senderGender == 'non-binary') {
           reciprocalMatch = true;
-        } else if (recipientLookingFor.contains('men') &&
-            (senderGender == 'male' ||
-                senderGender == 'man' ||
-                senderGender == 'homme')) {
-          reciprocalMatch = true;
-        } else if (recipientLookingFor.contains('women') &&
+        } else if ((recipientLookingFor == 'women' || recipientLookingFor == 'female' || recipientLookingFor == 'femme') &&
             (senderGender == 'female' ||
                 senderGender == 'woman' ||
                 senderGender == 'femme')) {
+          reciprocalMatch = true;
+        } else if ((recipientLookingFor == 'men' || recipientLookingFor == 'male' || recipientLookingFor == 'homme') &&
+            (senderGender == 'male' ||
+                senderGender == 'man' ||
+                senderGender == 'homme')) {
           reciprocalMatch = true;
         } else if (recipientLookingFor.contains('non-binary') ||
             recipientLookingFor.contains('nonbinary')) {

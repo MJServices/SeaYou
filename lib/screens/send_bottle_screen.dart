@@ -1052,9 +1052,13 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
         debugPrint('✅ Reply sent to conversation: $conversationId');
 
-        // 3. Mark the original received bottle as replied
+        // 3. Mark the original received bottle (and all other pending bottles from this sender) as replied
         if (widget.replyToBottleId != null) {
-          await _databaseService.markBottleAsReplied(widget.replyToBottleId!);
+          await _databaseService.markBottleAsReplied(
+            widget.replyToBottleId!,
+            senderId: widget.replyToUserId,
+            receiverId: currentUser.id,
+          );
           debugPrint('✅ Marked bottle as replied: ${widget.replyToBottleId}');
 
           // 4. Mark the original SENT bottle as replied (for the sender's UI)

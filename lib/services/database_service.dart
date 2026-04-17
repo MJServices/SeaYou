@@ -55,14 +55,17 @@ class DatabaseService {
     String normalizeGender(String? g) {
       if (g == null) return 'unknown';
       final lower = g.toLowerCase().trim();
-      if (lower == 'male' ||
-          lower == 'man' ||
-          lower == 'homme' ||
-          lower.contains('men')) return 'male';
+      
       if (lower == 'female' ||
           lower == 'woman' ||
-          lower == 'femme' ||
-          lower.contains('women')) return 'female';
+          lower == 'women' ||
+          lower == 'femme') return 'female';
+
+      if (lower == 'male' ||
+          lower == 'man' ||
+          lower == 'men' ||
+          lower == 'homme') return 'male';
+
       if (lower == 'non-binary' || lower == 'nonbinary') return 'nonbinary';
       return lower;
     }
@@ -71,11 +74,16 @@ class DatabaseService {
     String normalizeInterest(String? i) {
       if (i == null) return 'everyone';
       final lower = i.toLowerCase().trim();
-      if (lower == 'men' || lower == 'male' || lower == 'man') return 'male';
-      if (lower == 'women' || lower == 'female' || lower == 'woman')
+      
+      if (lower == 'women' || lower == 'female' || lower == 'woman' || lower == 'femme')
         return 'female';
+
+      if (lower == 'men' || lower == 'male' || lower == 'man' || lower == 'homme') return 'male';
+
       if (lower == 'non-binary' || lower == 'nonbinary') return 'nonbinary';
-      if (lower.contains('everyone')) return 'everyone';
+
+      if (lower.contains('everyone') || lower == 'all') return 'everyone';
+
       return lower;
     }
 
@@ -91,8 +99,8 @@ class DatabaseService {
       viewerLikesCreator = true;
     } else if (vInterest == cGender) {
       viewerLikesCreator = true;
-    } else if (cGender == 'unknown') {
-      viewerLikesCreator = true; // Include if gender unknown
+    } else if (cGender == 'unknown' || cGender == 'nonbinary') {
+      viewerLikesCreator = true; // Include if gender unknown or nonbinary acts as wildcard
     }
 
     // B: Does Creator like Viewer?
@@ -101,8 +109,8 @@ class DatabaseService {
       creatorLikesViewer = true;
     } else if (cInterest == vGender) {
       creatorLikesViewer = true;
-    } else if (vGender == 'unknown') {
-      creatorLikesViewer = true; // Include if gender unknown
+    } else if (vGender == 'unknown' || vGender == 'nonbinary') {
+      creatorLikesViewer = true; // Include if gender unknown or nonbinary acts as wildcard
     }
 
     return viewerLikesCreator && creatorLikesViewer;
@@ -788,7 +796,9 @@ class DatabaseService {
       final response = await _supabase
           .from('received_bottles')
           .select('id')
-          .eq('receiver_id', userId);
+          .eq('receiver_id', userId)
+          .eq('is_read', false)
+          .or('is_replied.eq.false,is_replied.is.null');
 
       _cachedReceivedCount = (response as List).length;
       debugPrint('✅ Found $_cachedReceivedCount received bottles');
@@ -810,8 +820,8 @@ class DatabaseService {
           .from('received_bottles')
           .select('id')
           .eq('receiver_id', userId)
-          .or('is_read.eq.false,is_read.is.null')
-          .or('is_replied.eq.false,is_replied.is.null'); // Handle NULL as unreplied
+          .eq('is_read', false)
+          .or('is_replied.eq.false,is_replied.is.null');
 
       if (blockedIds.isNotEmpty) {
         query = query.not('sender_id', 'in', blockedIds);
@@ -846,7 +856,7 @@ class DatabaseService {
 
   // Get recent received bottles (limit for home page)
   Future<List<ReceivedBottle>> getRecentReceivedBottles(String userId,
-      {int limit = 3}) async {
+      {int limit = 3, bool forceRefresh = false}) async {
     final fetchFuture = () async {
       try {
         // 1. Get bidirectional blocked user IDs
@@ -854,8 +864,11 @@ class DatabaseService {
         final blockerIds = await getBlockers(userId);
         final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-        var query =
-            _supabase.from('received_bottles').select().eq('receiver_id', userId);
+        var query = _supabase
+            .from('received_bottles')
+            .select()
+            .eq('receiver_id', userId)
+            .or('is_replied.eq.false,is_replied.is.null');
 
         if (allBlocked.isNotEmpty) {
           query = query.not('sender_id', 'in', allBlocked);
@@ -874,7 +887,7 @@ class DatabaseService {
       }
     }();
 
-    if (_cachedRecentReceivedBottles != null) return _cachedRecentReceivedBottles!;
+    if (!forceRefresh && _cachedRecentReceivedBottles != null) return _cachedRecentReceivedBottles!;
     return await fetchFuture;
   }
 
@@ -914,7 +927,7 @@ class DatabaseService {
   }
 
   // Get all received bottles with sender details
-  Future<List<ReceivedBottle>> getAllReceivedBottles(String userId) async {
+  Future<List<ReceivedBottle>> getAllReceivedBottles(String userId, {bool forceRefresh = false}) async {
     final fetchFuture = () async {
       try {
         // 1. Get bidirectional blocked user IDs
@@ -922,8 +935,11 @@ class DatabaseService {
         final blockerIds = await getBlockers(userId);
         final allBlocked = {...blockedIds, ...blockerIds}.toList();
 
-        var query =
-            _supabase.from('received_bottles').select().eq('receiver_id', userId);
+        var query = _supabase
+            .from('received_bottles')
+            .select()
+            .eq('receiver_id', userId)
+            .or('is_replied.eq.false,is_replied.is.null');
 
         if (allBlocked.isNotEmpty) {
           query = query.not('sender_id', 'in', allBlocked);
@@ -999,7 +1015,7 @@ class DatabaseService {
       }
     }();
 
-    if (_cachedReceivedBottles != null) return _cachedReceivedBottles!;
+    if (!forceRefresh && _cachedReceivedBottles != null) return _cachedReceivedBottles!;
     return await fetchFuture;
   }
 
@@ -1077,16 +1093,24 @@ class DatabaseService {
   }
 
   /// Mark a received bottle as replied
-  Future<void> markBottleAsReplied(String bottleId) async {
+  Future<void> markBottleAsReplied(String bottleId, {String? senderId, String? receiverId}) async {
     try {
-      await _supabase.from('received_bottles').update({
-        'is_replied': true,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', bottleId);
+      if (senderId != null && receiverId != null) {
+        await _supabase.from('received_bottles').update({
+          'is_replied': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('receiver_id', receiverId).eq('sender_id', senderId).or('is_replied.eq.false,is_replied.is.null');
+      } else {
+        await _supabase.from('received_bottles').update({
+          'is_replied': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', bottleId);
+      }
       
-      // Invalidate cache for Home Screen indicator
+      // Invalidate cache for Home Screen indicator and Bottles List
       _cachedUnrepliedCount = null;
-      debugPrint('✅ Bottle marked as replied: $bottleId');
+      _cachedReceivedBottles = null;
+      debugPrint('✅ Bottle marked as replied: $bottleId (sender: $senderId)');
     } catch (e) {
       debugPrint('❌ Error marking bottle as replied: $e');
       // Don't rethrow - this is non-critical
@@ -1709,7 +1733,7 @@ class DatabaseService {
 
   // ==================== CONVERSATIONS & MESSAGES (STUBS) ====================
 
-  Future<List<Conversation>> getUserConversations(String userId) async {
+  Future<List<Conversation>> getUserConversations(String userId, {bool forceRefresh = false}) async {
     final fetchFuture = () async {
       try {
         debugPrint('🔍 getUserConversations called for userId: $userId');
@@ -1797,7 +1821,7 @@ class DatabaseService {
       }
     }();
 
-    if (_cachedConversations != null) return _cachedConversations!;
+    if (!forceRefresh && _cachedConversations != null) return _cachedConversations!;
     return await fetchFuture;
   }
 
@@ -1943,6 +1967,9 @@ class DatabaseService {
       // Sanitization: If it contains the milestone separator, strip the content part
       if (lastMsg.contains('|--CONTENT--|')) {
         lastMsg = lastMsg.split('|--CONTENT--|')[0];
+      }
+      if (lastMsg.contains('|--RECIPROCAL--|')) {
+        lastMsg = lastMsg.split('|--RECIPROCAL--|')[0];
       }
 
       await _supabase.from('conversations').update({
@@ -2258,7 +2285,8 @@ class DatabaseService {
           value: conversationId,
         ),
         callback: (payload) {
-          debugPrint('🔔 Realtime message event: ${payload.eventType}');
+          debugPrint('🔔 [RT-DB] Message event: ${payload.eventType} for conv: $conversationId');
+          debugPrint('   Payload mapping: ${payload.newRecord}');
 
           Map<String, dynamic> data;
           if (payload.eventType == PostgresChangeEvent.delete) {
@@ -2269,15 +2297,28 @@ class DatabaseService {
 
           // Include the event type so the UI knows what happened
           data['event_type'] = payload.eventType.name;
-          controller.add(data);
+          if (!controller.isClosed) {
+            controller.add(data);
+          }
         },
       )
           .subscribe((status, error) {
-        debugPrint('📡 Message subscription status: $status');
+        debugPrint('📡 [RT-DB] Msg sub status: $status (Conv: $conversationId)');
         if (error != null) {
-          debugPrint('❌ Message subscription error: $error');
+          debugPrint('❌ [RT-DB] Msg sub error: $error');
+        }
+        
+        final statusName = status.name;
+        if (statusName == 'closed' || statusName == 'channel_error' || statusName == 'timed_out') {
+          debugPrint('⚠️ [RT-DB] Msg sub issue: $statusName, user might not see updates');
         }
       });
+
+      controller.onCancel = () {
+        debugPrint('🔌 [RT-DB] Controller cancelled, removing channel for $conversationId');
+        _supabase.removeChannel(channel);
+        controller.close();
+      };
 
       return controller.stream;
     } catch (e) {
@@ -2297,14 +2338,16 @@ class DatabaseService {
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'conversations',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: conversationId,
+        ),
         callback: (payload) {
           final newRec = payload.newRecord;
-          if (newRec['id'] == conversationId) {
-            debugPrint(
-                '🔥 Conversation UPDATE received via client-side filter!');
-            debugPrint('   Feeling: ${newRec['feeling_percent']}');
-            controller.add(newRec.cast<String, dynamic>());
-          }
+          debugPrint('🔥 Conversation UPDATE received via precise filter!');
+          debugPrint('   Feeling: ${newRec['feeling_percent']}');
+          controller.add(newRec.cast<String, dynamic>());
         },
       )
           .subscribe((status, error) {
@@ -2785,7 +2828,14 @@ class DatabaseService {
     }
   }
 
-  Stream<int> get unreadCountStream async* {
+  Stream<int>? _cachedUnreadCountStream;
+
+  Stream<int> get unreadCountStream {
+    _cachedUnreadCountStream ??= _createUnreadCountStream().asBroadcastStream();
+    return _cachedUnreadCountStream!;
+  }
+
+  Stream<int> _createUnreadCountStream() async* {
     while (true) {
       yield await getUnreadMessageCount();
       await Future.delayed(const Duration(seconds: 3)); // Poll every 3s

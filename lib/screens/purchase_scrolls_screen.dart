@@ -18,6 +18,8 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
   StreamSubscription<Map<String, dynamic>>? _profileSubscription;
   Timer? _pollingTimer;
   bool _isRedirecting = false;
+  bool _isLoading = false;
+  bool _stripeOpened = false;
 
   @override
   void initState() {
@@ -59,7 +61,11 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
             debugPrint('📜 Scrolls purchase detected via realtime!');
             _isRedirecting = true;
             _pollingTimer?.cancel();
-            await closeInAppWebView();
+            try {
+              await closeInAppWebView();
+            } catch (e) {
+              debugPrint('Error closing webview: $e');
+            }
             if (mounted) {
               Navigator.of(context).pop(true);
             }
@@ -86,8 +92,13 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
           timer.cancel();
           debugPrint('📜 Scrolls purchase detected via polling fallback!');
           _isRedirecting = true;
-          await closeInAppWebView();
+          try {
+            await closeInAppWebView();
+          } catch (e) {
+            debugPrint('Error closing webview: $e');
+          }
           if (mounted) {
+            setState(() => _isLoading = false);
             Navigator.of(context).pop(true);
           }
         }
@@ -97,11 +108,11 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
 
   // TODO: Replace with your actual Stripe payment links for each scroll pack
   static const String _scrolls3Link =
-      'https://buy.stripe.com/test_5kQ00ifqJawN6Gv6kW4gg03';
+      'https://buy.stripe.com/eVq9ATc6i1l786cdC62Nq01';
   static const String _scrolls10Link =
-      'https://buy.stripe.com/test_dRm7sK2DX9sJfd1eRs4gg02';
+      'https://buy.stripe.com/eVq7sL1rEe7T86c7dI2Nq04';
   static const String _scrolls30Link =
-      'https://buy.stripe.com/test_7sY00i2DX20h8OD8t44gg01';
+      'https://buy.stripe.com/3cIeVd8U6e7T728gOi2Nq03';
 
   Future<void> _launchUrl(String urlString) async {
     final user = Supabase.instance.client.auth.currentUser;
@@ -117,6 +128,12 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
     _startPolling(); // Fallback to polling
 
     final Uri url = Uri.parse(enrichedUrl);
+    
+    // Only start polling when actually launching a stripe payment
+    if (enrichedUrl.contains('buy.stripe.com')) {
+      _startPolling();
+    }
+
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
       _pollingTimer?.cancel();
       if (mounted) {
@@ -124,6 +141,12 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
           const SnackBar(
               content: Text('Could not open payment page. Please try again.')),
         );
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _stripeOpened = true;
+        });
       }
     }
   }
@@ -224,6 +247,52 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
                       ),
 
                       const SizedBox(height: 24),
+
+                      // After Stripe opened: show a refresh button
+                      if (_stripeOpened) ...[
+                        if (_isLoading)
+                          const Center(
+                            child: CircularProgressIndicator(color: Colors.white),
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: () async {
+                              setState(() => _isLoading = true);
+                              await _loadInitialScrolls(); // Ensure latest data
+                              final userId = Supabase.instance.client.auth.currentUser?.id;
+                              if (userId != null) {
+                                final profile = await DatabaseService()
+                                    .getProfile(userId, useCache: false);
+                                if (profile != null) {
+                                  final currentTotal = (profile['scrolls_count'] as int? ?? 0) +
+                                      (profile['daily_free_scrolls'] as int? ?? 0);
+                                  if (currentTotal > _initialTotalScrolls) {
+                                    if (mounted) Navigator.of(context).pop(true);
+                                  } else {
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(tr.tr('purchase_scrolls.not_received_yet')),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.refresh, color: Colors.white),
+                            label: const Text(
+                              'J\'ai payé – Actualiser',
+                              style: TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
                     ],
                   ),
                 ),
@@ -248,7 +317,6 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
           Image.asset(
             'assets/images/letter.png',
             width: 40,
-            color: Colors.white,
             errorBuilder: (c, o, s) =>
                 const Icon(Icons.local_post_office, color: Colors.white, size: 40),
           ),

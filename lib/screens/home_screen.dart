@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/warm_gradient_background.dart';
 import '../models/conversation.dart';
-import 'received_bottles_screen.dart';
 import 'send_bottle_screen.dart';
 import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
@@ -19,7 +18,6 @@ import 'door_of_desires_screen.dart';
 import 'premium_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../services/onboarding_service.dart';
-import '../services/entitlements_service.dart';
 import '../services/bottle_matching_service.dart';
 
 import '../widgets/tutorial_modal.dart';
@@ -47,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _avatarUrl;
   final List<RealtimeChannel> _messageChannels = []; // For optimized message listeners
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
-  String? _lastNotifiedBottleId;
+  Timer? _bottlePollingTimer;
 
   @override
   void initState() {
@@ -78,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _supabase.removeChannel(channel);
     }
     _profileSub?.cancel();
+    _bottlePollingTimer?.cancel();
     GlobalAudioController.instance.stopAmbient();
     super.dispose();
   }
@@ -271,60 +270,59 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  int _lastNotifiedUnrepliedCount = -1;
+
   Future<void> _subscribeNewBottles() async {
+    // Isolated local polling mechanism to completely bypass Realtime/RLS errors
+    _bottlePollingTimer?.cancel();
+    
+    // Initial tracking
+    _checkNewBottles();
+    
+    // Poll securely every 6 seconds
+    _bottlePollingTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _checkNewBottles();
+    });
+  }
+
+  Future<void> _checkNewBottles() async {
     try {
+      if (!mounted) return;
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
+      
+      final currentCount = await _databaseService.getUnrepliedBottlesCount(userId);
+      
+      if (!mounted) return;
 
-      _supabase
-          .from('received_bottles')
-          .stream(primaryKey: ['id'])
-          .eq('receiver_id', userId)
-          .listen((data) async {
-            if (data.isNotEmpty) {
-              // Always refresh count for Home Screen reactivity
-              _loadData();
+      // Update UI explicitly
+      setState(() => _receivedCount = currentCount);
+      
+      // If the current unreplied count is strictly greater than the last recorded count,
+      // and it's not the first app load, trigger the visual popup.
+      if (_lastNotifiedUnrepliedCount != -1 && currentCount > _lastNotifiedUnrepliedCount) {
+          NotificationService().show(
+            context: context,
+            title: '🍾 ${AppLocalizations.of(context).tr('notification.new_bottle')}',
+            message: AppLocalizations.of(context).tr('notification.new_bottle_message'),
+            icon: const Icon(Icons.mail, color: Colors.white, size: 32),
+            gradientColors: [Colors.orange, Colors.orangeAccent],
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NewBottlesListScreen(),
+                ),
+              ).then((_) => _loadData());
+            },
+          );
+      }
+      
+      // Sync tracking count
+      _lastNotifiedUnrepliedCount = currentCount;
 
-              final latestBottle = data.last;
-              final isRead = latestBottle['is_read'] as bool? ?? false;
-              final String? senderId = latestBottle['sender_id'] as String?;
-              final bottleId = latestBottle['id'] as String;
-
-              // Only show toast/vibration for actual NEW unread bottles from others
-              if (senderId != null &&
-                  senderId != userId &&
-                  !isRead &&
-                  latestBottle['created_at'] != null &&
-                  bottleId != _lastNotifiedBottleId) {
-
-                NotificationService().show(
-                  context: context,
-                  title:
-                      '🍾 ${AppLocalizations.of(context).tr('notification.new_bottle')}',
-                  message: AppLocalizations.of(context)
-                      .tr('notification.new_bottle_message'),
-                  icon: const Icon(
-                    Icons.mail,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                  gradientColors: [Colors.orange, Colors.orangeAccent],
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NewBottlesListScreen(),
-                      ),
-                    );
-                  },
-                );
-
-                _loadData();
-              }
-            }
-          });
     } catch (e) {
-      debugPrint('Error subscribing to bottles: $e');
+      debugPrint('Error polling bottles: $e');
     }
   }
 
@@ -334,54 +332,69 @@ class _HomeScreenState extends State<HomeScreen> {
       if (userId == null) return;
 
       _supabase
-          .channel('public:conversations')
+          .channel('public:conversations:$_userName')
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
             schema: 'public',
             table: 'conversations',
             filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.inFilter,
+              type: PostgresChangeFilterType.eq,
               column: 'user_b_id',
-              value: [userId],
+              value: userId, // Direct scalar match
             ),
-            callback: (payload) async {
-              final newConv = payload.newRecord;
-              if (newConv['user_a_id'] == userId ||
-                  newConv['user_b_id'] == userId) {
-                final otherUserId = newConv['user_a_id'] == userId
-                    ? newConv['user_b_id']
-                    : newConv['user_a_id'];
-                if (otherUserId != null) {
-                  final isBlocked = await _databaseService.isRelationBlocked(
-                      userId, otherUserId);
-                  if (isBlocked) return;
-                }
-
-                if (mounted) {
-                  NotificationService().show(
-                    context: context,
-                    title: 'New Connection!',
-                    message: 'Someone replied to your secret message!',
-                    icon: const Icon(Icons.favorite, color: Colors.white),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ChatListScreen(),
-                        ),
-                      );
-                    },
-                  );
-
-                  await _loadData();
-                  _subscribeNewMessages();
-                }
-              }
-            },
+            callback: _handleNewConversationEvent,
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'conversations',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_a_id',
+              value: userId, // Direct scalar match
+            ),
+            callback: _handleNewConversationEvent,
           )
           .subscribe();
     } catch (e) {
       debugPrint('Error subscribing to new conversations: $e');
+    }
+  }
+
+  Future<void> _handleNewConversationEvent(PostgresChangePayload payload) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final newConv = payload.newRecord;
+    if (newConv['user_a_id'] == userId || newConv['user_b_id'] == userId) {
+      final otherUserId = newConv['user_a_id'] == userId
+          ? newConv['user_b_id']
+          : newConv['user_a_id'];
+      if (otherUserId != null) {
+        final isBlocked = await _databaseService.isRelationBlocked(
+            userId, otherUserId);
+        if (isBlocked) return;
+      }
+
+      if (mounted) {
+        NotificationService().show(
+          context: context,
+          title: AppLocalizations.of(context).tr('notification.new_connection'),
+          message: AppLocalizations.of(context).tr('notification.new_connection_message'),
+          icon: const Icon(Icons.favorite, color: Colors.white),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChatListScreen(),
+              ),
+            );
+          },
+        );
+
+        await _loadData();
+        _subscribeNewMessages();
+      }
     }
   }
 
@@ -468,23 +481,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () {
-                              if (_receivedCount > 0) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const NewBottlesListScreen(),
-                                  ),
-                                ).then((_) => _loadData());
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const ReceivedBottlesScreen(),
-                                  ),
-                                ).then((_) => _loadData());
-                              }
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const NewBottlesListScreen(),
+                                ),
+                              ).then((_) => _loadData());
                             },
                             child: Column(
                               children: [
@@ -631,7 +634,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          if (_userProfile?['gender']
+                          if (_userProfile?['is_premium'] != true &&
+                              _userProfile?['gender']
                                       ?.toString()
                                       .toLowerCase() !=
                                   'woman' &&
@@ -695,35 +699,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           const SizedBox(height: 20),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: TextButton(
-                              onPressed: () async {
-                                final userId = _supabase.auth.currentUser?.id;
-                                if (userId != null) {
-                                  final entitlements = EntitlementsService();
-                                  await entitlements.grantEntitlement(userId, 'premium', 'debug_manual_activation');
-                                  
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content:
-                                              Text('DEBUG: Premium Activated')),
-                                    );
-                                    _loadData();
-                                  }
-                                }
-                              },
-                              child: Text(
-                                AppLocalizations.of(context)
-                                    .tr('home.debug_activate_premium'),
-                                style: const TextStyle(
-                                    color: Color(0xFFFF5252),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),

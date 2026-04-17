@@ -22,7 +22,7 @@ class PremiumScreen extends StatefulWidget {
 class _PremiumScreenState extends State<PremiumScreen>
     with WidgetsBindingObserver {
   static const String _subscriptionLink =
-      'https://buy.stripe.com/test_cNi4gybatdIZfd15gS4gg04';
+      'https://buy.stripe.com/3cI28r0nAd3PdqwfKe2Nq02';
   static const String _manageSubscriptionLink =
       'https://billing.stripe.com/p/login/9B66oHgmyaVH4U0dC62Nq00';
 
@@ -189,8 +189,10 @@ class _PremiumScreenState extends State<PremiumScreen>
 
     final Uri url = Uri.parse(enrichedUrl);
     
-    // Start polling as a safeguard just before opening Stripe
-    _startPolling();
+    // Only start polling for status changes when opening a checkout link
+    if (enrichedUrl.contains('buy.stripe.com')) {
+      _startPolling();
+    }
 
     // User requested to keep it running in-app.
     if (!await launchUrl(url, mode: LaunchMode.inAppWebView)) {
@@ -642,13 +644,26 @@ class _PremiumScreenState extends State<PremiumScreen>
 
                               // Get Scrolls Button
                               TextButton(
-                                onPressed: () {
-                                  Navigator.push(
+                                onPressed: () async {
+                                  final result = await Navigator.push<bool>(
                                     context,
                                     MaterialPageRoute(
                                         builder: (context) =>
                                             const PurchaseScrollsScreen()),
                                   );
+
+                                  if (result == true && mounted) {
+                                    if (widget.onPremiumActivated != null) {
+                                      widget.onPremiumActivated!();
+                                    } else {
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const HomeScreen()),
+                                        (route) => false,
+                                      );
+                                    }
+                                  }
                                 },
                                 child: Text(
                                   tr.tr('purchase_scrolls.title'),
@@ -664,23 +679,7 @@ class _PremiumScreenState extends State<PremiumScreen>
 
                               const SizedBox(height: 10),
 
-                              // Manage Subscription (Always Visible)
-                              TextButton(
-                                onPressed: () =>
-                                    _launchUrl(_manageSubscriptionLink),
-                                child: Text(
-                                  tr.tr('profile.manage_subscription'),
-                                  style: const TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF666666),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 30),
+                               const SizedBox(height: 30),
                             ],
                           ),
                         ),

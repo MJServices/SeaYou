@@ -529,49 +529,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const Divider(height: 1),
-            // DEBUG: Premium Toggle
-            ListTile(
-              leading: const Icon(Icons.bug_report, color: Colors.orange),
-              title: const Text(
-                'DEBUG: Activate Premium',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.orange,
-                ),
-              ),
-              subtitle:
-                  const Text('Testing only', style: TextStyle(fontSize: 12)),
-              onTap: () async {
-                final userId = AuthService().currentUser?.id;
-                if (userId != null) {
-                  try {
-                    await Supabase.instance.client.from('entitlements').upsert({
-                      'user_id': userId,
-                      'tier': 'premium',
-                      'expires_at': DateTime.now()
-                          .add(const Duration(days: 365))
-                          .toIso8601String(),
-                    }, onConflict: 'user_id');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(AppLocalizations.of(context)
-                                .tr('premium.activated')),
-                            backgroundColor: Colors.green),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(SnackBar(content: Text('Error: $e')));
-                    }
-                  }
-                }
-              },
-            ),
-            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: Text(

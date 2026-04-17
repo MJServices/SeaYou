@@ -47,7 +47,10 @@ class ChatMessage {
           ? DateTime.parse(json['updated_at'] as String).toUtc()
           : null,
       isRead: json['is_read'] as bool? ?? false,
-      isMe: currentUserId != null && json['sender_id'] == currentUserId,
+      isMe: (currentUserId != null &&
+          json['sender_id'] != null &&
+          json['sender_id'].toString().toLowerCase().trim() ==
+              currentUserId.toLowerCase().trim()),
       mood: json['mood'] as String?,
       replyToId: json['reply_to_id'] as String?,
     );

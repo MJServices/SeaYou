@@ -52,13 +52,12 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
         _isPremium = tier == 'premium' || tier == 'elite';
       }
 
-      final allBottles = await _db.getAllReceivedBottles(_currentUserId);
-
-      // Only unreplied bottles, and deduplicate by sender (keep most recent per sender)
-      final unreplied = allBottles.where((b) => !b.isReplied).toList();
+      final allBottles = await _db.getAllReceivedBottles(_currentUserId, forceRefresh: true);
+      
+      // Deduplicate by sender (keep most recent per sender)
       final seenSenders = <String?>{};
       final deduplicated = <ReceivedBottle>[];
-      for (final b in unreplied) {
+      for (final b in allBottles) {
         if (!seenSenders.contains(b.senderId)) {
           seenSenders.add(b.senderId);
           deduplicated.add(b);

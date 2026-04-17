@@ -93,7 +93,8 @@
     },
     "list_title_new": "NEW BOTTLE RECEIVED !",
     "new_message_from": "New message from {name}",
-    "go_premium": "GO PREMIUM"
+    "go_premium": "GO PREMIUM",
+    "no_new_bottles": "No new bottles found."
   },
   "voice": {
     "title": "Secret Voice",
@@ -128,6 +129,7 @@
   "common": {
     "years_old": "years old",
     "dept_prefix": "Dept.",
+    "you": "You",
     "back": "Back",
     "ok": "OK",
     "cancel": "Cancel",
@@ -619,7 +621,9 @@
       "recording": "Recording: {time}",
       "recording_saved": "Recording saved: {time}",
       "voice_too_short": "Voice message must be at least 5 seconds long",
-      "mic_permission_required": "Microphone permission required"
+      "mic_permission_required": "Microphone permission required",
+      "age_error_title": "Age Limit",
+      "age_error_message": "You must be at least 18 years old to use SeaYou."
     },
     "upload_picture": {
       "title": "Upload a picture",
@@ -772,6 +776,8 @@
     "naughty_question_hint": "Share your thoughts...",
     "naughty_question_submit": "Submit Answer",
     "naughty_question_submitting": "Submitting...",
+    "naughty_question_waiting_partner": "Waiting for partner...",
+    "naughty_question_hidden_until_answered": "Answer hidden until both of you have replied.",
     "naughty_question_category_sweet": "Sweet",
     "naughty_question_category_daring": "Daring",
     "naughty_question_category_naughty": "Naughty",

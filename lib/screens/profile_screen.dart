@@ -221,7 +221,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Upgrade to Pro Section
                     if (!_isPremium &&
                         !(_gender?.toLowerCase() == 'woman' ||
-                            _gender?.toLowerCase() == 'female'))
+                            _gender?.toLowerCase() == 'female' ||
+                            _gender?.toLowerCase() == 'femme'))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: GestureDetector(
@@ -649,21 +650,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
-                          if (_isPremium) ...[
-                            const SizedBox(height: 12),
-                            _buildSectionItem(
-                              title: AppLocalizations.of(context)
-                                  .tr('profile.manage_subscription'),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const PremiumScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                          if (_isPremium && 
+                              !(_gender?.toLowerCase() == 'woman' || 
+                                _gender?.toLowerCase() == 'female' ||
+                                _gender?.toLowerCase() == 'femme')) ...[
+                              const SizedBox(height: 12),
+                              _buildSectionItem(
+                                title: AppLocalizations.of(context)
+                                    .tr('profile.manage_subscription'),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const PremiumScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           if (!_isPremium)
                             _buildActionButton(
                               title: AppLocalizations.of(context)

@@ -78,8 +78,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     debugPrint('🔄 Loading conversations for user: $_currentUserId');
 
     try {
-      // 1. Get all conversations and block lists sequentially (avoids Future.wait type-erasure issues)
-      final List<Conversation> convs = await _db.getUserConversations(_currentUserId);
+      final List<Conversation> convs = await _db.getUserConversations(_currentUserId, forceRefresh: true);
       final List<String> blockedByMe = await _db.getBlockedUserIds(_currentUserId);
       final List<String> blockingMe = await _db.getBlockers(_currentUserId);
       final Set<String> allBlocked = {...blockedByMe, ...blockingMe};
@@ -516,10 +515,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     final isLocked = _isUserPremiumLocked(conversation.feelingPercent);
     final isUnlocked = conversation.feelingPercent >= 100;
+    final rawLastMessage = conversation.lastMessage ??
+        AppLocalizations.of(context).tr('chat.start_chatting_hint');
     final lastMessage = isLocked
         ? AppLocalizations.of(context).tr('chat.restricted_message')
-        : (conversation.lastMessage ??
-            AppLocalizations.of(context).tr('chat.start_chatting_hint'));
+        : _translateMilestoneLastMessage(context, rawLastMessage);
     final displayFeelingPercent = isLocked ? 75 : conversation.feelingPercent;
     final time = _formatTime(conversation.lastMessageTime);
     final hasUnread = conversation.unreadCount > 0;
@@ -611,6 +611,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ),
       ),
     );
+  }
+
+  String _translateMilestoneLastMessage(BuildContext context, String message) {
+    // Maps hardcoded English milestone summaries to their localization keys
+    final Map<String, String> milestoneMap = {
+      'Quote unlocked': 'chat.milestone_summary_25',
+      'Voicemail unlocked': 'chat.milestone_summary_50',
+      'Intimacy question unlocked': 'chat.milestone_summary_75',
+      'Photo revealed ✨': 'chat.milestone_summary_100',
+    };
+
+    if (milestoneMap.containsKey(message)) {
+      return AppLocalizations.of(context).tr(milestoneMap[message]!);
+    }
+
+    return message;
   }
 
   String _formatTime(DateTime? time) {

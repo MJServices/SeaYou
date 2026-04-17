@@ -508,6 +508,18 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                     isActive: isFormValid,
                     onPressed: () async {
                       if (isFormValid) {
+                        final age = int.tryParse(_ageController.text) ?? 0;
+                        if (age < 18) {
+                          _showBubble(
+                            AppLocalizations.of(context)
+                                .tr('onboarding.profile_info.age_error_title'),
+                            AppLocalizations.of(context)
+                                .tr('onboarding.profile_info.age_error_message'),
+                            AppLocalizations.of(context).tr('common.ok'),
+                          );
+                          return;
+                        }
+
                         // V7: Ensure audio stops before navigation
                         debugPrint(
                             '🎵 [ProfileInfo] NEXT CLICKED - Stopping audio');
