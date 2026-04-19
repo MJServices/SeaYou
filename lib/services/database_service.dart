@@ -1237,7 +1237,7 @@ class DatabaseService {
   }
 
   /// Send a direct bottle to a specific user (Targeted Bottle)
-  /// Returns the bottle ID if successful
+  /// Returns the bottle ID (or message ID) if successful
   Future<String?> sendDirectBottle({
     required String senderId,
     required String receiverId,
@@ -1249,19 +1249,19 @@ class DatabaseService {
     String? mood,
     String? replyToContentType,
     String? replyToContent,
-    String? replyPrefix, // Pass translated prefix like "Replying to bio: "
+    String? replyPrefix,
   }) async {
     try {
-      debugPrint('--- sendDirectBottle ---');
+      debugPrint('--- sendDirectBottle (Chat Integrated) ---');
       debugPrint('Sender: $senderId, Receiver: $receiverId');
 
-      // 0. Check if blocked (bidirectional)
+      // 0. Check if blocked
       if (await isRelationBlocked(senderId, receiverId)) {
-        debugPrint('🚫 Cannot send bottle: block relationship exists');
+        debugPrint('🚫 Cannot send: block relationship exists');
         return null;
       }
 
-      // Append reply context to message since columns don't exist
+      // 1. Prepare the message text with reply context
       String finalMessage = message ?? '';
       if (replyToContent != null && replyToContent.isNotEmpty) {
         final prefix = replyPrefix ??
@@ -1271,63 +1271,83 @@ class DatabaseService {
         finalMessage = '$prefix"$replyToContent"\n\n$finalMessage';
       }
 
-      // 1. Create Sent Bottle
-      // Targeted bottles are implicitly 'delivered' immediately
-      final sentBottle = await _supabase
-          .from('sent_bottles')
-          .insert({
-            'sender_id': senderId,
-            'content_type': contentType,
-            'message': finalMessage,
-            'audio_url': audioUrl,
-            'photo_url': photoUrl,
-            'caption': caption,
-            'mood': mood,
-            'status': 'delivered', // Directly delivered
-            'matched_recipient_id': receiverId,
-            'is_delivered': true,
-            'has_reply': false,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+      // 2. Resolve/Create Conversation
+      // We need to ensure a conversation exists so it shows up in Chat List
+      String? conversationId;
+      final existing = await _supabase
+          .from('conversations')
           .select()
-          .single();
+          .or('and(user_a_id.eq.$senderId,user_b_id.eq.$receiverId),and(user_a_id.eq.$receiverId,user_b_id.eq.$senderId)')
+          .maybeSingle();
 
-      final bottleId = sentBottle['id'] as String;
-      debugPrint('✅ Created sent bottle: $bottleId');
+      if (existing != null) {
+        conversationId = existing['id'] as String;
+      } else {
+        // Determine Mask based on source
+        String? maskForSender;
+        if (replyToContentType == 'fantasy') {
+          maskForSender = 'Door of Desires';
+        } else if (replyToContentType == 'bio' || replyToContentType == 'quote') {
+          maskForSender = 'Secret Soul';
+        } else {
+          maskForSender = 'Anonymous Soul';
+        }
 
-      // 2. Create Received Bottle for the recipient
-      await _supabase.from('received_bottles').insert({
-        'receiver_id': receiverId,
+        // Create new conversation
+        // Note: Sender is user_a to make masking logic consistent (User B sees maskA)
+        final newConv = await _supabase
+            .from('conversations')
+            .insert({
+              'user_a_id': senderId,
+              'user_b_id': receiverId,
+              'mask_a': maskForSender, // Recipient (B) sees Sender (A) as masked
+              'feeling_percent': 0,
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .select()
+            .single();
+        conversationId = newConv['id'] as String;
+      }
+
+      // 3. Send Message in Conversation
+      await sendMessage(
+        conversationId: conversationId!,
+        senderId: senderId,
+        type: contentType,
+        text: finalMessage,
+        mediaUrl: contentType == 'audio' ? audioUrl : photoUrl,
+        mood: mood,
+      );
+
+      // 4. Create fallback Bottle record (to keep "The Sea" updated / history)
+      // This ensures it also shows up in any "Sent Bottles" list if needed
+      final sentResult = await _supabase.from('sent_bottles').insert({
         'sender_id': senderId,
-        'sent_bottle_id': bottleId,
         'content_type': contentType,
         'message': finalMessage,
         'audio_url': audioUrl,
         'photo_url': photoUrl,
-        'caption': caption,
-        'mood': mood,
-        // 'reply_to_content_type': replyToContentType, // Column does not exist
-        // 'reply_to_content': replyToContent,         // Column does not exist
-        'match_score': 100, // Direct match
-        'is_read': false,
-        'is_replied': false,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'matched_at': DateTime.now().toIso8601String(),
-      });
+        'status': 'delivered',
+        'matched_recipient_id': receiverId,
+        'is_delivered': true,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      }).select().single();
 
-      debugPrint('✅ Created received bottle for recipient');
+      final bottleId = sentResult['id'] as String;
 
-      // 3. Send Notification
+      // 5. Send Notification (Type: new_message)
       try {
         await _supabase.from('notifications').insert({
           'user_id': receiverId,
-          'type': 'new_bottle',
-          'title': 'New Bottle Received',
-          'message': 'Someone sent you a bottle!',
-          'data': {'bottle_id': bottleId},
-          'created_at': DateTime.now().toIso8601String(),
+          'type': 'new_message', // CHANGED: now triggers the red dot in chat
+          'title': 'New Message',
+          'message': 'Someone replied to your content!',
+          'data': {
+            'conversation_id': conversationId,
+            'sender_id': senderId,
+          },
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         });
       } catch (e) {
         debugPrint('⚠️ Notification failed: $e');
@@ -1335,7 +1355,7 @@ class DatabaseService {
 
       return bottleId;
     } catch (e) {
-      debugPrint('❌ Error sending direct bottle: $e');
+      debugPrint('❌ Error sending direct reply: $e');
       return null;
     }
   }
@@ -2508,19 +2528,16 @@ class DatabaseService {
 
             String? quoteText;
             String? bioText;
-            String idSuffix = 'about';
-
             if (q['secret_quote'] != null &&
                 q['secret_quote'].toString().isNotEmpty) {
               quoteText = q['secret_quote'];
-              idSuffix = 'quote';
             }
 
             if (q['about'] != null && q['about'].toString().isNotEmpty) {
               bioText = q['about'];
             }
 
-            // If user explicitly asked for BIO, only add if bio exists
+            // Distinguish the additions based on contentType selection
             if (contentType == 'bio') {
               if (bioText != null) {
                 items.add({
@@ -2535,17 +2552,44 @@ class DatabaseService {
                   'created_at': q['created_at'],
                 });
               }
-            }
-            // If user asked for QUOTE or ALL, handle as before
-            else {
-              // Priority: Desire > Quote > About (as a quote)
+            } else if (contentType == 'quote') {
+              // Priority: Desire > Quote > About (as a quote fallback)
               final finalQuote = quoteText ?? bioText;
               if (finalQuote != null) {
                 items.add({
-                  'id': '${q['id']}_$idSuffix',
+                  'id': '${q['id']}_${quoteText != null ? 'quote' : 'about'}',
                   'user_id': q['id'],
                   'content_type': 'quote',
                   'quote_text': finalQuote,
+                  'city': q['city'],
+                  'department': q['department'],
+                  'full_name': q['full_name'],
+                  'age': q['age'],
+                  'created_at': q['created_at'],
+                });
+              }
+            } else {
+              // Case: contentType == null (ALL)
+              // We add both if they exist, independently, as requested by user
+              if (quoteText != null) {
+                items.add({
+                  'id': '${q['id']}_quote',
+                  'user_id': q['id'],
+                  'content_type': 'quote',
+                  'quote_text': quoteText,
+                  'city': q['city'],
+                  'department': q['department'],
+                  'full_name': q['full_name'],
+                  'age': q['age'],
+                  'created_at': q['created_at'],
+                });
+              }
+              if (bioText != null) {
+                items.add({
+                  'id': '${q['id']}_bio',
+                  'user_id': q['id'],
+                  'content_type': 'bio',
+                  'bio_text': bioText,
                   'city': q['city'],
                   'department': q['department'],
                   'full_name': q['full_name'],

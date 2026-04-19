@@ -13,8 +13,8 @@ DECLARE
   target_user_age int;
   user_limit int := 5; -- Default daily limit
 BEGIN
-  -- Get user info
-  SELECT id, gender, birth_year, department, bottles_received_today, tier
+  -- 1. Get user info (RECIPIENT)
+  SELECT id, gender, birth_year, department, bottles_received_today, tier, interested_in
   INTO u 
   FROM public.profiles 
   WHERE id = target_user_id 
@@ -25,60 +25,86 @@ BEGIN
     RETURN 0;
   END IF;
 
-  -- Premium users might have different limits, but we'll stick to 5 for matching stability
+  -- Daily limit check
   IF u.bottles_received_today >= user_limit THEN
     RETURN 0;
   END IF;
 
   target_user_age := year - u.birth_year;
 
-  -- Find eligible pending bottles (oldest first)
+  -- 2. Find eligible pending bottles (oldest first)
   FOR b IN 
-    SELECT id, sender_id, target_min_age, target_max_age, target_gender, target_departments 
-    FROM public.sent_bottles 
-    WHERE status IN ('pending', 'floating')
-      AND sender_id <> target_user_id
+    SELECT 
+      sb.id, 
+      sb.sender_id, 
+      sb.target_min_age, 
+      sb.target_max_age, 
+      sb.target_gender, 
+      sb.target_departments,
+      p.gender as sender_gender -- Fetch sender gender for reciprocal check
+    FROM public.sent_bottles sb
+    JOIN public.profiles p ON sb.sender_id = p.id
+    WHERE sb.status IN ('pending', 'floating')
+      AND sb.sender_id <> target_user_id
       -- Avoid already blocked users (bidirectional)
       AND NOT EXISTS (
         SELECT 1 FROM public.user_blocks ub 
-        WHERE (ub.blocker_id = target_user_id AND ub.blocked_id = sender_id)
-           OR (ub.blocker_id = sender_id AND ub.blocked_id = target_user_id)
+        WHERE (ub.blocker_id = target_user_id AND ub.blocked_id = sb.sender_id)
+           OR (ub.blocker_id = sb.sender_id AND ub.blocked_id = target_user_id)
       )
-      -- Avoid double matching if something went wrong
+      -- Avoid double matching
       AND NOT EXISTS (
         SELECT 1 FROM public.bottle_delivery_queue bdq
-        WHERE bdq.sent_bottle_id = sent_bottles.id AND bdq.recipient_id = target_user_id
+        WHERE bdq.sent_bottle_id = sb.id AND bdq.recipient_id = target_user_id
       )
-      -- ⚡ STRICT HISTORY EXCLUSION (Per user request: no duplicates from same sender)
+      -- ⚡ STRICT HISTORY EXCLUSION
       AND NOT EXISTS (
         SELECT 1 FROM public.received_bottles rb
-        WHERE rb.sender_id = sent_bottles.sender_id 
+        WHERE rb.sender_id = sb.sender_id 
           AND rb.receiver_id = target_user_id
       )
-    ORDER BY created_at ASC
-    LIMIT 20 -- Safety limit per run
+    ORDER BY sb.created_at ASC
+    LIMIT 20 
   LOOP
-    -- Gender Filter (Matching Man/Woman/Non-binary to DB gender strings)
-    -- We use LOWER() to ensure case-insensitivity against the profiles table
+    -- A. Reciprocal Interest Check (Does the recipient want to meet the sender?)
+    -- We must ensure the SENDER matches the RECIPIENT'S preference
+    DECLARE
+      sender_gender_lower text := LOWER(b.sender_gender);
+      recipient_pref text := LOWER(u.interested_in);
+      reciprocal_match boolean := false;
+    BEGIN
+      IF recipient_pref = 'everyone' OR recipient_pref = 'all' OR sender_gender_lower IN ('nonbinary', 'non-binary') THEN
+        reciprocal_match := true;
+      ELSIF (recipient_pref = 'women' OR recipient_pref = 'female') AND (sender_gender_lower IN ('female', 'woman', 'femme')) THEN
+        reciprocal_match := true;
+      ELSIF (recipient_pref = 'men' OR recipient_pref = 'male') AND (sender_gender_lower IN ('male', 'man', 'homme')) THEN
+        reciprocal_match := true;
+      END IF;
+
+      IF NOT reciprocal_match THEN
+        CONTINUE;
+      END IF;
+    END;
+
+    -- B. Gender Filter (Targeting)
     IF b.target_gender IS NOT NULL AND array_length(b.target_gender, 1) > 0 THEN
        IF NOT (
          (LOWER(u.gender) IN ('male', 'man', 'homme') AND 'Man' = ANY(b.target_gender)) OR
          (LOWER(u.gender) IN ('female', 'woman', 'femme') AND 'Woman' = ANY(b.target_gender)) OR
          (LOWER(u.gender) IN ('nonbinary', 'non-binary', 'nb') AND 'Non-binary' = ANY(b.target_gender)) OR
-         -- Fallback for direct string matches
          (u.gender = ANY(b.target_gender))
        ) THEN
          CONTINUE;
        END IF;
     END IF;
 
-    -- Age Filter
+    -- C. Age Filter
     IF (b.target_min_age IS NOT NULL AND target_user_age < b.target_min_age) OR
        (b.target_max_age IS NOT NULL AND target_user_age > b.target_max_age) THEN
        CONTINUE;
     END IF;
 
-    -- Department Filter
+    -- D. Department Filter
     IF b.target_departments IS NOT NULL AND array_length(b.target_departments, 1) > 0 THEN
        IF NOT (u.department = ANY(b.target_departments)) THEN
          CONTINUE;
@@ -89,62 +115,30 @@ BEGIN
     UPDATE public.sent_bottles 
     SET 
       matched_recipient_id = target_user_id,
-      status = 'delivered', -- Instant delivery status
+      status = 'delivered', 
       delivered_at = now(),
       updated_at = now()
     WHERE id = b.id;
 
-    -- Record in delivery queue as already delivered
     INSERT INTO public.bottle_delivery_queue (
-      sent_bottle_id,
-      sender_id,
-      recipient_id,
-      scheduled_delivery_at,
-      delivered,
-      delivered_at
+      sent_bottle_id, sender_id, recipient_id, scheduled_delivery_at, delivered, delivered_at
     ) VALUES (
-      b.id,
-      b.sender_id,
-      target_user_id,
-      now(),
-      true,
-      now()
+      b.id, b.sender_id, target_user_id, now(), true, now()
     );
 
-    -- Create record in received_bottles (The Actual Delivery)
-    -- Fetch bottle content for insertion
     INSERT INTO public.received_bottles (
-      sent_bottle_id,
-      receiver_id,
-      sender_id,
-      content_type,
-      message,
-      mood,
-      audio_url,
-      photo_url,
-      created_at
+      sent_bottle_id, receiver_id, sender_id, content_type, message, mood, audio_url, photo_url, created_at
     )
-    SELECT 
-      id, 
-      target_user_id, 
-      sender_id, 
-      content_type, 
-      message, 
-      mood, 
-      audio_url, 
-      photo_url, 
-      now()
+    SELECT id, target_user_id, sender_id, content_type, message, mood, audio_url, photo_url, now()
     FROM public.sent_bottles 
     WHERE id = b.id;
 
-    -- Increment recipient counter
     UPDATE public.profiles 
     SET bottles_received_today = bottles_received_today + 1
     WHERE id = target_user_id;
 
     match_count := match_count + 1;
     
-    -- Check if user reached limit
     IF (u.bottles_received_today + match_count) >= user_limit THEN
       EXIT;
     END IF;

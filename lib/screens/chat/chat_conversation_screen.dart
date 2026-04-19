@@ -87,6 +87,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   // Milestone tracking
   final Set<int> _shownMilestones =
       {}; // Track which milestones have been shown
+  final Set<int> _triggeredMilestonesInSession =
+      {}; // Track which milestones triggered in this session
   int _previousFeelingPercent = 0;
 
   List<ChatMessage> _messages = [];
@@ -2529,8 +2531,14 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final milestones = [25, 50, 75, 100];
 
     for (final threshold in milestones) {
-      if (_feelingPercent >= threshold && !seenSet.contains(threshold)) {
+      if (_feelingPercent >= threshold && 
+          !seenSet.contains(threshold) && 
+          !_triggeredMilestonesInSession.contains(threshold)) {
+        
         if (_isShowingMilestoneModal) return; // Prevent concurrent stack triggers
+        
+        // Mark as triggered in session immediately to prevent parallel execution
+        _triggeredMilestonesInSession.add(threshold);
         
         // Mark as seen immediately to prevent duplicate shows
         seenSet.add(threshold);
@@ -2678,6 +2686,19 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     try {
       if (_conversation == null) {
         debugPrint('❌ [MILESTONE] Conversation is null, cannot post message');
+        return;
+      }
+
+      // 🛡️ [DB GUARD] Check if milestone already exists in Supabase
+      final existingMilestoneMsg = await Supabase.instance.client
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', widget.conversationId!)
+          .eq('mood', milestoneMood)
+          .maybeSingle();
+
+      if (existingMilestoneMsg != null) {
+        debugPrint('⚠️ Milestone message for ${milestone.percentage}% already in DB, skipping post.');
         return;
       }
       // 💬 [RECIPROCAL] Dynamic content based on user IDs
