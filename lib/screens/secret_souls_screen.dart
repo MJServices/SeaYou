@@ -202,12 +202,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
     if (user == null) return;
 
     // 1. Check for existing conversation
-    // If we already have a chat, open it directly
     final existingConvId =
         await _db.getConversationId(user.id, content['user_id'] as String);
     if (existingConvId != null) {
       if (!mounted) return;
-      // 🔗 Broadcast so other screens also remove this partner
       DatabaseService.notifyNewConversation(content['user_id'] as String);
 
       Navigator.push(
@@ -223,13 +221,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
       return;
     }
 
-    final int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
+    int availableScrollsCount = await _db.getAvailableScrollsCount(user.id);
 
-
-    // 3. Show message input dialog
     if (!mounted) return;
     final messageController = TextEditingController();
-    // ✅ FIX: Declared OUTSIDE the StatefulBuilder so it persists across rebuilds
     bool isSendingLocal = false;
 
     await showDialog<String>(
@@ -260,15 +255,28 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '(${availableScrollsCount < 0 ? 0 : availableScrollsCount})',
-                    style: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF151515),
-                    ),
-                  ),
+                  // Reactive Scroll Count
+                  StatefulBuilder(builder: (headerContext, setHeaderState) {
+                    return StreamBuilder<Map<String, dynamic>>(
+                      stream: _db.profileUpdateBroadcast,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData && snapshot.data!['id'] == user.id) {
+                          final data = snapshot.data!;
+                          availableScrollsCount = (data['scrolls_count'] as int? ?? 0) +
+                                                 (data['daily_free_scrolls'] as int? ?? 0);
+                        }
+                        return Text(
+                          '(${availableScrollsCount < 0 ? 0 : availableScrollsCount})',
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF151515),
+                          ),
+                        );
+                      }
+                    );
+                  }),
                   const SizedBox(width: 4),
                   Image.asset(
                     'assets/images/letter.png',
@@ -289,7 +297,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Styled TextField
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
@@ -304,7 +311,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             ],
                           ),
                           child: TextField(
-                            key: const ValueKey('secret_soul_input'), // 🔑 Fix for text deletion
+                            key: const ValueKey('secret_soul_input'),
                             controller: messageController,
                             maxLines: 2,
                             maxLength: 200,
@@ -332,7 +339,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Action Column
                       Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -346,7 +352,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Premium Send Button
                           GestureDetector(
                             onTap: isSendingLocal ? null : () async {
                               final msg = messageController.text.trim();
@@ -365,9 +370,10 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                                 final deducted = await _db.deductScroll(user.id);
                                 if (!deducted) {
                                   if (mounted) {
-                                    Navigator.of(dialogContext).pop();
+                                    // Preserve message: stay in dialog, show out of scrolls
                                     _showOutOfScrollsDialog();
                                   }
+                                  setDialogState(() => isSendingLocal = false);
                                   return;
                                 }
 
@@ -383,13 +389,8 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                                 );
 
                                 if (bottleId != null) {
-                                  // ✅ Use Navigator.of(dialogContext).pop() for absolute reliability
                                   if (mounted) Navigator.of(dialogContext).pop();
-
-                                  // 🔗 Broadcast so Door of Desires also removes this partner
-                                  DatabaseService.notifyNewConversation(
-                                    content['user_id'] as String,
-                                  );
+                                  DatabaseService.notifyNewConversation(content['user_id'] as String);
 
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -399,7 +400,6 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                                       ),
                                     );
 
-                                    // Remove from list immediately so user sees next card
                                     setState(() {
                                       if (_currentIndex < _content.length) {
                                         _content.removeAt(_currentIndex);
@@ -522,6 +522,7 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {
+                    // Pop ONLY the OutOfScrolls dialog, keeping the message dialog beneath it
                     Navigator.pop(context);
                     final result = await Navigator.push(
                       context,

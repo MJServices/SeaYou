@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'entitlements_service.dart';
 import 'auth_service.dart';
+import 'database_service.dart';
 
 class IapService {
   static final IapService _instance = IapService._internal();
@@ -120,11 +121,14 @@ class IapService {
       await entitlements.grantEntitlement(
           userId, 'premium', purchaseDetails.purchaseID);
       return true;
-    } else if (purchaseDetails.productID == scrolls3Id ||
-        purchaseDetails.productID == scrolls10Id ||
-        purchaseDetails.productID == scrolls30Id) {
-      // Logic for adding scrolls would go here (requires DB update)
-      // For now, just return true as placeholder
+    } else if (purchaseDetails.productID == scrolls3Id) {
+      await DatabaseService().incrementScrolls(userId, 3);
+      return true;
+    } else if (purchaseDetails.productID == scrolls10Id) {
+      await DatabaseService().incrementScrolls(userId, 10);
+      return true;
+    } else if (purchaseDetails.productID == scrolls30Id) {
+      await DatabaseService().incrementScrolls(userId, 30);
       return true;
     }
 

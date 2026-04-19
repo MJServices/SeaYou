@@ -13,7 +13,7 @@ class PurchaseScrollsScreen extends StatefulWidget {
   State<PurchaseScrollsScreen> createState() => _PurchaseScrollsScreenState();
 }
 
-class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
+class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> with WidgetsBindingObserver {
   int _initialTotalScrolls = 0;
   StreamSubscription<Map<String, dynamic>>? _profileSubscription;
   Timer? _pollingTimer;
@@ -24,14 +24,60 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadInitialScrolls();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _profileSubscription?.cancel();
     _pollingTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When returning to foreground, immediately check for updates
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('🔄 App resumed, checking for scroll updates...');
+      _checkForUpdatesManually();
+    }
+  }
+
+  Future<void> _checkForUpdatesManually() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || _isRedirecting) return;
+
+    final profile = await DatabaseService().getProfile(userId, useCache: false);
+    if (profile != null) {
+      final currentTotal = (profile['scrolls_count'] as int? ?? 0) +
+          (profile['daily_free_scrolls'] as int? ?? 0);
+      
+      if (currentTotal > _initialTotalScrolls) {
+        debugPrint('📜 Scrolls purchase detected via foreground refresh!');
+        _handleSuccess(userId, profile);
+      }
+    }
+  }
+
+  void _handleSuccess(String userId, Map<String, dynamic> profile) {
+    if (_isRedirecting) return;
+    _isRedirecting = true;
+    _pollingTimer?.cancel();
+    
+    // Notify all other screens globally
+    DatabaseService.notifyProfileUpdate(userId, profile);
+
+    try {
+      closeInAppWebView();
+    } catch (e) {
+      debugPrint('Error closing webview: $e');
+    }
+    
+    if (mounted) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   Future<void> _loadInitialScrolls() async {
@@ -59,16 +105,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
 
           if (currentTotal > _initialTotalScrolls && !_isRedirecting) {
             debugPrint('📜 Scrolls purchase detected via realtime!');
-            _isRedirecting = true;
-            _pollingTimer?.cancel();
-            try {
-              await closeInAppWebView();
-            } catch (e) {
-              debugPrint('Error closing webview: $e');
-            }
-            if (mounted) {
-              Navigator.of(context).pop(true);
-            }
+            _handleSuccess(userId, data);
           }
         }
       });
@@ -91,16 +128,7 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
         if (currentTotal > _initialTotalScrolls && !_isRedirecting) {
           timer.cancel();
           debugPrint('📜 Scrolls purchase detected via polling fallback!');
-          _isRedirecting = true;
-          try {
-            await closeInAppWebView();
-          } catch (e) {
-            debugPrint('Error closing webview: $e');
-          }
-          if (mounted) {
-            setState(() => _isLoading = false);
-            Navigator.of(context).pop(true);
-          }
+          _handleSuccess(userId, profile);
         }
       }
     });
@@ -267,7 +295,9 @@ class _PurchaseScrollsScreenState extends State<PurchaseScrollsScreen> {
                                   final currentTotal = (profile['scrolls_count'] as int? ?? 0) +
                                       (profile['daily_free_scrolls'] as int? ?? 0);
                                   if (currentTotal > _initialTotalScrolls) {
-                                    if (mounted) Navigator.of(context).pop(true);
+                                    if (mounted) {
+                                      _handleSuccess(userId, profile);
+                                    }
                                   } else {
                                     if (mounted) {
                                       setState(() => _isLoading = false);

@@ -4,6 +4,7 @@ import '../services/database_service.dart';
 import '../services/entitlements_service.dart';
 import '../services/auth_service.dart';
 import 'premium_screen.dart';
+import 'purchase_scrolls_screen.dart';
 
 class ChamberOfSecretsScreen extends StatefulWidget {
   const ChamberOfSecretsScreen({super.key});
@@ -198,17 +199,82 @@ class _ChamberOfSecretsScreenState extends State<ChamberOfSecretsScreen> {
                               if (context.mounted) {
                                 showDialog(
                                   context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Limit Reached'),
-                                    content: const Text(
-                                        'You have reached your daily limit for special replies. Premium members get 3 free per day.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('OK'),
+                                  builder: (context) {
+                                    final tr = AppLocalizations.of(context);
+                                    return Dialog(
+                                      backgroundColor: const Color(0xFFFFF7E6),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.history_edu,
+                                                size: 50,
+                                                color: Color(0xFFD4B483)),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              tr.tr('send_bottle.out_of_scrolls_title'),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontFamily: 'PlayfairDisplay',
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF3E2723),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              tr.tr('send_bottle.out_of_scrolls_message'),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontFamily: 'Montserrat',
+                                                fontSize: 14,
+                                                color: Color(0xFF5D4037),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 24),
+                                            ElevatedButton(
+                                              onPressed: () async {
+                                                Navigator.pop(context);
+                                                await Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          const PurchaseScrollsScreen()),
+                                                );
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    const Color(0xFFE4C687),
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            24)),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 24,
+                                                        vertical: 12),
+                                              ),
+                                              child: Text(tr.tr('premium_screen.purchase_scrolls')),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: Text(
+                                                tr.tr('dialogs.cancel'),
+                                                style: const TextStyle(
+                                                    color: Color(0xFF5D4037)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 );
                               }
                               return;

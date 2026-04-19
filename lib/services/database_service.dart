@@ -43,6 +43,11 @@ class DatabaseService {
     _newConversationController.add(partnerId);
   }
 
+  /// Manually trigger a profile update broadcast to refresh UI components
+  static void notifyProfileUpdate(String userId, Map<String, dynamic> data) {
+    _profileUpdateController.add({'id': userId, ...data});
+  }
+
   /// Reciprocal Compatibility Check (Shared Logic)
   /// Checks if Viewer likes Creator AND Creator likes Viewer
   bool _isReciprocalCompatible({
@@ -424,6 +429,28 @@ class DatabaseService {
     } catch (e) {
       debugPrint('❌ Error adding parchments: $e');
       rethrow;
+    }
+  }
+
+  /// Atomicly increment scrolls using Postgres RPC
+  Future<void> incrementScrolls(String userId, int amount) async {
+    try {
+      await _supabase.rpc('increment_scrolls', params: {
+        'user_id': userId,
+        'amount': amount,
+      });
+      
+      // Refresh local profile to ensure UI consistency
+      await getProfile(userId, useCache: false);
+      
+      // Notify listeners
+      if (_profileCache.containsKey(userId)) {
+        _profileUpdateController.add(_profileCache[userId]!);
+      }
+    } catch (e) {
+      debugPrint('❌ Error in incrementScrolls RPC: $e');
+      // Fallback to manual if RPC fails
+      await addParchments(userId, amount);
     }
   }
 
