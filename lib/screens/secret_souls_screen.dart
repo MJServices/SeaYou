@@ -362,9 +362,16 @@ class _SecretSoulsScreenState extends State<SecretSoulsScreen> {
                               try {
                                 final l10n = AppLocalizations.of(context);
                                 final contentTypeStr = content['content_type'] as String?;
-                                final replyPrefix = contentTypeStr == 'bio'
-                                    ? l10n.tr('chamber.replying_to_bio')
-                                    : l10n.tr('chamber.replying_to_content');
+                                String replyPrefix;
+                                if (contentTypeStr == 'audio') {
+                                  replyPrefix = l10n.tr('chamber.replying_to_audio');
+                                } else if (contentTypeStr == 'bio') {
+                                  replyPrefix = l10n.tr('chamber.replying_to_bio');
+                                } else if (contentTypeStr == 'quote') {
+                                  replyPrefix = l10n.tr('chamber.replying_to_quote');
+                                } else {
+                                  replyPrefix = l10n.tr('chamber.replying_to_content');
+                                }
 
                                 // 1. Deduct scroll
                                 final deducted = await _db.deductScroll(user.id);

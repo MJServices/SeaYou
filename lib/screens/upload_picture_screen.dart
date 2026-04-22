@@ -160,75 +160,86 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
       if (user == null) throw Exception('No user logged in');
       final userId = user.id;
 
-      // 1. Create the base profile FIRST so Foreign Keys are satisfied!
-      debugPrint('✅ Saving full profile to database...');
-      final int currentYear = DateTime.now().year;
-      final int age = widget.userProfile.age ?? 0;
-      final int birthYear = currentYear - age;
-      widget.userProfile.birthYear = birthYear;
+      if (widget.isOnboarding) {
+        // 1. Create the base profile FIRST so Foreign Keys are satisfied!
+        debugPrint('✅ [Onboarding] Saving full profile to database...');
+        final int currentYear = DateTime.now().year;
+        final int age = widget.userProfile.age ?? 0;
+        final int birthYear = currentYear - age;
+        widget.userProfile.birthYear = birthYear;
 
-      final gender = widget.userProfile.gender?.toLowerCase() ?? '';
-      final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
+        final gender = widget.userProfile.gender?.toLowerCase() ?? '';
+        final isPremiumWoman = gender == 'woman' || gender == 'female' || gender == 'femme';
 
-      // NEW: Upload secret audio clip IF it's a local path BEFORE creating the profile
-      // This ensures the first DB entry has the remote URL, not a local path.
-      if (widget.userProfile.secretAudioUrl != null &&
-          !widget.userProfile.secretAudioUrl!.startsWith('http')) {
-        debugPrint('🎤 [UploadPicture] Pre-uploading secret audio clip...');
-        final audioFile = File(widget.userProfile.secretAudioUrl!);
-        if (await audioFile.exists()) {
-          final audioUrl = await DatabaseService().uploadAudioClip(
-            userId: userId,
-            audioFile: audioFile,
-          );
-          if (audioUrl != null) {
-            widget.userProfile.secretAudioUrl = audioUrl;
-            debugPrint('✅ [UploadPicture] Audio uploaded successfully: $audioUrl');
-          } else {
-            debugPrint('⚠️ [UploadPicture] Audio upload failed, proceeding with local path (will be broken)');
+        // Pre-upload secret audio clip IF it's a local path
+        if (widget.userProfile.secretAudioUrl != null &&
+            !widget.userProfile.secretAudioUrl!.startsWith('http')) {
+          debugPrint('🎤 [UploadPicture] Pre-uploading secret audio clip...');
+          final audioFile = File(widget.userProfile.secretAudioUrl!);
+          if (await audioFile.exists()) {
+            final audioUrl = await DatabaseService().uploadAudioClip(
+              userId: userId,
+              audioFile: audioFile,
+            );
+            if (audioUrl != null) {
+              widget.userProfile.secretAudioUrl = audioUrl;
+              debugPrint('✅ [UploadPicture] Audio uploaded successfully: $audioUrl');
+            }
           }
-        } else {
-          debugPrint('⚠️ [UploadPicture] Audio file not found at local path: ${widget.userProfile.secretAudioUrl}');
         }
+
+        await DatabaseService().createProfile(
+          userId: userId,
+          email: widget.userProfile.email ?? '',
+          fullName: widget.userProfile.fullName ?? '',
+          age: age,
+          birthYear: birthYear,
+          city: widget.userProfile.city ?? '',
+          about: widget.userProfile.about ?? '',
+          sexualOrientation: widget.userProfile.sexualOrientation ?? [],
+          showOrientation: widget.userProfile.showOrientation,
+          expectation: widget.userProfile.expectation ?? '',
+          interestedIn: widget.userProfile.interestedIn ?? '',
+          interests: widget.userProfile.interests ?? [],
+          avatarUrl: null, // Will be updated correctly below
+          language: widget.userProfile.language,
+          secretDesire: widget.userProfile.secretDesire,
+          secretQuote: widget.userProfile.secretQuote,
+          secretAudioUrl: widget.userProfile.secretAudioUrl,
+          gender: widget.userProfile.gender,
+          department: widget.userProfile.department,
+          tier: isPremiumWoman ? 'premium' : 'free',
+          isPremium: isPremiumWoman,
+        );
+
+        if (widget.userProfile.secretDesire != null &&
+            widget.userProfile.secretDesire!.trim().isNotEmpty) {
+          try {
+            await DatabaseService().createFantasy(
+                userId, widget.userProfile.secretDesire!.trim());
+          } catch (e) {
+            debugPrint('⚠️ Error creating fantasy during onboarding: $e');
+          }
+        }
+      } else {
+        debugPrint('🎨 [Update Mode] Skipping full profile creation, focusing on photo updates.');
       }
 
-      await DatabaseService().createProfile(
-        userId: userId,
-        email: widget.userProfile.email ?? '',
-        fullName: widget.userProfile.fullName ?? '',
-        age: age,
-        birthYear: birthYear,
-        city: widget.userProfile.city ?? '',
-        about: widget.userProfile.about ?? '',
-        sexualOrientation: widget.userProfile.sexualOrientation ?? [],
-        showOrientation: widget.userProfile.showOrientation,
-        expectation: widget.userProfile.expectation ?? '',
-        interestedIn: widget.userProfile.interestedIn ?? '',
-        interests: widget.userProfile.interests ?? [],
-        avatarUrl: null, // Will be updated correctly when the photo uploads below
-        language: widget.userProfile.language,
-        secretDesire: widget.userProfile.secretDesire,
-        secretQuote: widget.userProfile.secretQuote,
-        secretAudioUrl: widget.userProfile.secretAudioUrl,
-        gender: widget.userProfile.gender,
-        department: widget.userProfile.department,
-        tier: isPremiumWoman ? 'premium' : 'free',
-        isPremium: isPremiumWoman,
-      );
-
-      if (widget.userProfile.secretDesire != null &&
-          widget.userProfile.secretDesire!.trim().isNotEmpty) {
-        try {
-          await DatabaseService().createFantasy(
-              userId, widget.userProfile.secretDesire!.trim());
-        } catch (e) {
-          debugPrint('⚠️ Error creating fantasy during onboarding: $e');
-        }
-      }
-
-      // 2. Upload photos and assets which link via Foreign Key to the core profile
+      // 2. Upload photos and assets
       if (_selectedImage != null) {
         final file = File(_selectedImage!.path);
+        
+        // 🛡️ [MODERATION FIX]: Re-verify face before final upload!
+        // This prevents users from bypassing the initial check or ignoring the warning.
+        final faceResult = await _faceDetector.verifyFace(file);
+        if (faceResult != FaceVerificationResult.success) {
+          setState(() => _isLoading = false);
+          if (mounted) {
+            _showFaceVerificationErrorDialog(faceResult);
+          }
+          return; // Block the upload!
+        }
+
         debugPrint('📸 Uploading main photo for user: ${user.id}');
 
         final res = await DatabaseService().uploadFirstFacePhotoAndInsert(
@@ -247,22 +258,25 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
             File(_galleryPhotos[i].path),
           );
         }
-
         debugPrint('✅ All photos uploaded successfully');
       }
 
       if (!mounted) return;
-      debugPrint('✅ Navigating to HomeScreen');
+      debugPrint('✅ Profile update successful. Navigating back/forward.');
       
-      // Clear onboarding progress as it's completed
-      await OnboardingService().clearAll();
-
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
+      if (widget.isOnboarding) {
+        // Clear onboarding progress as it's completed
+        await OnboardingService().clearAll();
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        // Just return to settings/profile
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       debugPrint('❌ Error in _proceedToNextScreen: $e');

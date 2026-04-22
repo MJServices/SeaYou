@@ -343,7 +343,7 @@ class _DoorOfDesiresScreenState extends State<DoorOfDesiresScreen>
 
                               try {
                                 final l10n = AppLocalizations.of(context);
-                                final replyPrefix = l10n.tr('chamber.replying_to_content');
+                                final replyPrefix = l10n.tr('chamber.replying_to_fantasy');
 
                                 // 1. Deduct scroll
                                 final deducted = await _db.deductScroll(user.id);

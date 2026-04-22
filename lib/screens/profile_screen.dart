@@ -58,39 +58,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  void _subscribeProfile() {
+  Future<void> _subscribeProfile() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    // 🔄 Force a profile fetch to trigger the daily scroll refresh 
-    // so the count is corrected immediately on this screen.
-    _databaseService.getProfile(userId, useCache: false);
+    // 🔄 DAILY SCROLL REFRESH BUG FIX:
+    // We MUST await the initial profile fetch (which triggers the daily refresh)
+    // BEFORE starting the stream subscription. This ensures the first event 
+    // received by the listener already has the corrected counts.
+    final initialProfile = await _databaseService.getProfile(userId, useCache: false);
+    
+    if (initialProfile != null && mounted) {
+      _updateLocalState(initialProfile);
+    }
 
     _profileSub?.cancel();
     _profileSub = _databaseService.profileStream(userId).listen((profile) {
       if (profile != null && mounted) {
-        setState(() {
-          _avatarUrl = profile['avatar_url'];
-          _userName = profile['full_name'] ?? 'User';
-          _gender = profile['gender'];
-          _isPremium = profile['is_premium'] as bool? ?? false;
-
-          if (profile['sexual_orientation'] != null) {
-            _sexualOrientations =
-                List<String>.from(profile['sexual_orientation']);
-          }
-
-          if (profile['interests'] != null) {
-            _interests = List<String>.from(profile['interests']);
-          }
-
-          _availableBottles = ((profile['scrolls_count'] as int? ?? 0) +
-              (profile['daily_free_scrolls'] as int? ?? 0))
-              .clamp(0, double.maxFinite.toInt());
-
-          _isLoading = false;
-        });
+        _updateLocalState(profile);
       }
+    });
+  }
+
+  void _updateLocalState(Map<String, dynamic> profile) {
+    setState(() {
+      _avatarUrl = profile['avatar_url'];
+      _userName = profile['full_name'] ?? 'User';
+      _gender = profile['gender'];
+      _isPremium = profile['is_premium'] as bool? ?? false;
+
+      if (profile['sexual_orientation'] != null) {
+        _sexualOrientations =
+            List<String>.from(profile['sexual_orientation']);
+      }
+
+      if (profile['interests'] != null) {
+        _interests = List<String>.from(profile['interests']);
+      }
+
+      _availableBottles = ((profile['scrolls_count'] as int? ?? 0) +
+          (profile['daily_free_scrolls'] as int? ?? 0))
+          .clamp(0, double.maxFinite.toInt());
+
+      _isLoading = false;
     });
   }
 
@@ -173,6 +183,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fullName: _userName,
                                   avatarUrl: _avatarUrl,
                                   email: _supabase.auth.currentUser?.email,
+                                  gender: _gender,
+                                  isPremium: _isPremium,
                                 );
                                 await Navigator.push(
                                   context,

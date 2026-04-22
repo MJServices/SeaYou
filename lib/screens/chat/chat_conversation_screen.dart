@@ -2681,6 +2681,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       return;
     }
 
+    // 🛡️ Deduplication logic for 25% Milestone (Bio/Quote)
+    // If we already inserted a manual citation at 0%, don't repeat the same quote at 25%.
+    if (milestone.percentage == 25 && partnerContent != null && partnerContent.isNotEmpty) {
+      final hasCitation = _messages.any((m) => m.text != null && m.text!.contains(partnerContent));
+      if (hasCitation) {
+        debugPrint('⚠️ Citation already exists in chat background, skipping redundant 25% milestone.');
+        return;
+      }
+    }
+
     debugPrint('📣 Posting reciprocal milestone message: ${milestone.percentage}%');
 
     try {

@@ -954,8 +954,12 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         uploadedAudioUrl = uploadStatus.url;
       }
 
-      // 1. Deduct scroll (Verify and consume) - ONLY if not an unlimited premium/woman
-      if (!_isPremiumOrWoman) {
+      // Check if this is a reply to a bottle
+      final isReply =
+          widget.replyToBottleId != null && widget.replyToUserId != null;
+
+      // 1. Deduct scroll (Verify and consume) - ONLY if not an unlimited premium/woman AND not a reply
+      if (!_isPremiumOrWoman && !isReply) {
         final deducted = await _databaseService.deductScroll(currentUser.id);
         if (!deducted) {
           setState(() => _isSending = false);
@@ -970,38 +974,37 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
         });
       }
 
-      // 2. Create sent bottle in database
-      final bottleId = await _databaseService.createSentBottle(
-        senderId: currentUser.id,
-        contentType: contentType,
-        message: contentType == 'text'
-            ? _messageController.text
-            : contentType == 'photo'
-                ? _captionController
-                    .text // Save caption in message field for photos
-                : null,
-        mood: _selectedMood,
-        audioUrl: contentType == 'voice' ? uploadedAudioUrl : null,
-        photoUrl: uploadedPhotoUrl,
-        targetMinAge: _ageRange.start.round(),
-        targetMaxAge: _ageRange.end.round(),
-        targetGender: _targetGenders,
-        targetDepartments: _targetDepartments,
-      );
+      String? bottleId;
+      if (!isReply) {
+        // 2. Create sent bottle in database (ONLY for broadcast, not for replies)
+        bottleId = await _databaseService.createSentBottle(
+          senderId: currentUser.id,
+          contentType: contentType,
+          message: contentType == 'text'
+              ? _messageController.text
+              : contentType == 'photo'
+                  ? _captionController
+                      .text // Save caption in message field for photos
+                  : null,
+          mood: _selectedMood,
+          audioUrl: contentType == 'voice' ? uploadedAudioUrl : null,
+          photoUrl: uploadedPhotoUrl,
+          targetMinAge: _ageRange.start.round(),
+          targetMaxAge: _ageRange.end.round(),
+          targetGender: _targetGenders,
+          targetDepartments: _targetDepartments,
+        );
 
-      if (bottleId == null) {
-        throw Exception('Failed to create bottle');
+        if (bottleId == null) {
+          throw Exception('Failed to create bottle');
+        }
+
+        // Increment counter (without deduction now, since it's done)
+        await _databaseService.incrementDailyBottles(currentUser.id);
       }
 
-      // Increment counter (without deduction now, since it's done)
-      await _databaseService.incrementDailyBottles(currentUser.id);
-
-      // Check if this is a reply to a bottle
-      final isReply =
-          widget.replyToBottleId != null && widget.replyToUserId != null;
-
       String? recipientId;
-      String? conversationId; // Only assigned in isReply block
+      String? conversationId;
 
       if (isReply) {
         // This is a reply - send directly to the original sender
@@ -1027,12 +1030,14 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
             if (existingMessages.isEmpty) {
               // Insert original bottle as first message (text-only)
+              // 💡 Fix: senderId must be the PARTNER (original sender), not the current user.
+              // 💡 Fix: mood is null so it's not styled as a "Milestone" message.
               await _databaseService.sendMessage(
                 conversationId: conversationId,
                 senderId: originalBottle.senderId ?? widget.replyToUserId!,
                 type: 'text',
                 text: originalBottle.message,
-                mood: originalBottle.mood,
+                mood: null, // No mood = no "Étape franchie" header
                 feelingDelta: 5,
               );
             }
@@ -1120,7 +1125,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
       // 2. Match bottle to a recipient
       recipientId = await _matchingService.matchBottle(
-        bottleId: bottleId,
+        bottleId: bottleId!,
         senderId: currentUser.id,
       );
 
@@ -1149,7 +1154,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
 
       // 3. Create received bottle for recipient
       final receivedBottleId = await _databaseService.createReceivedBottle(
-        bottleId: bottleId,
+        bottleId: bottleId!,
         receiverId: recipientId,
         senderId: currentUser.id,
         contentType: contentType,
@@ -1167,7 +1172,7 @@ class _SendBottleScreenState extends State<SendBottleScreen> {
       // 4. Schedule delivery (floating in sea effect) - only for non-replies
       if (!isReply) {
         await _matchingService.scheduleBottleDelivery(
-          bottleId: bottleId,
+          bottleId: bottleId!,
           senderId: currentUser.id,
           recipientId: recipientId,
           isImmediate: isPremiumOrWoman, // ⚡ Instant delivery for Premium!

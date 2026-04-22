@@ -4,7 +4,13 @@ import '../services/auth_service.dart';
 import '../i18n/app_localizations.dart';
 import '../services/upload_service.dart';
 import '../services/upload_controller.dart';
+import '../services/face_detection_service.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_text_styles.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 class ManageGalleryPhotosScreen extends StatefulWidget {
   const ManageGalleryPhotosScreen({super.key});
@@ -23,8 +29,17 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
   String? _mainPhotoUrl;
   bool _loading = false;
   double _progress = 0.0;
+  
+  final FaceDetectionService _faceDetector = FaceDetectionService();
 
   static const int _maxPhotos = 6;
+
+  @override
+  void dispose() {
+    _faceDetector.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -82,6 +97,32 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
 
     setState(() => _loading = true);
     try {
+      // 🛡️ [MODERATION FIX]: Download and verify face before setting as main!
+      final url = photo['url'] as String;
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = p.join(tempDir.path, 'temp_main_profile_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final file = File(tempPath);
+        await file.writeAsBytes(response.bodyBytes);
+        
+        // Run verification
+        final faceResult = await _faceDetector.verifyFace(file);
+        
+        // Cleanup temp file
+        if (await file.exists()) await file.delete();
+        
+        if (faceResult != FaceVerificationResult.success) {
+          if (mounted) {
+            _showFaceVerificationErrorDialog(faceResult);
+          }
+          return; // Block!
+        }
+      } else {
+        throw Exception('Failed to download image for verification');
+      }
+
       if (photo['id'] != 'main_legacy') {
         await _db.setMainPhoto(
           userId: user.id,
@@ -98,6 +139,71 @@ class _ManageGalleryPhotosScreenState extends State<ManageGalleryPhotosScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showFaceVerificationErrorDialog(FaceVerificationResult result) {
+    if (result == FaceVerificationResult.success ||
+        result == FaceVerificationResult.error) {
+      if (result == FaceVerificationResult.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text(AppLocalizations.of(context).tr('notification.error'))),
+        );
+      }
+      return;
+    }
+
+    String titleKey;
+    String messageKey;
+
+    switch (result) {
+      case FaceVerificationResult.noFace:
+        titleKey = 'secret_souls.main_photo_warning.no_face_title';
+        messageKey = 'secret_souls.main_photo_warning.no_face_message';
+        break;
+      case FaceVerificationResult.tooDistant:
+        titleKey = 'secret_souls.main_photo_warning.too_distant_title';
+        messageKey = 'secret_souls.main_photo_warning.too_distant_message';
+        break;
+      case FaceVerificationResult.notForwardFacing:
+        titleKey = 'secret_souls.main_photo_warning.not_forward_title';
+        messageKey = 'secret_souls.main_photo_warning.not_forward_message';
+        break;
+      case FaceVerificationResult.multipleFaces:
+        titleKey = 'secret_souls.main_photo_warning.multiple_faces_title';
+        messageKey = 'secret_souls.main_photo_warning.multiple_faces_message';
+        break;
+      case FaceVerificationResult.invalidOrientation:
+        titleKey = 'secret_souls.main_photo_warning.invalid_orientation_title';
+        messageKey =
+            'secret_souls.main_photo_warning.invalid_orientation_message';
+        break;
+      default:
+        titleKey = 'secret_souls.main_photo_warning.no_face_title';
+        messageKey = 'secret_souls.main_photo_warning.no_face_message';
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(AppLocalizations.of(context).tr(titleKey),
+            style: AppTextStyles.displayText),
+        content: Text(
+          AppLocalizations.of(context).tr(messageKey),
+          style: AppTextStyles.bodyText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context).tr('common.ok'),
+                style: const TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleDelete(Map<String, dynamic> photo) async {

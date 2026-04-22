@@ -232,7 +232,21 @@ class DatabaseService {
         'message': message,
         'status': 'open',
       });
-      debugPrint('✅ Support request submitted successfully');
+      debugPrint('✅ Support request submitted to DB');
+
+      // 📧 Simple Email Notification
+      await sendEmail(
+        to: 'contactpro.seayou@gmail.com',
+        subject: '$subject - From: $email',
+        htmlBody: '''
+          <h2>New Support Request</h2>
+          <p><strong>User Email:</strong> $email</p>
+          <p><strong>User ID:</strong> $userId</p>
+          <p><strong>Subject:</strong> $subject</p>
+          <p><strong>Message:</strong></p>
+          <p>$message</p>
+        ''',
+      );
     } catch (e) {
       debugPrint('❌ Error submitting support request: $e');
       rethrow;
@@ -1263,12 +1277,16 @@ class DatabaseService {
 
       // 1. Prepare the message text with reply context
       String finalMessage = message ?? '';
-      if (replyToContent != null && replyToContent.isNotEmpty) {
-        final prefix = replyPrefix ??
-            (replyToContentType == 'bio'
-                ? 'Replying to bio: '
-                : 'Replying to: ');
-        finalMessage = '$prefix"$replyToContent"\n\n$finalMessage';
+      if (replyToContentType != null || (replyToContent != null && replyToContent.isNotEmpty)) {
+        String prefix = replyPrefix ?? 'Replying to: ';
+        
+        // If it's a quote, fantasy or bio, we want to wrap the content in quotes
+        if (replyToContent != null && replyToContent.isNotEmpty) {
+          finalMessage = '$prefix"$replyToContent"\n\n$finalMessage';
+        } else if (replyToContentType != null) {
+          // Fallback for media where content is null
+          finalMessage = '$prefix\n\n$finalMessage';
+        }
       }
 
       // 2. Resolve/Create Conversation

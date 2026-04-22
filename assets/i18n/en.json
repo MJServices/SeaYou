@@ -526,6 +526,9 @@
     "no_fantasies": "No fantasies available",
     "no_content": "No content available",
     "replying_to_bio": "Replying to bio: ",
+    "replying_to_fantasy": "Replying to fantasy: ",
+    "replying_to_quote": "Replying to quote: ",
+    "replying_to_audio": "Response to the vocal message",
     "replying_to_content": "Replying to: "
   },
   "fantasy": {
