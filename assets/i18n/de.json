@@ -137,6 +137,7 @@
     "naughty_question_no_questions": "Es sind keine Fragen verfügbar.",
     "naughty_question_partner_choice": "Partnerwahl",
     "naughty_question_selection_title": "Verbindungsmeilenstein",
+    "naughty_question_already_answered": "Bereits beantwortet",
     "naughty_question_submit": "Antwort absenden",
     "naughty_question_submitting": "Wird übermittelt...",
     "naughty_question_subtitle": "Um eure Verbindung zu vertiefen, wähle einen Brief, um eine Frage zu enthüllen und deine Gedanken zu teilen.",
@@ -264,7 +265,6 @@
   },
   "home": {
     "conversation_list_header": "Sie haben {count} Unterhaltungen",
-    "debug_activate_premium": "DEBUG: PREMIUM AKTIVIEREN",
     "discover": "Entdecken",
     "discovery_card_cta": "Entdecken",
     "discovery_card_subtitle": "Und wenn Sie es dem Zufall überlassen...",

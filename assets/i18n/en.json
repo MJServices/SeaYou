@@ -18,7 +18,6 @@
     "new_messages_zero": "No new messages",
     "new_messages_one": "New message",
     "new_messages_other": "New messages received",
-    "debug_activate_premium": "DEBUG: ACTIVATE PREMIUM",
     "discovery_card_generic": "Discovery Zone"
   },
   "auth": {
@@ -777,6 +776,7 @@
     "naughty_question_no_questions": "No questions available.",
     "naughty_question_your_answer": "YOUR ANSWER",
     "naughty_question_hint": "Share your thoughts...",
+    "naughty_question_already_answered": "Already Answered",
     "naughty_question_submit": "Submit Answer",
     "naughty_question_submitting": "Submitting...",
     "naughty_question_waiting_partner": "Waiting for partner...",

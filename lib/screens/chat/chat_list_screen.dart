@@ -54,10 +54,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         setState(() {
           _avatarUrl = profile['avatar_url'];
           _userGender = profile['gender'] as String?;
-          final tier = profile['tier'] as String? ?? 'free';
-          _isPremium = tier == 'premium' || tier == 'elite';
+          // EntitlementsService is the single source of truth — avoids stale profiles.tier
+          _isPremium = access;
           _isAccessGranted = access;
-          debugPrint('👤 ChatList: Loaded User Profile: Gender=$_userGender, Tier=$tier, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
+          debugPrint('👤 ChatList: Gender=$_userGender, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
         });
       }
     } catch (e) {

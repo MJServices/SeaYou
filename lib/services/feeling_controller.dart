@@ -24,13 +24,17 @@ class FeelingController extends ValueNotifier<FeelingState> {
 
   void subscribe(String conversationId) {
     _db.subscribeConversation(conversationId).listen((row) {
-      final p = (row['feeling_percent'] ?? value.percent) as int;
-      final t = (row['title'] ?? value.title) as String?;
-      value = FeelingState(
-        percent: p,
-        unlockState: _calculateUnlockState(p),
-        title: t,
-      );
+      try {
+        final p = (row['feeling_percent'] ?? value.percent) as int;
+        final t = (row['title'] ?? value.title) as String?;
+        value = FeelingState(
+          percent: p,
+          unlockState: _calculateUnlockState(p),
+          title: t,
+        );
+      } catch (e) {
+        debugPrint('⚠️ [FeelingController] Error parsing realtime conversation update: $e');
+      }
     });
   }
 

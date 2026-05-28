@@ -8,16 +8,24 @@ class EntitlementsService {
 
   static final Map<String, bool> _isPremiumCache = {};
 
+  static void setPremiumOrWomanCache(String userId, bool access) {
+    _isPremiumCache[userId] = access;
+  }
+
+  static bool? isPremiumOrWomanSync(String userId) {
+    return _isPremiumCache[userId];
+  }
+
   static void clearCache() {
     _isPremiumCache.clear();
   }
 
   Future<String> getTier(String userId) async {
     try {
-      // 1. Check Gender (Women get premium features for free)
+      // 1. Check Profiles table (including gender, tier, and is_premium)
       final profJson = await _supabase
           .from('profiles')
-          .select('gender, tier')
+          .select('gender, tier, is_premium')
           .eq('id', userId)
           .maybeSingle();
 
@@ -27,6 +35,9 @@ class EntitlementsService {
           return 'premium';
         }
       }
+
+      final profileIsPremium = profJson?['is_premium'] as bool? ?? false;
+      final profileTier = profJson?['tier'] as String? ?? 'free';
 
       // 2. Check Entitlements table
       final rec = await _supabase
@@ -38,24 +49,29 @@ class EntitlementsService {
         final expires = rec['expires_at'] as String?;
         if (expires != null &&
             DateTime.tryParse(expires)?.isBefore(DateTime.now()) == true) {
+          // Entitlement record exists but is expired → definitively no access.
+          // Do NOT fall back to profiles.is_premium here; the expired record
+          // is authoritative proof that the subscription ended.
           return 'free';
         }
         return rec['tier'] as String? ?? 'free';
       }
 
-      // 3. Fallback to profile tier (only if it's not premium, or for backward compatibility)
-      // Safety: If it's a man and he reached here, he has no active entitlement record.
-      // So even if the profile says premium, we treat it as free to be safe.
-      final profileTier = (profJson?['tier'] as String?) ?? 'free';
-      if (profileTier == 'premium' || profileTier == 'elite') {
-        // Double check gender one more time just in case
-        final gender = (profJson?['gender'] as String?)?.toLowerCase() ?? '';
-        if (gender == 'woman' || gender == 'female' || gender == 'femme') {
-          return 'premium';
-        }
-        return 'free'; // Man with stale profile tier
+      // 3. No entitlements record found. Since women are handled in step 1,
+      // any user reaching here is male/non-binary/unknown. Without an active
+      // entitlement record, they must be free.
+      if (profileIsPremium || profileTier != 'free') {
+        // Self-healing: Reset stale database columns asynchronously to keep profiles sync'd
+        _supabase.from('profiles').update({
+          'is_premium': false,
+          'tier': 'free',
+        }).eq('id', userId).then((_) {
+          debugPrint('🧹 Self-healed stale profiles premium status for user $userId');
+        }).catchError((err) {
+          debugPrint('Error cleaning up stale profiles columns: $err');
+        });
       }
-      return profileTier;
+      return 'free';
     } catch (_) {
       return 'free';
     }
@@ -73,29 +89,12 @@ class EntitlementsService {
 
   Future<bool> isPremiumOrWoman(String userId) async {
     try {
-      // 1. Check Tier
+      // getTier() already checks gender (women → 'premium') AND entitlements.
+      // A single call is sufficient — avoids redundant DB queries.
       final tier = await getTier(userId);
-      if (tier == 'premium' || tier == 'elite') {
-        _isPremiumCache[userId] = true;
-        return true;
-      }
-
-      // 2. Check Gender (Women get premium features for free)
-      final prof = await _supabase
-          .from('profiles')
-          .select('gender')
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (prof != null) {
-        final gender = (prof['gender'] as String?)?.toLowerCase() ?? '';
-        final res = gender == 'woman' || gender == 'female' || gender == 'femme';
-        _isPremiumCache[userId] = res;
-        return res;
-      }
-
-      _isPremiumCache[userId] = false;
-      return false;
+      final result = tier == 'premium' || tier == 'elite';
+      _isPremiumCache[userId] = result;
+      return result;
     } catch (_) {
       return false;
     }

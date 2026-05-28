@@ -7,6 +7,7 @@ import '../models/conversation.dart';
 import '../models/chat_message.dart';
 import '../models/intimate_question.dart';
 import '../models/naughty_question.dart';
+import 'entitlements_service.dart';
 
 class DatabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -383,19 +384,12 @@ class DatabaseService {
     try {
       final res = await _supabase
           .from('profiles')
-          .select('messages_sent_week, last_message_sent_week_start, gender, tier')
+          .select('messages_sent_week, last_message_sent_week_start')
           .eq('id', userId)
           .single();
 
-      // 1. Check for Premium or Woman logic (Unlimited messages)
-      final gender = (res['gender'] as String?)?.toLowerCase() ?? '';
-      final tier = res['tier'] as String? ?? 'free';
-      final isPremiumOrWoman = gender == 'woman' || 
-                             gender == 'female' || 
-                             gender == 'femme' ||
-                             tier == 'premium' || 
-                             tier == 'elite';
-                             
+      // 1. Check for Premium or Woman logic (Unlimited messages) using centralized EntitlementsService
+      final isPremiumOrWoman = await EntitlementsService().isPremiumOrWoman(userId);
       if (isPremiumOrWoman) return true;
 
       // 2. Otherwise check weekly limit
@@ -1903,8 +1897,11 @@ class DatabaseService {
     _cachedConversations = null;
   }
 
-  // Synchronous getters for SWR UI pattern
+  // Synchronous getters and setters for SWR UI pattern
   static Map<String, dynamic>? getProfileSync(String userId) => _profileCache[userId];
+  static void setProfileCache(String userId, Map<String, dynamic> profile) {
+    _profileCache[userId] = Map<String, dynamic>.from(profile);
+  }
   static int getUnrepliedCountSync() => _cachedUnrepliedCount ?? 0;
   static int getSentCountSync() => _cachedSentCount ?? 0;
   static List<SentBottle> getRecentSentBottlesSync() => _cachedRecentSentBottles ?? [];
@@ -2010,7 +2007,6 @@ class DatabaseService {
         'type': type,
         'text': text,
         'media_url': mediaUrl,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
         'is_read': false,
         'mood': mood,
         'feeling_delta': feelingDelta,
@@ -2063,7 +2059,6 @@ class DatabaseService {
         'qa_group_id': qaGroupId,
         'is_question': true,
         'feeling_delta': 5,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
       debugPrint('Error sending question: $e');
@@ -2085,7 +2080,6 @@ class DatabaseService {
         'qa_group_id': qaGroupId,
         'is_answer': true,
         'feeling_delta': 5,
-        'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       debugPrint('Error sending answer: $e');
@@ -2412,13 +2406,21 @@ class DatabaseService {
           final newRec = payload.newRecord;
           debugPrint('🔥 Conversation UPDATE received via precise filter!');
           debugPrint('   Feeling: ${newRec['feeling_percent']}');
-          controller.add(newRec.cast<String, dynamic>());
+          if (!controller.isClosed) {
+            controller.add(newRec.cast<String, dynamic>());
+          }
         },
       )
           .subscribe((status, error) {
         debugPrint('📡 Conversation subscription status: $status');
         if (error != null) debugPrint('❌ Subscription error: $error');
       });
+
+      controller.onCancel = () {
+        debugPrint('🔌 [RT-DB] Conversation controller cancelled, removing channel for $conversationId');
+        _supabase.removeChannel(channel);
+        controller.close();
+      };
 
       return controller.stream;
     } catch (e) {

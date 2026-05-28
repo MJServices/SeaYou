@@ -108,6 +108,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   StreamSubscription<Map<String, dynamic>?>? _partnerProfileSub;
   ChatMessage? _replyingTo;
   ChatMessage? _editingMessage;
+  bool _isFetchingPartnerProfile = false;
 
   @override
   void initState() {
@@ -184,19 +185,81 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _db.markMessagesAsRead(widget.conversationId!, currentUserId);
       }
 
-      // Optimistic message sync using periodic polling + conv trigger (since _msgSub is unreliable)
+      // Optimistic message sync using periodic polling + realtime triggers
       // Polling guarantees updates even if Realtime drops entirely.
-      const syncInterval = Duration(seconds: 4);
+      const syncInterval = Duration(seconds: 10);
       Timer.periodic(syncInterval, (timer) {
         if (!mounted) {
           timer.cancel();
           return;
         }
-        _syncMessages();
+        _syncMessages(loadConversation: false);
+      });
+
+      // Realtime subscription to messages for instant UI updates
+      _msgSub = _db.subscribeMessages(widget.conversationId!).listen((data) {
+        if (mounted) {
+          debugPrint('🔔 [REALTIME-MSG] Received message event: ${data['event_type']}');
+          final eventType = data['event_type']?.toString().toUpperCase();
+          final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+          
+          if (eventType == 'INSERT') {
+            final newMessage = ChatMessage.fromJson(data, currentUserId: currentUserId);
+            
+            setState(() {
+              // 1. Check if we already have this message ID in the list
+              final exists = _messages.any((m) => m.id == newMessage.id);
+              if (!exists) {
+                if (newMessage.isMe) {
+                  // 2. If it is our own message, check if there is an optimistic temp message in the list
+                  int tempIndex = _messages.indexWhere((m) =>
+                      m.id.startsWith('temp_') &&
+                      m.senderId == newMessage.senderId &&
+                      m.text == newMessage.text &&
+                      m.mediaUrl == newMessage.mediaUrl);
+                  
+                  if (tempIndex != -1) {
+                    _messages[tempIndex] = newMessage;
+                  } else {
+                    _messages.insert(0, newMessage);
+                  }
+                } else {
+                  // 3. If it is from the partner, insert it at the top of the list
+                  _messages.insert(0, newMessage);
+                }
+                
+                // Sort descending to ensure perfect ordering
+                _messages.sort((a, b) => b.createdAt.millisecondsSinceEpoch
+                    .compareTo(a.createdAt.millisecondsSinceEpoch));
+              }
+            });
+            
+            _scrollToBottom();
+            
+            // Run background message sync and load conversation updates to sync feeling bar instantly
+            _syncMessages(loadConversation: true);
+            
+          } else if (eventType == 'UPDATE') {
+            final updatedMessage = ChatMessage.fromJson(data, currentUserId: currentUserId);
+            setState(() {
+              int index = _messages.indexWhere((m) => m.id == updatedMessage.id);
+              if (index != -1) {
+                _messages[index] = updatedMessage;
+              }
+            });
+          } else if (eventType == 'DELETE') {
+            final deletedId = data['id'];
+            setState(() {
+              _messages.removeWhere((m) => m.id == deletedId);
+            });
+          }
+        }
+      }, onError: (err) {
+        debugPrint('❌ [REALTIME-MSG] Stream Error: $err');
       });
 
       // Subscribe to conversation changes to update feeling bar
-      _convSub = _db.subscribeConversation(widget.conversationId!).listen((row) {
+      _convSub = _db.subscribeConversation(widget.conversationId!).listen((row) async {
         if (mounted) {
           debugPrint(
               '📊 [REALTIME-CONV] Received update: feeling=${row['feeling_percent']}');
@@ -206,22 +269,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _db.markMessagesAsRead(widget.conversationId!, currentUserId);
           }
 
-          setState(() {
-            _conversation = Conversation.fromJson(row);
-            _feelingPercent = _conversation!.feelingPercent;
-            _threadTitle = _conversation!.title;
-            
-            // Sync message stream manually as fallback
-            _syncMessages();
+          // Safely load the full conversation from DB to ensure type safety and completeness
+          await _loadConversation();
 
-            // 🛡️ Ensure naughty answer state is synced from RT update too
-            final isUserA = _conversation!.userAId == currentUserId;
-            final userAnswer = isUserA
-                ? _conversation!.user1NaughtyAnswer
-                : _conversation!.user2NaughtyAnswer;
-            _hasAnsweredNaughty =
-                userAnswer != null && userAnswer.trim().isNotEmpty;
-          });
           if (_partnerUsername == null && _conversation != null) {
             _fetchPartnerProfile();
           }
@@ -246,25 +296,26 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     try {
       final userId = AuthService().currentUser?.id;
       if (userId != null) {
-        // Use EntitlementsService for centralized access logic
+        // Single source of truth: EntitlementsService handles gender + entitlements + profile fallback
         final access = await EntitlementsService().isPremiumOrWoman(userId);
 
-        // Fetch profile for tier (text) and gender (for local display if needed)
+        // Fetch profile only for gender and avatar (display purposes)
         final profile = await Supabase.instance.client
             .from('profiles')
-            .select('tier, gender, avatar_url')
+            .select('gender, avatar_url')
             .eq('id', userId)
             .single();
 
         if (mounted) {
           setState(() {
-            final tier = profile['tier'] as String? ?? 'free';
-            _isPremium = tier == 'premium' || tier == 'elite';
             _userGender = profile['gender'] as String?;
             _myAvatarUrl = profile['avatar_url'] as String?;
+            // _isAccessGranted is the single source of truth for all premium gating
             _isAccessGranted = access;
+            // _isPremium mirrors _isAccessGranted for UI widgets that need it (e.g. milestone modal)
+            _isPremium = access;
             debugPrint(
-                '👤 Loaded User: Gender=$_userGender, Tier=$tier, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
+                '👤 Loaded User: Gender=$_userGender, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
           });
         }
       }
@@ -272,6 +323,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       debugPrint('Error loading premium/gender status: $e');
     }
   }
+
 
   bool get _isPartnerOnline {
     if (_partnerProfile == null || _partnerProfile!['last_active'] == null) {
@@ -411,7 +463,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             : null);
 
     if (partnerIdToUse == null) return;
+    if (_isFetchingPartnerProfile) return;
+    if (_partnerId == partnerIdToUse && _partnerProfile != null) return;
 
+    _isFetchingPartnerProfile = true;
     try {
       final currentUserId = AuthService().currentUser?.id;
       final partnerId = partnerIdToUse;
@@ -462,6 +517,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       });
     } catch (e) {
       debugPrint('Error pre-fetching partner avatar or block status: $e');
+    } finally {
+      _isFetchingPartnerProfile = false;
     }
   }
 
@@ -509,11 +566,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  Future<void> _syncMessages() async {
+  Future<void> _syncMessages({bool loadConversation = false}) async {
     if (widget.conversationId == null) return;
     try {
       // 1. Force conversation update so feeling/naughty state is instantly accurate
-      await _loadConversation();
+      if (loadConversation) {
+        await _loadConversation();
+      }
       
       // 2. Fetch new messages safely
       final msgs = await _db.getMessages(widget.conversationId!);
@@ -634,7 +693,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               onComplete: () {
                 if (mounted) {
                   setState(() => _hasAnsweredNaughty = true);
-                  _syncMessages(); // Force fetch just in case!
+                  _syncMessages(loadConversation: true); // Force fetch just in case!
                 }
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2527,6 +2586,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final seenList = prefs.getStringList(seenKey) ?? [];
     final seenSet = seenList.map(int.parse).toSet();
 
+    // Merge database-loaded milestones to avoid repeating them if local prefs cleared
+    if (_shownMilestones.isNotEmpty) {
+      final int initialLength = seenSet.length;
+      seenSet.addAll(_shownMilestones);
+      if (seenSet.length > initialLength) {
+        await prefs.setStringList(
+            seenKey, seenSet.map((e) => e.toString()).toList());
+      }
+    }
+
     // Check if we've crossed any milestone thresholds
     final milestones = [25, 50, 75, 100];
 
@@ -2849,8 +2918,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           _hasAnsweredNaughty = true;
                         });
                         // Immediately fetch conversation state and messages so it displays natively
-                        _loadConversation();
-                        _syncMessages();
+                        _syncMessages(loadConversation: true);
                         
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -2931,11 +2999,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final userId = AuthService().currentUser?.id;
     if (userId == null) return;
 
-    final profile = await _db.getProfile(userId);
-    if (profile != null && mounted) {
+    // Use EntitlementsService as single source of truth
+    final access = await EntitlementsService().isPremiumOrWoman(userId);
+    if (mounted) {
       setState(() {
-        final tier = profile['tier'] as String? ?? 'free';
-        _isPremium = tier == 'premium' || tier == 'elite';
+        _isPremium = access;
+        _isAccessGranted = access;
       });
     }
   }

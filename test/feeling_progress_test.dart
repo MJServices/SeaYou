@@ -9,18 +9,18 @@ void main() {
       home: Scaffold(body: FeelingProgress(percent: 25, compact: true)),
     ));
 
-    expect(find.bySemanticsLabel('Jalon 25% (citation)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 50% (voix)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 75% (surprise)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 100% (photo finale)'), findsOneWidget);
+    expect(find.bySemanticsLabel('25% - Quote Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('50% - Voice Message Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('75% - Intimate Question Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('100% - Photo Reveal Available'), findsOneWidget);
 
     // Update percent
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(body: FeelingProgress(percent: 80, compact: true)),
     ));
-    expect(find.bySemanticsLabel('Jalon 25% (citation)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 50% (voix)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 75% (surprise)'), findsOneWidget);
-    expect(find.bySemanticsLabel('Jalon 100% (photo finale)'), findsOneWidget);
+    expect(find.bySemanticsLabel('25% - Quote Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('50% - Voice Message Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('75% - Intimate Question Unlocked'), findsOneWidget);
+    expect(find.bySemanticsLabel('100% - Photo Reveal Available'), findsOneWidget);
   });
 }

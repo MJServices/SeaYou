@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
 import '../models/bottle.dart';
+import '../services/entitlements_service.dart';
 import 'premium_screen.dart';
 import 'send_bottle_screen.dart';
 import '../widgets/voice_chat_modal.dart';
@@ -47,9 +48,9 @@ class _ReceivedBottlesScreenState extends State<ReceivedBottlesScreen> {
       final profile = await _db.getProfile(_currentUserId);
       if (profile != null) {
         _gender = profile['gender'];
-        // Read tier (text) not is_premium (boolean) for correct premium check
-        final tier = profile['tier'] as String? ?? 'free';
-        _isPremium = tier == 'premium' || tier == 'elite';
+        // Use EntitlementsService as the single source of truth for premium status.
+        // profiles.tier can be stale; entitlements table + is_premium boolean are authoritative.
+        _isPremium = await EntitlementsService().isPremium(_currentUserId);
       }
 
       final allBottles = await _db.getAllReceivedBottles(_currentUserId, forceRefresh: true);

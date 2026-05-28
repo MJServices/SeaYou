@@ -29,6 +29,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
   bool _isSubmitting = false;
   bool _questionDiscovered = false;
   int? _persistedQuestionId;
+  bool _alreadyAnswered = false;
 
   @override
   void initState() {
@@ -62,13 +63,15 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
           ? conv['user1_naughty_question_id'] as int?
           : conv['user2_naughty_question_id'] as int?;
 
-      if (existingAnswer != null && existingAnswer.isNotEmpty) {
+      final bool hasAnswer = existingAnswer != null && existingAnswer.isNotEmpty;
+      if (hasAnswer) {
         _answerController.text = existingAnswer;
       }
 
       setState(() {
         _availableQuestions = questions;
         _persistedQuestionId = myPersistedQuestionId;
+        _alreadyAnswered = hasAnswer;
 
         // Automatically show already-chosen question (locked)
         if (_persistedQuestionId != null) {
@@ -128,6 +131,7 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
   }
 
   Future<void> _submitAnswer() async {
+    if (_isSubmitting || _alreadyAnswered) return;
     if (_selectedQuestion == null || _answerController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -394,7 +398,8 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                                     TextField(
                                       controller: _answerController,
                                       maxLines: 4,
-                                      autofocus: _answerController.text.isEmpty,
+                                      autofocus: _answerController.text.isEmpty && !_alreadyAnswered,
+                                      readOnly: _alreadyAnswered,
                                       decoration: InputDecoration(
                                         hintText: AppLocalizations.of(context)
                                             .tr('chat.naughty_question_hint'),
@@ -414,14 +419,18 @@ class _NaughtyQuestionsScreenState extends State<NaughtyQuestionsScreen> {
                               ),
                               const SizedBox(height: 32),
                               CustomButton(
-                                text: _isSubmitting
-                                    ? AppLocalizations.of(context)
-                                        .tr('chat.naughty_question_submitting')
-                                    : AppLocalizations.of(context)
-                                        .tr('chat.naughty_question_submit'),
-                                isActive:
+                                text: _alreadyAnswered
+                                    ? (AppLocalizations.of(context).tr('chat.naughty_question_already_answered') != 'chat.naughty_question_already_answered'
+                                        ? AppLocalizations.of(context).tr('chat.naughty_question_already_answered')
+                                        : 'Already Answered')
+                                    : (_isSubmitting
+                                        ? AppLocalizations.of(context)
+                                            .tr('chat.naughty_question_submitting')
+                                        : AppLocalizations.of(context)
+                                            .tr('chat.naughty_question_submit')),
+                                isActive: !_alreadyAnswered &&
                                     _answerController.text.trim().isNotEmpty &&
-                                        !_isSubmitting,
+                                    !_isSubmitting,
                                 onPressed: _submitAnswer,
                               ),
                               const SizedBox(height: 24),

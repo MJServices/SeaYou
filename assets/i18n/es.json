@@ -139,6 +139,7 @@
     "naughty_question_no_questions": "No hay preguntas disponibles.",
     "naughty_question_partner_choice": "Elección del socio",
     "naughty_question_selection_title": "Hito de Conexión",
+    "naughty_question_already_answered": "Ya respondido",
     "naughty_question_submit": "Enviar respuesta",
     "naughty_question_submitting": "Sumisión...",
     "naughty_question_subtitle": "Para profundizar tu conexión, elige una carta para revelar una pregunta y comparte tus pensamientos.",
@@ -269,7 +270,6 @@
   },
   "home": {
     "conversation_list_header": "Tienes {count} conversaciones",
-    "debug_activate_premium": "DEPURACIÓN: ACTIVAR PREMIUM",
     "discover": "Descubrir",
     "discovery_card_cta": "Descubrir",
     "discovery_card_subtitle": "¿Y si lo dejaras al AZAR...?",

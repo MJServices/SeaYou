@@ -6,6 +6,8 @@ import 'home_screen.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
 import '../services/onboarding_service.dart';
+import '../services/database_service.dart';
+import '../services/entitlements_service.dart';
 import '../main.dart' show routeObserver;
 
 class SplashScreen extends StatefulWidget {
@@ -110,6 +112,18 @@ class _SplashScreenState extends State<SplashScreen> with RouteAware {
               .select()
               .eq('id', session.user.id)
               .maybeSingle();
+
+          if (profile != null) {
+            // 🔥 POPULATE PROFILE CACHE IMMEDIATELY FOR INSTANT HOME LOAD:
+            // This completely eliminates visual glitches, pop-ins, and layout shifts on startup
+            DatabaseService.setProfileCache(session.user.id, profile);
+
+            // Populate static entitlements cache synchronously from profile data
+            final gender = (profile['gender'] as String?)?.toLowerCase() ?? '';
+            final isWoman = (gender == 'woman' || gender == 'female' || gender == 'femme');
+            final isPremium = profile['is_premium'] as bool? ?? false;
+            EntitlementsService.setPremiumOrWomanCache(session.user.id, isWoman || isPremium);
+          }
 
           if (mounted) {
             await OnboardingService().resumeOnboarding(context, profile);

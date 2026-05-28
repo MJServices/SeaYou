@@ -21,12 +21,12 @@ import '../models/user_profile.dart';
 import '../i18n/app_localizations.dart';
 import 'manage_gallery_photos_screen.dart';
 import '../services/database_service.dart';
+import '../services/entitlements_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'upload_picture_screen.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/tutorial_modal.dart';
 import 'purchase_scrolls_screen.dart';
-import '../services/entitlements_service.dart';
 
 /// Profile Screen - Main profile tab
 /// Shows user profile information, settings, and account actions
@@ -67,25 +67,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // BEFORE starting the stream subscription. This ensures the first event 
     // received by the listener already has the corrected counts.
     final initialProfile = await _databaseService.getProfile(userId, useCache: false);
+
+    // Load authoritative premium status from EntitlementsService (not profiles.is_premium)
+    final accessGranted = await EntitlementsService().isPremiumOrWoman(userId);
     
     if (initialProfile != null && mounted) {
-      _updateLocalState(initialProfile);
+      _updateLocalState(initialProfile, accessGranted: accessGranted);
     }
 
     _profileSub?.cancel();
     _profileSub = _databaseService.profileStream(userId).listen((profile) {
       if (profile != null && mounted) {
-        _updateLocalState(profile);
+        // Re-check entitlements on each profile update to stay fresh
+        EntitlementsService().isPremiumOrWoman(userId).then((access) {
+          if (mounted) _updateLocalState(profile, accessGranted: access);
+        });
       }
     });
   }
 
-  void _updateLocalState(Map<String, dynamic> profile) {
+  void _updateLocalState(Map<String, dynamic> profile, {bool? accessGranted}) {
     setState(() {
       _avatarUrl = profile['avatar_url'];
       _userName = profile['full_name'] ?? 'User';
       _gender = profile['gender'];
-      _isPremium = profile['is_premium'] as bool? ?? false;
+      // Use EntitlementsService result when available; fall back to cached
+      // profiles.is_premium only as a last resort until the async call resolves
+      if (accessGranted != null) {
+        _isPremium = accessGranted;
+      } else {
+        _isPremium = profile['is_premium'] as bool? ?? false;
+      }
 
       if (profile['sexual_orientation'] != null) {
         _sexualOrientations =
@@ -317,6 +329,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: GestureDetector(
                         onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final tr = AppLocalizations.of(context);
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -325,10 +339,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           );
 
                           if (result == true && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
-                                content: Text(AppLocalizations.of(context)
-                                    .tr('purchase_scrolls.success')),
+                                content: Text(tr.tr('purchase_scrolls.success')),
                                 backgroundColor: const Color(0xFF4CAF50),
                               ),
                             );
@@ -680,27 +693,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 },
                               ),
                             ],
-                          if (!_isPremium)
-                            _buildActionButton(
-                              title: AppLocalizations.of(context)
-                                  .tr('home.debug_activate_premium'),
-                              color: const Color(0xFFFF5252),
-                              onTap: () async {
-                                final userId = _supabase.auth.currentUser?.id;
-                                if (userId != null) {
-                                  final entitlements = EntitlementsService();
-                                  await entitlements.grantEntitlement(userId, 'premium', 'debug_manual_activation');
-                                  
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content:
-                                              Text('DEBUG: Premium Activated')),
-                                    );
-                                  }
-                                }
-                              },
-                            ),
                           _buildActionButton(
                             title: AppLocalizations.of(context)
                                 .tr('profile.sign_out'),

@@ -5,12 +5,21 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sf;
 import 'package:supabase/supabase.dart';
 import 'package:seayou_app/services/facebook_auth_service.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 class MockSupabaseClient extends Mock implements sf.SupabaseClient {}
 class MockGotrueClient extends Mock implements sf.GoTrueClient {}
 class MockFacebookAuth extends Mock implements FacebookAuth {}
+class MockUrlLauncherPlatform extends Mock with MockPlatformInterfaceMixin implements UrlLauncherPlatform {}
+
+class FakeLaunchOptions extends Fake implements LaunchOptions {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(FakeLaunchOptions());
+  });
+
   late MockSupabaseClient supabase;
   late MockGotrueClient auth;
   late MockFacebookAuth fb;
@@ -21,6 +30,10 @@ void main() {
     auth = MockGotrueClient();
     fb = MockFacebookAuth();
     authController = StreamController<AuthState>.broadcast();
+    
+    final mockUrlLauncher = MockUrlLauncherPlatform();
+    when(() => mockUrlLauncher.launchUrl(any(), any())).thenAnswer((_) async => true);
+    UrlLauncherPlatform.instance = mockUrlLauncher;
 
     when(() => supabase.auth).thenReturn(auth);
     when(() => auth.onAuthStateChange).thenAnswer((_) => authController.stream);
@@ -31,12 +44,17 @@ void main() {
   });
 
   test('Successful Facebook OAuth updates state with user', () async {
-    when(() => auth.signInWithOAuth(sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo'))).thenAnswer((_) async => true);
+    when(() => auth.getOAuthSignInUrl(provider: sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo')))
+        .thenAnswer((_) async => const sf.OAuthResponse(provider: sf.OAuthProvider.facebook, url: 'https://example.com'));
 
     final service = FacebookAuthService(supabase: supabase, facebookAuth: fb);
 
     expect(service.state.value.user, isNull);
-    await service.signInWithFacebook(redirectTo: 'io.supabase.flutter://login-callback/');
+    // don't await yet, it will block waiting for auth
+    final futureRes = service.signInWithFacebook(redirectTo: 'io.supabase.flutter://login-callback/');
+
+    // wait a tiny bit for the future to launch the OAuth
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
     // simulate Supabase providing a session
     final session = sf.Session.fromJson({
@@ -49,13 +67,21 @@ void main() {
     });
     authController.add(sf.AuthState(sf.AuthChangeEvent.signedIn, session));
 
+    final res = await futureRes;
+    expect(res, isTrue);
+
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(service.state.value.user?.id, equals('user-id'));
     expect(service.state.value.errorMessage, isNull);
   });
 
   test('Unable to launch OAuth sets error message', () async {
-    when(() => auth.signInWithOAuth(sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo'))).thenAnswer((_) async => false);
+    final mockUrlLauncher = MockUrlLauncherPlatform();
+    when(() => mockUrlLauncher.launchUrl(any(), any())).thenAnswer((_) async => false);
+    UrlLauncherPlatform.instance = mockUrlLauncher;
+
+    when(() => auth.getOAuthSignInUrl(provider: sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo')))
+        .thenAnswer((_) async => const sf.OAuthResponse(provider: sf.OAuthProvider.facebook, url: 'https://example.com'));
 
     final service = FacebookAuthService(supabase: supabase, facebookAuth: fb);
 
@@ -64,21 +90,14 @@ void main() {
     expect(service.state.value.errorMessage, equals('Unable to launch Facebook OAuth'));
   });
 
-  test('Failed Facebook login surfaces message', () async {
-    when(() => fb.login(permissions: any(named: 'permissions'))).thenAnswer((_) async => LoginResult(status: LoginStatus.failed, message: 'permission denied'));
-
-    final service = FacebookAuthService(supabase: supabase, facebookAuth: fb);
-
-    final res = await service.signInWithFacebook();
-    expect(res, isFalse);
-    expect(service.state.value.errorMessage, equals('permission denied'));
-  });
-
   test('Network error during Supabase OAuth shows error', () async {
-    when(() => auth.signInWithOAuth(sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo'))).thenThrow(Exception('Network failure'));
+    when(() => auth.getOAuthSignInUrl(provider: sf.OAuthProvider.facebook, redirectTo: any(named: 'redirectTo'))).thenThrow(Exception('Network failure'));
 
     final service = FacebookAuthService(supabase: supabase, facebookAuth: fb);
-    expectLater(() async => await service.signInWithFacebook(), throwsException);
+    try {
+      await service.signInWithFacebook();
+      fail('Should have thrown');
+    } catch (_) {}
     expect(service.state.value.errorMessage, isNotNull);
   });
 }

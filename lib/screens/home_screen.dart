@@ -9,6 +9,7 @@ import 'chat/chat_list_screen.dart';
 import 'chat/chat_conversation_screen.dart';
 import 'profile_screen.dart';
 import '../services/database_service.dart';
+import '../services/entitlements_service.dart';
 import '../services/audio_service.dart';
 import '../i18n/app_localizations.dart';
 import 'new_bottles_list_screen.dart';
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _userProfile;
   String _userName = 'User';
   String? _avatarUrl;
+  bool _isAccessGranted = false; // Set from EntitlementsService, not profiles.is_premium
   final List<RealtimeChannel> _messageChannels = []; // For optimized message listeners
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
   Timer? _bottlePollingTimer;
@@ -103,6 +105,19 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_userProfile != null) {
           _userName = _userProfile!['full_name'] ?? 'User';
           _avatarUrl = _userProfile!['avatar_url'];
+
+          // 🔥 INSTANT PRIVILEGE CALCULATION:
+          // Immediately check if gender is female/woman or if is_premium is set to true
+          final gender = (_userProfile!['gender'] as String?)?.toLowerCase() ?? '';
+          final isWoman = (gender == 'woman' || gender == 'female' || gender == 'femme');
+          final isPremium = _userProfile!['is_premium'] as bool? ?? false;
+          _isAccessGranted = isWoman || isPremium;
+        }
+
+        // Also fallback to authoritative static entitlements cache
+        final cachedAccess = EntitlementsService.isPremiumOrWomanSync(userId);
+        if (cachedAccess != null) {
+          _isAccessGranted = cachedAccess;
         }
 
         _receivedCount = DatabaseService.getUnrepliedCountSync();
@@ -123,6 +138,11 @@ class _HomeScreenState extends State<HomeScreen> {
             _userName = profile['full_name'] ?? 'User';
             _avatarUrl = profile['avatar_url'];
             _isLoading = false;
+          });
+
+          // Load authoritative premium/woman status from EntitlementsService
+          EntitlementsService().isPremiumOrWoman(userId).then((access) {
+            if (mounted) setState(() => _isAccessGranted = access);
           });
 
           // HARD GUARD: Enforce Profile Completion
@@ -184,6 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
           _userProfile = profile;
           _userName = profile['full_name'] ?? 'User';
           _avatarUrl = profile['avatar_url'];
+        });
+        // Re-check entitlements whenever profile updates
+        EntitlementsService().isPremiumOrWoman(userId).then((access) {
+          if (mounted) setState(() => _isAccessGranted = access);
         });
       }
     });
@@ -634,19 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          if (_userProfile?['is_premium'] != true &&
-                              _userProfile?['gender']
-                                      ?.toString()
-                                      .toLowerCase() !=
-                                  'woman' &&
-                              _userProfile?['gender']
-                                      ?.toString()
-                                      .toLowerCase() !=
-                                  'female' &&
-                              _userProfile?['gender']
-                                      ?.toString()
-                                      .toLowerCase() !=
-                                  'femme')
+                          if (!_isAccessGranted)
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),

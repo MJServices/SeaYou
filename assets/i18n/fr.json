@@ -146,6 +146,7 @@
     "naughty_question_no_questions": "Aucune question disponible.",
     "naughty_question_partner_choice": "Choix du partenaire",
     "naughty_question_selection_title": "",
+    "naughty_question_already_answered": "Déjà répondu",
     "naughty_question_submit": "Soumettre la réponse",
     "naughty_question_submitting": "Soumission...",
     "naughty_question_waiting_partner": "En attente du partenaire...",
@@ -317,7 +318,6 @@
   },
   "home": {
     "conversation_list_header": "Vous avez {count} conversations",
-    "debug_activate_premium": "DEBUG: ACTIVER PREMIUM",
     "discover": "Découvrir",
     "discovery_card_generic": "Espace Découverte",
     "discovery_card_cta": "Découvrir",
