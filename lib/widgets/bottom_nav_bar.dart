@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/home_screen.dart';
 import '../screens/chat/chat_list_screen.dart';
 import '../screens/profile_screen.dart';
@@ -87,9 +88,12 @@ class BottomNavBar extends StatelessWidget {
             StreamBuilder<Map<String, dynamic>?>(
                 stream: DatabaseService().profileStream(
                     Supabase.instance.client.auth.currentUser?.id ?? ''),
+                // ⚡ Show cached avatar IMMEDIATELY as initial data — no waiting
+                initialData: DatabaseService.getProfileSync(
+                    Supabase.instance.client.auth.currentUser?.id ?? ''),
                 builder: (context, snapshot) {
                   final profile = snapshot.data;
-                  final avatarUrl = profile?['avatar_url'];
+                  final avatarUrl = profile?['avatar_url'] as String?;
 
                   return _buildNavItem(
                     context: context,
@@ -149,23 +153,31 @@ class BottomNavBar extends StatelessWidget {
             Container(
               width: 24,
               height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFF5F5F5), // Light grey background
-                image: avatarUrl != null && avatarUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(avatarUrl),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: (avatarUrl == null || avatarUrl.isEmpty)
-                  ? Icon(
-                      Icons.person,
-                      size: 16,
-                      color: itemColor,
+              decoration: const BoxDecoration(shape: BoxShape.circle),
+              child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? CachedNetworkImage(
+                      imageUrl: avatarUrl,
+                      imageBuilder: (context, imageProvider) => CircleAvatar(
+                        radius: 12,
+                        backgroundImage: imageProvider,
+                        backgroundColor: const Color(0xFFF5F5F5),
+                      ),
+                      placeholder: (context, url) => CircleAvatar(
+                        radius: 12,
+                        backgroundColor: const Color(0xFFF5F5F5),
+                        child: Icon(Icons.person, size: 14, color: itemColor),
+                      ),
+                      errorWidget: (context, url, error) => CircleAvatar(
+                        radius: 12,
+                        backgroundColor: const Color(0xFFF5F5F5),
+                        child: Icon(Icons.person, size: 14, color: itemColor),
+                      ),
                     )
-                  : null,
+                  : CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFFF5F5F5),
+                      child: Icon(Icons.person, size: 16, color: itemColor),
+                    ),
             )
           else if (iconPath != null)
             Stack(

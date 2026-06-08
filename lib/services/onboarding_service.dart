@@ -135,7 +135,17 @@ class OnboardingService {
 
     // 3. Determine progress based on profile
     if (profile == null) {
-      debugPrint('AUTH_DEBUG: Session exists but profile is null. Waiting for data...');
+      debugPrint('AUTH_DEBUG: Session exists but profile is null.');
+      resumeStep = forcedStep ?? localStep;
+      if (resumeStep == OnboardingStep.verification || 
+          resumeStep == OnboardingStep.createAccount || 
+          resumeStep == OnboardingStep.languageSelection) {
+        resumeStep = OnboardingStep.createPassword;
+      }
+      debugPrint('AUTH_DEBUG: Routing to step: $resumeStep');
+      if (context.mounted) {
+        await navigateToStep(context, resumeStep, currentStep: currentStep, isRecovery: isRecovery);
+      }
       return;
     }
 

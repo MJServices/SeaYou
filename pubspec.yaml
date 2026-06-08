@@ -33,6 +33,7 @@ dependencies:
   http: ^1.2.1
   in_app_purchase: ^3.1.13
   intl: ^0.20.2
+  cached_network_image: ^3.4.1
 
 
 dev_dependencies:

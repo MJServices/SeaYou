@@ -153,48 +153,137 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   Future<void> _initializeData() async {
     try {
-      final futures = <Future>[
+      final userId = AuthService().currentUser?.id;
+      if (userId == null || widget.conversationId == null) return;
+
+      // ⚡ SINGLE ROUND TRIP: Replaces 6+ sequential DB calls with one RPC.
+      // Returns conversation + messages + current profile + partner profile + blocked status.
+      final raw = await Supabase.instance.client.rpc('get_chat_init_data', params: {
+        'p_conversation_id': widget.conversationId,
+        'p_current_user_id': userId,
+      }).timeout(const Duration(seconds: 10));
+
+      if (raw == null || raw['error'] != null) {
+        debugPrint('⚠️ get_chat_init_data error: ${raw?["error"]}');
+        return;
+      }
+
+      final data = raw as Map<String, dynamic>;
+
+      // --- Parse conversation ---
+      final convJson = data['conversation'] as Map<String, dynamic>?;
+      if (convJson != null) {
+        final conv = Conversation.fromJson(convJson);
+        final currentUserId = userId;
+        final isUserA = conv.userAId == currentUserId;
+        final userMilestones = isUserA ? conv.userASeenMilestones : conv.userBSeenMilestones;
+        final userAnswer = isUserA ? conv.user1NaughtyAnswer : conv.user2NaughtyAnswer;
+
+        // Load photo reveal from SharedPreferences (local only, no DB call)
+        final prefs = await SharedPreferences.getInstance();
+        final revealedKey = 'is_photo_revealed_${widget.conversationId}_$currentUserId';
+
+        if (mounted) {
+          setState(() {
+            _conversation = conv;
+            // ✅ Feeling % set IMMEDIATELY — no more "briefly see 0%"
+            _feelingPercent = conv.feelingPercent;
+            _threadTitle = conv.title;
+            _previousFeelingPercent = conv.feelingPercent;
+            _hasAnsweredNaughty = userAnswer != null && userAnswer.trim().isNotEmpty;
+            _isPhotoRevealed = prefs.getBool(revealedKey) ?? false;
+          });
+        }
+
+        if (userMilestones != null) _shownMilestones.addAll(userMilestones);
+
+        _feelingController.setInitial(
+          percent: conv.feelingPercent,
+          title: conv.title,
+        );
+      }
+
+      // --- Parse current user ---
+      final meJson = data['current_user'] as Map<String, dynamic>?;
+      if (meJson != null && mounted) {
+        setState(() {
+          _userGender = meJson['gender'] as String?;
+          _myAvatarUrl = meJson['avatar_url'] as String?;
+          _isAccessGranted = meJson['is_access_granted'] as bool? ?? false;
+          _isPremium = _isAccessGranted;
+          // Cache for subsequent screens
+          EntitlementsService.setPremiumOrWomanCache(userId, _isAccessGranted);
+        });
+      }
+
+      // --- Parse partner ---
+      final partnerJson = data['partner'] as Map<String, dynamic>?;
+      if (partnerJson != null && mounted) {
+        setState(() {
+          _partnerId = partnerJson['id'] as String?;
+          _partnerAvatarUrl = partnerJson['avatar_url'] as String?;
+          _partnerUsername = partnerJson['full_name'] as String? ?? widget.contactName;
+          _partnerProfile = partnerJson;
+          _isBlocked = data['is_blocked'] as bool? ?? false;
+        });
+
+        // Subscribe to live partner profile updates (presence, online status)
+        final pid = partnerJson['id'] as String?;
+        if (pid != null) {
+          _partnerProfileSub?.cancel();
+          _partnerProfileSub = _db.profileStream(pid).listen((profile) {
+            if (mounted && profile != null) {
+              setState(() {
+                _partnerProfile = profile;
+                _partnerAvatarUrl = profile['avatar_url'] as String?;
+                _partnerUsername = profile['full_name'] as String?;
+              });
+            }
+          });
+        }
+      }
+
+      // --- Parse messages ---
+      final msgsJson = data['messages'] as List<dynamic>?;
+      if (msgsJson != null) {
+        final msgs = msgsJson
+            .map((j) => ChatMessage.fromJson(j as Map<String, dynamic>, currentUserId: userId))
+            .toList();
+        // Already ordered DESC from RPC — sort just in case
+        msgs.sort((a, b) => b.createdAt.millisecondsSinceEpoch
+            .compareTo(a.createdAt.millisecondsSinceEpoch));
+        if (mounted) {
+          setState(() => _messages = msgs);
+          _scrollToBottom();
+        }
+      }
+
+      _checkMilestones();
+
+    } catch (e) {
+      debugPrint('❌ Chat init error: $e — falling back to individual calls');
+      // Fallback: run individual calls if RPC fails
+      await Future.wait([
         _loadPremiumStatus(),
         if (widget.conversationId != null) _loadConversation(),
         if (widget.conversationId != null) _loadInitialMessages(),
-        if (widget.partnerId != null || widget.conversationId != null)
-          _fetchPartnerProfile(),
-      ];
-
-      await Future.wait(futures).timeout(const Duration(seconds: 10),
-          onTimeout: () {
-        debugPrint('⚠️ Warning: Chat initialization timed out after 10s');
-        return [];
-      });
-    } catch (e) {
-      debugPrint('Error initializing chat data: $e');
+        if (widget.partnerId != null) _fetchPartnerProfile(),
+      ]).timeout(const Duration(seconds: 10), onTimeout: () => []);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isInitialLoad = false;
-        });
-      }
+      if (mounted) setState(() => _isInitialLoad = false);
     }
 
     if (widget.conversationId != null) {
       _feelingController.subscribe(widget.conversationId!);
 
-      // Get current user ID for message alignment
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
       if (currentUserId != null) {
         _db.markMessagesAsRead(widget.conversationId!, currentUserId);
       }
 
-      // Optimistic message sync using periodic polling + realtime triggers
-      // Polling guarantees updates even if Realtime drops entirely.
-      const syncInterval = Duration(seconds: 10);
-      Timer.periodic(syncInterval, (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        _syncMessages(loadConversation: false);
-      });
+      // NOTE: Message sync is handled exclusively by the Realtime subscription below.
+      // A periodic polling timer was removed here as it caused ~8,640 unnecessary
+      // DB queries per user per day — Realtime handles all live updates.
 
       // Realtime subscription to messages for instant UI updates
       _msgSub = _db.subscribeMessages(widget.conversationId!).listen((data) {
@@ -414,8 +503,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         });
       }
 
-      await _fetchPartnerProfile();
-
       // 🛡️ Consolidated: Extract naughty answer & milestones directly from Conversation model
       final isUserA = conversation.userAId == currentUserId;
 
@@ -448,7 +535,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         title: conversation.title,
       );
 
-      // 🛡️ Ensure any missed milestones (e.g. while offline) trigger the popup when the conversation loads.
+      // 🛡️ Ensure any missed milestones trigger the popup when the conversation loads.
       _checkMilestones();
     }
   }

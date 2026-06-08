@@ -47,7 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isAccessGranted = false; // Set from EntitlementsService, not profiles.is_premium
   final List<RealtimeChannel> _messageChannels = []; // For optimized message listeners
   StreamSubscription<Map<String, dynamic>?>? _profileSub;
-  Timer? _bottlePollingTimer;
+  RealtimeChannel? _bottlesRealtimeChannel;
+  Timer? _bottlesFallbackTimer; // Safety net if Realtime is unavailable
 
   @override
   void initState() {
@@ -78,7 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _supabase.removeChannel(channel);
     }
     _profileSub?.cancel();
-    _bottlePollingTimer?.cancel();
+    if (_bottlesRealtimeChannel != null) {
+      _supabase.removeChannel(_bottlesRealtimeChannel!);
+    }
+    _bottlesFallbackTimer?.cancel();
     GlobalAudioController.instance.stopAmbient();
     super.dispose();
   }
@@ -297,15 +301,39 @@ class _HomeScreenState extends State<HomeScreen> {
   int _lastNotifiedUnrepliedCount = -1;
 
   Future<void> _subscribeNewBottles() async {
-    // Isolated local polling mechanism to completely bypass Realtime/RLS errors
-    _bottlePollingTimer?.cancel();
-    
-    // Initial tracking
+    // Initial load
     _checkNewBottles();
-    
-    // Poll securely every 6 seconds
-    _bottlePollingTimer = Timer.periodic(const Duration(seconds: 6), (_) {
-      _checkNewBottles();
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    // PRIMARY: Realtime subscription — fires only when data changes.
+    // Eliminates ~14,400 unnecessary DB queries per user per day vs 6s polling.
+    if (_bottlesRealtimeChannel != null) {
+      _supabase.removeChannel(_bottlesRealtimeChannel!);
+    }
+    _bottlesRealtimeChannel = _supabase
+        .channel('received_bottles_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'received_bottles',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiver_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            if (mounted) _checkNewBottles();
+          },
+        )
+        .subscribe();
+
+    // FALLBACK: 30-second poll as safety net if Realtime is disabled for this table.
+    // 30s = 2,880 calls/day vs original 14,400 calls/day at 6s (5x improvement even as fallback).
+    _bottlesFallbackTimer?.cancel();
+    _bottlesFallbackTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _checkNewBottles();
     });
   }
 

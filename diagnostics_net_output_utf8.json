@@ -1,0 +1,224 @@
+﻿[
+  {
+    "info": {
+      "net_tables": [
+        "http_request_queue",
+        "_http_response"
+      ],
+      "all_triggers": [
+        {
+          "trigger_name": "tr_check_filters",
+          "action_timing": "BEFORE",
+          "trigger_schema": "realtime",
+          "action_statement": "EXECUTE FUNCTION realtime.subscription_check_filters()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "subscription",
+          "event_object_schema": "realtime"
+        },
+        {
+          "trigger_name": "tr_check_filters",
+          "action_timing": "BEFORE",
+          "trigger_schema": "realtime",
+          "action_statement": "EXECUTE FUNCTION realtime.subscription_check_filters()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "subscription",
+          "event_object_schema": "realtime"
+        },
+        {
+          "trigger_name": "update_objects_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "storage",
+          "action_statement": "EXECUTE FUNCTION storage.update_updated_at_column()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "objects",
+          "event_object_schema": "storage"
+        },
+        {
+          "trigger_name": "enforce_bucket_name_length_trigger",
+          "action_timing": "BEFORE",
+          "trigger_schema": "storage",
+          "action_statement": "EXECUTE FUNCTION storage.enforce_bucket_name_length()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "buckets",
+          "event_object_schema": "storage"
+        },
+        {
+          "trigger_name": "enforce_bucket_name_length_trigger",
+          "action_timing": "BEFORE",
+          "trigger_schema": "storage",
+          "action_statement": "EXECUTE FUNCTION storage.enforce_bucket_name_length()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "buckets",
+          "event_object_schema": "storage"
+        },
+        {
+          "trigger_name": "on_auth_user_created",
+          "action_timing": "AFTER",
+          "trigger_schema": "auth",
+          "action_statement": "EXECUTE FUNCTION handle_new_user()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "users",
+          "event_object_schema": "auth"
+        },
+        {
+          "trigger_name": "trigger_update_last_active",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_last_active()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "profiles",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trigger_auto_deliver_bottles",
+          "action_timing": "AFTER",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION auto_deliver_bottles()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "bottle_delivery_queue",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trigger_auto_deliver_bottles",
+          "action_timing": "AFTER",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION auto_deliver_bottles()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "bottle_delivery_queue",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trigger_user_active_match_bottles",
+          "action_timing": "AFTER",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION on_user_active_match_bottles()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "profiles",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trg_enforce_photo_limit",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION fn_enforce_photo_limit()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "profile_photos",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "update_properties_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "properties",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "update_inspections_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "inspections",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "update_inspection_rooms_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "inspection_rooms",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "update_defects_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "defects",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "protect_buckets_delete",
+          "action_timing": "BEFORE",
+          "trigger_schema": "storage",
+          "action_statement": "EXECUTE FUNCTION storage.protect_delete()",
+          "action_orientation": "STATEMENT",
+          "event_manipulation": "DELETE",
+          "event_object_table": "buckets",
+          "event_object_schema": "storage"
+        },
+        {
+          "trigger_name": "protect_objects_delete",
+          "action_timing": "BEFORE",
+          "trigger_schema": "storage",
+          "action_statement": "EXECUTE FUNCTION storage.protect_delete()",
+          "action_orientation": "STATEMENT",
+          "event_manipulation": "DELETE",
+          "event_object_table": "objects",
+          "event_object_schema": "storage"
+        },
+        {
+          "trigger_name": "secret_souls_updated_at",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION update_secret_souls_updated_at()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "secret_souls_content",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trg_enforce_face_photo_limit",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION enforce_face_photo_limit()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "profile_photos",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trg_enforce_face_photo_limit",
+          "action_timing": "BEFORE",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION enforce_face_photo_limit()",
+          "action_orientation": "ROW",
+          "event_manipulation": "UPDATE",
+          "event_object_table": "profile_photos",
+          "event_object_schema": "public"
+        },
+        {
+          "trigger_name": "trg_update_conversation_on_message",
+          "action_timing": "AFTER",
+          "trigger_schema": "public",
+          "action_statement": "EXECUTE FUNCTION fn_update_conversation_on_message()",
+          "action_orientation": "ROW",
+          "event_manipulation": "INSERT",
+          "event_object_table": "messages",
+          "event_object_schema": "public"
+        }
+      ],
+      "net_requests": []
+    },
+    "created_at": "2026-06-07T20:16:17.281772+00:00"
+  }
+]

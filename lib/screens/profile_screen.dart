@@ -62,15 +62,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    // 🔄 DAILY SCROLL REFRESH BUG FIX:
-    // We MUST await the initial profile fetch (which triggers the daily refresh)
-    // BEFORE starting the stream subscription. This ensures the first event 
-    // received by the listener already has the corrected counts.
-    final initialProfile = await _databaseService.getProfile(userId, useCache: false);
+    // ⚡ INSTANT: Show cached profile data immediately (0ms) — no spinner
+    final cachedProfile = DatabaseService.getProfileSync(userId);
+    if (cachedProfile != null) {
+      final cachedAccess = EntitlementsService.isPremiumOrWomanSync(userId);
+      _updateLocalState(cachedProfile, accessGranted: cachedAccess);
+    }
 
-    // Load authoritative premium status from EntitlementsService (not profiles.is_premium)
+    // Background: fetch fresh data from DB (silent refresh)
+    final initialProfile = await _databaseService.getProfile(userId, useCache: false);
     final accessGranted = await EntitlementsService().isPremiumOrWoman(userId);
-    
+
     if (initialProfile != null && mounted) {
       _updateLocalState(initialProfile, accessGranted: accessGranted);
     }
@@ -78,7 +80,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _profileSub?.cancel();
     _profileSub = _databaseService.profileStream(userId).listen((profile) {
       if (profile != null && mounted) {
-        // Re-check entitlements on each profile update to stay fresh
         EntitlementsService().isPremiumOrWoman(userId).then((access) {
           if (mounted) _updateLocalState(profile, accessGranted: access);
         });

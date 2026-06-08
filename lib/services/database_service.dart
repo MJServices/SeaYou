@@ -154,35 +154,37 @@ class DatabaseService {
       debugPrint('Birth Year: $birthYear');
       debugPrint('City: $city');
 
-      final response = await _supabase.from('profiles').upsert({
-        'id': userId,
-        'email': email,
-        'full_name': fullName,
-        'age': age,
-        'birth_year': birthYear,
-        'city': city,
-        'about': about,
-        'sexual_orientation': sexualOrientation,
-        'show_orientation': showOrientation,
-        'expectation': expectation,
-        'interested_in': interestedIn,
-        'interests': interests,
-        'avatar_url': avatarUrl,
-        'language': language,
-        'secret_desire': secretDesire,
-        'secret_quote': secretQuote,
-        'secret_audio_url': secretAudioUrl,
-        'gender': gender,
-        'department': department,
-        'tier': tier,
-        'is_premium': isPremium,
-        'is_blocked': false,
-        'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'id');
+      // Use safe_upsert_profile RPC (SECURITY DEFINER) which:
+      // 1. Deletes any ghost profile rows with the same email but different ID
+      //    (happens when a user re-registers with the same email address)
+      // 2. Upserts the real profile safely
+      // This fixes: "duplicate key value violates unique constraint profiles_email_key"
+      await _supabase.rpc('safe_upsert_profile', params: {
+        'p_id': userId,
+        'p_email': email,
+        'p_full_name': fullName,
+        'p_age': age,
+        'p_birth_year': birthYear,
+        'p_city': city,
+        'p_about': about,
+        'p_sexual_orientation': sexualOrientation,
+        'p_show_orientation': showOrientation,
+        'p_expectation': expectation,
+        'p_interested_in': interestedIn,
+        'p_interests': interests,
+        'p_avatar_url': avatarUrl,
+        'p_language': language,
+        'p_secret_desire': secretDesire,
+        'p_secret_quote': secretQuote,
+        'p_secret_audio_url': secretAudioUrl,
+        'p_gender': gender,
+        'p_department': department,
+        'p_tier': tier ?? 'free',
+        'p_is_premium': isPremium ?? false,
+      });
 
-      // 🔴 CRITICAL FIX FOR ONBOARDING BUG:
-      // Instantly push this created profile into the SWR cache so the next screen 
-      // can read it instantly without suffering PostgreSQL replication lag
+      // Push created profile into the SWR cache so the next screen
+      // can read it instantly without PostgreSQL replication lag.
       _profileCache[userId] = {
         'id': userId,
         'email': email,
@@ -208,8 +210,7 @@ class DatabaseService {
         'is_blocked': false,
       };
 
-      debugPrint('✅ Profile upsert response: $response');
-
+      debugPrint('✅ Profile upserted via safe_upsert_profile RPC.');
       debugPrint('Profile created successfully! Sent to cache.');
     } catch (e) {
       debugPrint('Error creating profile: $e');
@@ -1895,6 +1896,9 @@ class DatabaseService {
     _cachedReceivedBottles = null;
     _cachedSentBottles = null;
     _cachedConversations = null;
+    _unreadTimer?.cancel();
+    _unreadTimer = null;
+    _lastUnreadCount = 0;
   }
 
   // Synchronous getters and setters for SWR UI pattern
@@ -2919,17 +2923,37 @@ class DatabaseService {
     }
   }
 
-  Stream<int>? _cachedUnreadCountStream;
+  static final StreamController<int> _unreadCountController = StreamController<int>.broadcast();
+  static int _lastUnreadCount = 0;
+  static Timer? _unreadTimer;
 
-  Stream<int> get unreadCountStream {
-    _cachedUnreadCountStream ??= _createUnreadCountStream().asBroadcastStream();
-    return _cachedUnreadCountStream!;
+  Stream<int> get unreadCountStream async* {
+    _startUnreadCountPolling();
+    yield _lastUnreadCount;
+    yield* _unreadCountController.stream;
   }
 
-  Stream<int> _createUnreadCountStream() async* {
-    while (true) {
-      yield await getUnreadMessageCount();
-      await Future.delayed(const Duration(seconds: 3)); // Poll every 3s
+  static void _startUnreadCountPolling() {
+    if (_unreadTimer != null) return;
+    
+    // Initial fetch in background
+    _refreshUnreadCount();
+    
+    // Poll every 15 seconds (reduced frequency from 3s)
+    _unreadTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _refreshUnreadCount();
+    });
+  }
+
+  static Future<void> _refreshUnreadCount() async {
+    try {
+      final count = await DatabaseService().getUnreadMessageCount();
+      if (count != _lastUnreadCount) {
+        _lastUnreadCount = count;
+        _unreadCountController.add(count);
+      }
+    } catch (e) {
+      debugPrint('Error refreshing unread count: $e');
     }
   }
 
@@ -3509,8 +3533,8 @@ class DatabaseService {
         'url': publicUrl,
       };
     } catch (e) {
-      debugPrint('ERROR in uploadFirstFacePhotoAndInsert: $e');
-      return null;
+      debugPrint('❌ ERROR in uploadFirstFacePhotoAndInsert: $e');
+      rethrow; // Surface the real error to the caller (upload_picture_screen) for logging and display
     }
   }
 

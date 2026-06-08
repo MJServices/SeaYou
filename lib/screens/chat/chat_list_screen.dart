@@ -39,10 +39,45 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadConversations();
-    _loadUserProfile();
+
+    // ⚡ INSTANT: Show whatever is already in the in-memory cache RIGHT NOW (0ms)
+    final cached = DatabaseService.getConversationsSync();
+    if (cached.isNotEmpty) {
+      _conversations = cached;
+      _isLoading = false;
+      // Also populate partner profiles from profile cache
+      for (final conv in cached) {
+        if (_currentUserId != null) {
+          final otherId = conv.getOtherUserId(_currentUserId);
+          final p = DatabaseService.getProfileSync(otherId);
+          if (p != null) _partnerProfiles[otherId] = p;
+        }
+      }
+    }
+
+    // Load current user from cache instantly
+    if (_currentUserId != null) {
+      final myProfile = DatabaseService.getProfileSync(_currentUserId);
+      if (myProfile != null) {
+        _avatarUrl = myProfile['avatar_url'] as String?;
+        _userGender = myProfile['gender'] as String?;
+        final cached = EntitlementsService.isPremiumOrWomanSync(_currentUserId);
+        if (cached != null) {
+          _isPremium = cached;
+          _isAccessGranted = cached;
+        }
+      }
+    }
+
+    // Silently refresh everything in background
+    _refreshInBackground();
     _subscribeProfile();
-    _loadArchivedCount();
+  }
+
+  /// Silent background refresh — updates UI without any loading spinner
+  Future<void> _refreshInBackground() async {
+    await _loadUserProfile();
+    await _loadConversations();
   }
 
   Future<void> _loadUserProfile() async {
@@ -54,10 +89,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
         setState(() {
           _avatarUrl = profile['avatar_url'];
           _userGender = profile['gender'] as String?;
-          // EntitlementsService is the single source of truth — avoids stale profiles.tier
           _isPremium = access;
           _isAccessGranted = access;
-          debugPrint('👤 ChatList: Gender=$_userGender, Premium=$_isPremium, AccessGranted=$_isAccessGranted');
         });
       }
     } catch (e) {
@@ -66,45 +99,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _loadConversations() async {
-    if (_currentUserId == null) {
-      debugPrint('❌ Cannot load conversations: user not logged in');
-      return;
-    }
-
-    if (mounted && _conversations.isEmpty) {
-      setState(() => _isLoading = true);
-    }
-
-    debugPrint('🔄 Loading conversations for user: $_currentUserId');
-
+    if (_currentUserId == null) return;
     try {
-      final List<Conversation> convs = await _db.getUserConversations(_currentUserId, forceRefresh: true);
+      // Fetch fresh data
+      final List<Conversation> convs =
+          await _db.getUserConversations(_currentUserId, forceRefresh: true);
       final List<String> blockedByMe = await _db.getBlockedUserIds(_currentUserId);
       final List<String> blockingMe = await _db.getBlockers(_currentUserId);
       final Set<String> allBlocked = {...blockedByMe, ...blockingMe};
 
-      debugPrint('✅ Loaded ${convs.length} conversations. Blocked: ${allBlocked.length}');
-
-      // 2. Filter out conversations with blocked users
       final List<Conversation> filteredConvs = convs.where((conv) {
         final partnerId = conv.getOtherUserId(_currentUserId);
         return !allBlocked.contains(partnerId);
       }).toList();
 
-      // 3. Batch fetch profiles for all filtered conversations
       final partnerIds = filteredConvs
           .map((c) => c.getOtherUserId(_currentUserId))
           .toSet()
           .toList();
 
       if (partnerIds.isNotEmpty) {
-        debugPrint('🔍 Batch fetching ${partnerIds.length} partner profiles...');
         final profiles = await _db.getProfiles(partnerIds);
-        if (mounted) {
-          setState(() {
-            _partnerProfiles = profiles;
-          });
-        }
+        if (mounted) setState(() => _partnerProfiles = profiles);
       }
 
       if (mounted) {
@@ -112,7 +128,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           _conversations = filteredConvs;
           _isLoading = false;
         });
-        _loadArchivedCount();
       }
     } catch (e) {
       debugPrint('❌ Error loading conversations: $e');
@@ -120,16 +135,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  Future<void> _loadArchivedCount() async {
-    if (_currentUserId == null) return;
-    // Count conversations where is_archived = true
-    // For now, set to 0 since we need to check if archived field exists
-    // This will be updated when database has archived conversations
-    setState(() {
-      _archivedCount =
-          0; // TODO: Fetch from database when archived feature is implemented
-    });
-  }
 
   List<Conversation> get _filteredConversations {
     var conversations = _conversations;
@@ -537,7 +542,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
               partnerId: otherUserId, // Passing partnerId to assist initialization
             ),
           ),
-        ).then((_) => _loadConversations());
+        ).then((_) {
+          // ⚡ On return: silent background refresh — no blocking spinner
+          _refreshInBackground();
+        });
       },
       behavior: HitTestBehavior.opaque,
       child: Container(

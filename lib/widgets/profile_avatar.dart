@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfileAvatar extends StatelessWidget {
   final String? imageUrl;
@@ -42,35 +43,26 @@ class ProfileAvatar extends StatelessWidget {
 
   Widget _buildInnerContent() {
     if (isLoading) {
-      return _buildSkeleton();
+      return _buildPlaceholder();
     }
 
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return Image.network(
-        imageUrl!,
-        key: ValueKey(imageUrl), // Force rebuild if URL changes
+      return CachedNetworkImage(
+        imageUrl: imageUrl!,
+        key: ValueKey(imageUrl),
         fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildSkeleton();
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPlaceholder();
-        },
+        // Show placeholder icon instantly — no spinner
+        placeholder: (context, url) => _buildPlaceholder(),
+        errorWidget: (context, url, error) => _buildPlaceholder(),
+        fadeInDuration: const Duration(milliseconds: 150),
+        maxHeightDiskCache: 600,
+        maxWidthDiskCache: 600,
       );
     }
 
     return _buildPlaceholder();
   }
 
-  Widget _buildSkeleton() {
-    return const Center(
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0AC5C5)),
-      ),
-    );
-  }
 
   Widget _buildPlaceholder() {
     return Center(

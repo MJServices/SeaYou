@@ -138,6 +138,31 @@ serve(async (req: Request) => {
       isNewUser = false;
     }
 
+    // Ensure profile row exists in public.profiles (to show up on dashboard and allow login precheck)
+    if (user) {
+      try {
+        console.log(`👤 Ensuring profile row exists for: ${user.id} (${email})`);
+        const { error: profileInsertError } = await supabase
+          .from("profiles")
+          .insert({ id: user.id, email: email, is_active: true, receive_bottles: true });
+        
+        if (profileInsertError) {
+          // If code is 23505 (Unique violation) or contains "already exists", it's fine as they already have a profile
+          if (profileInsertError.code === "23505" || 
+              profileInsertError.message?.toLowerCase().includes("already exists") ||
+              profileInsertError.message?.toLowerCase().includes("duplicate")) {
+            console.log(`👤 Profile row already exists for user: ${user.id}`);
+          } else {
+            console.error("⚠️ Profile Insert Error:", profileInsertError);
+          }
+        } else {
+          console.log(`✅ Profile row created successfully for user: ${user.id}`);
+        }
+      } catch (e) {
+        console.error("⚠️ Exception inserting profile stub:", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         message: "Verified successfully",

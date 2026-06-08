@@ -248,8 +248,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
           showInSecretSouls: _showInSecretSouls,
         );
 
-        if (res == null) throw Exception('Failed to upload main photo');
-        widget.userProfile.avatarUrl = res['url'];
+        widget.userProfile.avatarUrl = res!['url'];
 
         for (var i = 0; i < _galleryPhotos.length; i++) {
           debugPrint('📸 Uploading gallery photo ${i + 1}');
@@ -284,8 +283,9 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
         NotificationService().show(
           context: context,
           title: AppLocalizations.of(context).tr('notification.error'),
-          message:
-              AppLocalizations.of(context).tr('notification.upload_failed'),
+          message: e.toString().length > 100
+              ? '${e.toString().substring(0, 100)}...'
+              : e.toString(),
           gradientColors: [Colors.red, Colors.redAccent],
         );
       }
